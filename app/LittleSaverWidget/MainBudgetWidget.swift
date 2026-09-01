@@ -128,15 +128,19 @@ struct MainBudgetWidgetEntryView: View {
     }
 
     var percentString: String {
-        return String(localized: "\(Int(round((entry.totalSpent / entry.budgetAmount) * 100)))% spent")
+        return String(localized: "\(BudgetMath.roundedPercentage(spent: entry.totalSpent, budgetAmount: entry.budgetAmount))% spent")
     }
 
     var percentString1: String {
-        return "\(Int(round((entry.totalSpent / entry.budgetAmount) * 100)))%"
+        return "\(BudgetMath.roundedPercentage(spent: entry.totalSpent, budgetAmount: entry.budgetAmount))%"
     }
 
     var percent: Double {
-        return entry.totalSpent / entry.budgetAmount
+        return BudgetMath.spendingRatio(spent: entry.totalSpent, budgetAmount: entry.budgetAmount)
+    }
+
+    var gaugePercent: Double {
+        return BudgetMath.gaugeRatio(spent: entry.totalSpent, budgetAmount: entry.budgetAmount)
     }
 
     var systemSmallWidgetText: String {
@@ -179,10 +183,10 @@ struct MainBudgetWidgetEntryView: View {
                     }
                     .containerBackground(for: .widget) { AccessoryWidgetBackground() }
                 } else {
-                    Gauge(value: percent < 1 ? percent : 1) {
+                    Gauge(value: gaugePercent) {
                         Image(systemName: "dollarsign.circle.fill")
                     } currentValueLabel: {
-                        Text("\(Int(round(percent * 100)))%")
+                        Text("\(BudgetMath.roundedPercentage(spent: entry.totalSpent, budgetAmount: entry.budgetAmount))%")
                     }
                     .gaugeStyle(AccessoryCircularGaugeStyle())
                     .containerBackground(for: .widget) { Color.clear }
@@ -203,10 +207,10 @@ struct MainBudgetWidgetEntryView: View {
                     }
                 } else {
                     if #available(iOS 16.0, *) {
-                        Gauge(value: percent < 1 ? percent : 1) {
+                        Gauge(value: gaugePercent) {
                             Image(systemName: "dollarsign.circle.fill")
                         } currentValueLabel: {
-                            Text("\(Int(round(percent * 100)))%")
+                            Text("\(BudgetMath.roundedPercentage(spent: entry.totalSpent, budgetAmount: entry.budgetAmount))%")
                         }
                         .gaugeStyle(AccessoryCircularGaugeStyle())
 
@@ -240,7 +244,7 @@ struct MainBudgetWidgetEntryView: View {
                                 .font(.system(size: 14, weight: .regular, design: .rounded))
                                 .foregroundColor(Color.SubtitleText)
 
-                            Gauge(value: percent, in: 0 ... 1) {
+                            Gauge(value: gaugePercent, in: 0 ... 1) {
                                 Text("Percent Spent")
                             } currentValueLabel: {
                                 EmptyView()
@@ -282,7 +286,7 @@ struct MainBudgetWidgetEntryView: View {
                                 .foregroundColor(Color.SubtitleText)
 
                             if #available(iOS 16.0, *) {
-                                Gauge(value: percent, in: 0 ... 1) {
+                                Gauge(value: gaugePercent, in: 0 ... 1) {
                                     Text("Percent Spent")
                                 } currentValueLabel: {
                                     EmptyView()
@@ -343,8 +347,8 @@ struct MainBudgetWidgetEntryView: View {
                                             .fill(Color.SecondaryBackground)
                                             .frame(width: proxy.size.width, height: proxy.size.width / 2)
 
-                                        if entry.totalSpent / entry.budgetAmount < 0.97 {
-                                            DonutSemicircle(percent: 1 - (entry.totalSpent / entry.budgetAmount), cornerRadius: 4, width: 15)
+                                        if percent < 0.97 {
+                                            DonutSemicircle(percent: 1 - percent, cornerRadius: 4, width: 15)
                                                 .fill(Color.DarkBackground)
                                                 .frame(width: proxy.size.width, height: proxy.size.width / 2)
                                         }
@@ -376,10 +380,10 @@ struct MainBudgetWidgetEntryView: View {
 
                                 HStack {
                                     if entry.totalSpent > 999.99 || entry.budgetAmount > 999.99 {
-                                        Text("\(Int(round(entry.totalSpent)))")
+                                        Text("\(BudgetMath.roundedAmount(entry.totalSpent))")
                                             .frame(width: 50, alignment: .leading)
                                         Spacer()
-                                        Text("\(Int(round(entry.budgetAmount)))")
+                                        Text("\(BudgetMath.roundedAmount(entry.budgetAmount))")
                                             .frame(width: 50, alignment: .trailing)
                                     } else {
                                         Text("\(entry.totalSpent, specifier: "%.2f")")
@@ -438,8 +442,8 @@ struct MainBudgetWidgetEntryView: View {
                                             .fill(Color.SecondaryBackground)
                                             .frame(width: proxy.size.width, height: proxy.size.width / 2)
 
-                                        if entry.totalSpent / entry.budgetAmount < 0.97 {
-                                            DonutSemicircle(percent: 1 - (entry.totalSpent / entry.budgetAmount), cornerRadius: 4, width: 15)
+                                        if percent < 0.97 {
+                                            DonutSemicircle(percent: 1 - percent, cornerRadius: 4, width: 15)
                                                 .fill(Color.DarkBackground)
                                                 .frame(width: proxy.size.width, height: proxy.size.width / 2)
                                         }
@@ -471,10 +475,10 @@ struct MainBudgetWidgetEntryView: View {
 
                                 HStack {
                                     if entry.totalSpent > 999.99 || entry.budgetAmount > 999.99 {
-                                        Text("\(Int(round(entry.totalSpent)))")
+                                        Text("\(BudgetMath.roundedAmount(entry.totalSpent))")
                                             .frame(width: 50, alignment: .leading)
                                         Spacer()
-                                        Text("\(Int(round(entry.budgetAmount)))")
+                                        Text("\(BudgetMath.roundedAmount(entry.budgetAmount))")
                                             .frame(width: 50, alignment: .trailing)
                                     } else {
                                         Text("\(entry.totalSpent, specifier: "%.2f")")

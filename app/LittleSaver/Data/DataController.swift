@@ -28,11 +28,113 @@ enum CustomError: Swift.Error, CustomLocalizedStringResourceConvertible {
 }
 
 class DataController: ObservableObject {
-    static let shared = DataController()
+    private static let managedObjectModel: NSManagedObjectModel? = {
+        guard let modelURL = Bundle.main.url(
+            forResource: AppIdentifiers.persistentModel,
+            withExtension: "momd"
+        ) ?? Bundle(for: DataController.self).url(
+            forResource: AppIdentifiers.persistentModel,
+            withExtension: "momd"
+        ) else {
+            return nil
+        }
+        return NSManagedObjectModel(contentsOf: modelURL)
+    }()
 
-    var container = NSPersistentCloudKitContainer(name: "MainModel")
+    enum PersistentStoreState: Equatable {
+        case loading
+        case loaded
+        case failed(String)
+    }
 
-    init() {
+    enum PersistentStoreAccessError: LocalizedError {
+        case loading
+        case failed(String)
+
+        var errorDescription: String? {
+            switch self {
+            case .loading:
+                return "The persistent store is still loading."
+            case let .failed(message):
+                return "The persistent store is unavailable: \(message)"
+            }
+        }
+    }
+
+    struct Configuration {
+        let mode: PersistentStoreMode
+        let modelName: String
+        let storeURL: URL?
+        let reloadWidgetsAfterSave: Bool
+
+        static func currentProcess(
+            bundleIdentifier: String? = Bundle.main.bundleIdentifier,
+            fileManager: FileManager = .default
+        ) throws -> Configuration {
+            let role = try AppRuntimeRole(bundleIdentifier: bundleIdentifier)
+            guard let mode = role.persistentStoreMode else {
+                throw AppConfigurationError.unknownBundleIdentifier(bundleIdentifier)
+            }
+            guard let groupURL = fileManager.containerURL(
+                forSecurityApplicationGroupIdentifier: AppIdentifiers.appGroup
+            ) else {
+                throw AppConfigurationError.unavailableAppGroup(AppIdentifiers.appGroup)
+            }
+            return Configuration(
+                mode: mode,
+                modelName: AppIdentifiers.persistentModel,
+                storeURL: groupURL.appendingPathComponent(AppIdentifiers.persistentStore),
+                reloadWidgetsAfterSave: true
+            )
+        }
+
+        static var inMemory: Configuration {
+            Configuration(
+                mode: .inMemory,
+                modelName: AppIdentifiers.persistentModel,
+                storeURL: nil,
+                reloadWidgetsAfterSave: false
+            )
+        }
+    }
+
+    static let shared: DataController = {
+        do {
+            if ProcessInfo.processInfo.isRunningUnitTests {
+                return try DataController(configuration: .inMemory)
+            }
+            return try DataController(configuration: .currentProcess())
+        } catch {
+            return DataController(configurationError: error)
+        }
+    }()
+
+    let container: NSPersistentCloudKitContainer
+    let configuration: Configuration?
+    @Published private(set) var persistentStoreState: PersistentStoreState = .loading
+
+    private init(configurationError error: Error) {
+        configuration = nil
+        container = NSPersistentCloudKitContainer(
+            name: AppIdentifiers.persistentModel,
+            managedObjectModel: NSManagedObjectModel()
+        )
+        persistentStoreState = .failed(error.localizedDescription)
+    }
+
+    init(configuration: Configuration) throws {
+        self.configuration = configuration
+
+        guard configuration.modelName == AppIdentifiers.persistentModel,
+              let model = Self.managedObjectModel else {
+            throw AppConfigurationError.unavailableManagedObjectModel(configuration.modelName)
+        }
+
+        container = NSPersistentCloudKitContainer(
+            name: configuration.modelName,
+            managedObjectModel: model
+        )
+
         let description = NSPersistentStoreDescription()
 
         description.shouldMigrateStoreAutomatically = true
@@ -52,23 +154,34 @@ class DataController: ObservableObject {
 //            description.cloudKitContainerOptions = NSPersistentCloudKitContainerOptions(containerIdentifier: AppIdentifiers.cloudKitContainer)
 //        }
 
-        description.cloudKitContainerOptions = NSPersistentCloudKitContainerOptions(containerIdentifier: AppIdentifiers.cloudKitContainer)
-
-        let groupID = AppIdentifiers.appGroup
-
-        if let url = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: groupID) {
-            description.url = url.appendingPathComponent("Main.sqlite")
+        switch configuration.mode {
+        case .cloudSync:
+            description.cloudKitContainerOptions = NSPersistentCloudKitContainerOptions(
+                containerIdentifier: AppIdentifiers.cloudKitContainer
+            )
+            description.url = configuration.storeURL
+        case .sharedLocal:
+            description.cloudKitContainerOptions = nil
+            description.url = configuration.storeURL
+        case .inMemory:
+            description.type = NSInMemoryStoreType
+            description.cloudKitContainerOptions = nil
         }
 
         container.persistentStoreDescriptions = [description]
 
-        container.loadPersistentStores { description, error in
+        container.loadPersistentStores { _, error in
 
-            if let error = error as NSError? {
-                fatalError("Unresolved error \(error), \(error.userInfo) for \(description)")
+            if let error {
+                self.publishPersistentStoreState(.failed(error.localizedDescription))
+                return
             }
 
-            self.container.viewContext.automaticallyMergesChangesFromParent = true
+            self.container.viewContext.performAndWait {
+                self.container.viewContext.automaticallyMergesChangesFromParent = true
+                self.container.viewContext.mergePolicy = NSMergeByPropertyObjectTrumpMergePolicy
+            }
+            self.publishPersistentStoreState(.loaded)
         }
 
 //        #if DEBUG
@@ -86,6 +199,16 @@ class DataController: ObservableObject {
 ////        }
     }
 
+    private func publishPersistentStoreState(_ state: PersistentStoreState) {
+        if Thread.isMainThread {
+            persistentStoreState = state
+        } else {
+            DispatchQueue.main.async { [weak self] in
+                self?.persistentStoreState = state
+            }
+        }
+    }
+
     // internal variables
 
     var tipCounter: Int {
@@ -100,17 +223,18 @@ class DataController: ObservableObject {
 
     var addedTransaction: Bool {
         get {
-            UserDefaults(suiteName: AppIdentifiers.appGroup)!.bool(forKey: "newTransactionAdded")
+            UserDefaults(suiteName: AppIdentifiers.appGroup)?.bool(forKey: "newTransactionAdded") ?? false
         }
 
         set {
-            UserDefaults(suiteName: AppIdentifiers.appGroup)!.set(newValue, forKey: "newTransactionAdded")
+            UserDefaults(suiteName: AppIdentifiers.appGroup)?.set(newValue, forKey: "newTransactionAdded")
         }
     }
 
     // adding or deleting
 
     func deleteAll() {
+        guard persistentStoreState == .loaded else { return }
         let fetchRequest1: NSFetchRequest<NSFetchRequestResult> = Transaction.fetchRequest()
         let batchDeleteRequest1 = NSBatchDeleteRequest(fetchRequest: fetchRequest1)
         _ = try? container.viewContext.executeAndMergeChanges(using: batchDeleteRequest1)
@@ -129,9 +253,12 @@ class DataController: ObservableObject {
     }
 
     func save() {
+        guard persistentStoreState == .loaded else { return }
         if container.viewContext.hasChanges {
             try? container.viewContext.save()
-            WidgetCenter.shared.reloadAllTimelines()
+            if configuration?.reloadWidgetsAfterSave == true {
+                WidgetCenter.shared.reloadAllTimelines()
+            }
         }
     }
 
@@ -157,24 +284,24 @@ class DataController: ObservableObject {
 
                 newTransaction.onceRecurring = true
 
-                var newDate: Date?
-
-                if transaction.recurringType == 1 {
-                    newDate = Calendar.current.date(byAdding: .day, value: Int(transaction.recurringCoefficient), to: holdingDate)!
-                } else if transaction.recurringType == 2 {
-                    newDate = Calendar.current.date(byAdding: .day, value: Int(transaction.recurringCoefficient * 7), to: holdingDate)!
-                } else if transaction.recurringType == 3 {
-                    newDate = Calendar.current.date(byAdding: .month, value: Int(transaction.recurringCoefficient), to: holdingDate)!
+                guard let newDate = try? RecurringSchedule.nextDate(
+                    after: holdingDate,
+                    type: transaction.recurringType,
+                    coefficient: transaction.recurringCoefficient,
+                    calendar: .current
+                ) else {
+                    transaction.recurringType = 0
+                    break
                 }
 
-                if newDate! > Calendar.current.startOfDay(for: Date.now) {
+                if newDate > Calendar.current.startOfDay(for: Date.now) {
                     newTransaction.recurringType = transaction.recurringType
                     newTransaction.recurringCoefficient = transaction.recurringCoefficient
                 } else {
                     newTransaction.recurringType = 0
                 }
 
-                holdingDate = newDate!
+                holdingDate = newDate
             }
 
             transaction.recurringType = 0
@@ -324,7 +451,7 @@ class DataController: ObservableObject {
 
         var calendar = Calendar(identifier: .gregorian)
 
-        calendar.firstWeekday = UserDefaults(suiteName: AppIdentifiers.appGroup)!.integer(forKey: "firstWeekday")
+        calendar.firstWeekday = UserDefaults(suiteName: AppIdentifiers.appGroup)?.integer(forKey: "firstWeekday") ?? 1
         calendar.minimumDaysInFirstWeek = 4
 
         switch type {
@@ -642,15 +769,25 @@ class DataController: ObservableObject {
         return itemRequest
     }
 
-    func fetchRequestForLogView(type: Int, optionalIncome: Bool?, categoryFilters: [Category] = []) -> NSFetchRequest<Transaction> {
+    func fetchRequestForLogView(
+        type: Int,
+        optionalIncome: Bool?,
+        categoryFilters: [Category] = [],
+        now: Date = .now,
+        calendar injectedCalendar: Calendar? = nil,
+        firstDayOfMonth injectedFirstDayOfMonth: Int? = nil
+    ) -> NSFetchRequest<Transaction> {
         let itemRequest: NSFetchRequest<Transaction> = Transaction.fetchRequest()
 
-        var calendar = Calendar(identifier: .gregorian)
+        var calendar = injectedCalendar ?? Calendar(identifier: .gregorian)
 
-        calendar.firstWeekday = UserDefaults(suiteName: AppIdentifiers.appGroup)!.integer(forKey: "firstWeekday")
+        let storedFirstWeekday = UserDefaults(suiteName: AppIdentifiers.appGroup)?.integer(forKey: "firstWeekday") ?? 0
+        if injectedCalendar == nil, storedFirstWeekday > 0 {
+            calendar.firstWeekday = storedFirstWeekday
+        }
         calendar.minimumDaysInFirstWeek = 4
 
-        let dateCapPredicate = NSPredicate(format: "%K <= %@", #keyPath(Transaction.date), Date.now as CVarArg)
+        let dateCapPredicate = NSPredicate(format: "%K <= %@", #keyPath(Transaction.date), now as CVarArg)
 
         // all time
         if type == 5 {
@@ -688,19 +825,20 @@ class DataController: ObservableObject {
             let startPredicate: NSPredicate
 
             if type == 1 {
-                let today = calendar.startOfDay(for: Date.now)
+                let today = calendar.startOfDay(for: now)
                 startPredicate = NSPredicate(format: "%K >= %@", #keyPath(Transaction.date), today as CVarArg)
             } else if type == 2 {
-                let dateComponents = calendar.dateComponents([.weekOfYear, .yearForWeekOfYear], from: Date.now)
+                let dateComponents = calendar.dateComponents([.weekOfYear, .yearForWeekOfYear], from: now)
                 let thisWeek = calendar.date(from: dateComponents)!
                 startPredicate = NSPredicate(format: "%K >= %@", #keyPath(Transaction.date), thisWeek as CVarArg)
             } else if type == 3 {
-                let startOfMonth = UserDefaults(suiteName: AppIdentifiers.appGroup)!.integer(forKey: "firstDayOfMonth")
-
-                let thisMonth = getStartOfMonth(startDay: startOfMonth)
+                let startOfMonth = injectedFirstDayOfMonth
+                    ?? UserDefaults(suiteName: AppIdentifiers.appGroup)?.integer(forKey: "firstDayOfMonth")
+                    ?? 1
+                let thisMonth = getStartOfMonth(startDay: startOfMonth, now: now, calendar: calendar)
                 startPredicate = NSPredicate(format: "%K >= %@", #keyPath(Transaction.date), thisMonth as CVarArg)
             } else {
-                let dateComponents = calendar.dateComponents([.year], from: Date.now)
+                let dateComponents = calendar.dateComponents([.year], from: now)
                 let thisYear = calendar.date(from: dateComponents)!
                 startPredicate = NSPredicate(format: "%K >= %@", #keyPath(Transaction.date), thisYear as CVarArg)
             }
@@ -1141,7 +1279,12 @@ class DataController: ObservableObject {
     func fetchRequestForMainBudgetTransactions(budget: MainBudget) -> NSFetchRequest<Transaction> {
         let itemRequest: NSFetchRequest<Transaction> = Transaction.fetchRequest()
 
-        let startPredicate = NSPredicate(format: "%K >= %@", #keyPath(Transaction.date), budget.startDate! as CVarArg)
+        guard let startDate = budget.startDate else {
+            itemRequest.predicate = NSPredicate(value: false)
+            return itemRequest
+        }
+
+        let startPredicate = NSPredicate(format: "%K >= %@", #keyPath(Transaction.date), startDate as CVarArg)
         let endPredicate = NSPredicate(format: "%K <= %@", #keyPath(Transaction.date), Date.now as CVarArg)
         let incomePredicate = NSPredicate(format: "income = %d", false)
 
@@ -1155,9 +1298,14 @@ class DataController: ObservableObject {
     func fetchRequestForBudgetTransactions(budget: Budget) -> NSFetchRequest<Transaction> {
         let itemRequest: NSFetchRequest<Transaction> = Transaction.fetchRequest()
 
-        let startPredicate = NSPredicate(format: "%K >= %@", #keyPath(Transaction.date), budget.startDate! as CVarArg)
+        guard let startDate = budget.startDate, let category = budget.category else {
+            itemRequest.predicate = NSPredicate(value: false)
+            return itemRequest
+        }
+
+        let startPredicate = NSPredicate(format: "%K >= %@", #keyPath(Transaction.date), startDate as CVarArg)
         let endPredicate = NSPredicate(format: "%K <= %@", #keyPath(Transaction.date), Date.now as CVarArg)
-        let categoryPredicate = NSPredicate(format: "%K == %@", #keyPath(Transaction.category), budget.category!)
+        let categoryPredicate = NSPredicate(format: "%K == %@", #keyPath(Transaction.category), category)
         let incomePredicate = NSPredicate(format: "income = %d", false)
 
         let andPredicate = NSCompoundPredicate(type: .and, subpredicates: [startPredicate, endPredicate, categoryPredicate, incomePredicate])
@@ -1199,7 +1347,7 @@ class DataController: ObservableObject {
             // calendar initialization
             var calendar = Calendar(identifier: .gregorian)
 
-            calendar.firstWeekday = UserDefaults(suiteName: AppIdentifiers.appGroup)!.integer(forKey: "firstWeekday")
+            calendar.firstWeekday = UserDefaults(suiteName: AppIdentifiers.appGroup)?.integer(forKey: "firstWeekday") ?? 1
             calendar.minimumDaysInFirstWeek = 4
 
             var dictionary = [Date: Double]()
@@ -1373,7 +1521,7 @@ class DataController: ObservableObject {
 
         var calendar = Calendar(identifier: .gregorian)
 
-        calendar.firstWeekday = UserDefaults(suiteName: AppIdentifiers.appGroup)!.integer(forKey: "firstWeekday")
+        calendar.firstWeekday = UserDefaults(suiteName: AppIdentifiers.appGroup)?.integer(forKey: "firstWeekday") ?? 1
         calendar.minimumDaysInFirstWeek = 4
 
         let startPredicate = NSPredicate(format: "%K >= %@", #keyPath(Transaction.date), date as CVarArg)
@@ -1504,7 +1652,7 @@ class DataController: ObservableObject {
 
         var calendar = Calendar(identifier: .gregorian)
 
-        calendar.firstWeekday = UserDefaults(suiteName: AppIdentifiers.appGroup)!.integer(forKey: "firstWeekday")
+        calendar.firstWeekday = UserDefaults(suiteName: AppIdentifiers.appGroup)?.integer(forKey: "firstWeekday") ?? 1
         calendar.minimumDaysInFirstWeek = 4
 
         let endPredicate = NSPredicate(format: "%K < %@", #keyPath(Transaction.date), Date.now as CVarArg)
@@ -1525,7 +1673,7 @@ class DataController: ObservableObject {
 
             startPredicate = NSPredicate(format: "%K >= %@", #keyPath(Transaction.date), startDate as CVarArg)
         case .month:
-            let startOfMonth = UserDefaults(suiteName: AppIdentifiers.appGroup)!.integer(forKey: "firstDayOfMonth")
+            let startOfMonth = UserDefaults(suiteName: AppIdentifiers.appGroup)?.integer(forKey: "firstDayOfMonth") ?? 1
 
             startDate = getStartOfMonth(startDay: startOfMonth)
 
@@ -1553,7 +1701,7 @@ class DataController: ObservableObject {
 
         var calendar = Calendar(identifier: .gregorian)
 
-        calendar.firstWeekday = UserDefaults(suiteName: AppIdentifiers.appGroup)!.integer(forKey: "firstWeekday")
+        calendar.firstWeekday = UserDefaults(suiteName: AppIdentifiers.appGroup)?.integer(forKey: "firstWeekday") ?? 1
         calendar.minimumDaysInFirstWeek = 4
 
         switch type {
@@ -1629,44 +1777,137 @@ class DataController: ObservableObject {
     }
 
     func fetchRequestForMainBudgetWidget() -> (found: Bool, totalSpent: Double, budgetAmount: Double, percentage: Double, type: Int, startDate: Date) {
-        let holding = results(for: fetchRequestForMainBudget())
-
-        if let budget = holding.first {
-            let itemRequest = fetchRequestForMainBudgetTransactions(budget: budget)
-//
-            let transactions = results(for: itemRequest)
-
-            var holdingTotal = 0.0
-            transactions.forEach { transaction in
-                holdingTotal += transaction.wrappedAmount
+        do {
+            return try performViewContextRead { context in
+                guard let budget = try context.fetch(fetchRequestForMainBudget()).first,
+                      let startDate = budget.startDate else {
+                    return (false, 0, 0, 0, 0, Date.now)
+                }
+                let transactions = try context.fetch(fetchRequestForMainBudgetTransactions(budget: budget))
+                let total = transactions.reduce(0) { $0 + $1.wrappedAmount }
+                guard total.isFinite, budget.amount.isFinite else {
+                    return (false, 0, 0, 0, 0, Date.now)
+                }
+                let percentage = BudgetWindow.progress(
+                    startDate: startDate,
+                    endDate: budget.endDate,
+                    now: .now,
+                    calendar: .current
+                )
+                return (true, total, budget.amount, percentage, Int(budget.type), startDate)
             }
-
-            let percentageOfDays: Double
-
-            let calendar = Calendar.current
-
-            if budget.type == 1 {
-                let components = calendar.dateComponents([.minute], from: budget.startDate!, to: Date.now)
-                percentageOfDays = Double(components.minute!) / 1440
-            } else {
-                let components1 = calendar.dateComponents([.day], from: budget.startDate!, to: budget.endDate)
-                let numberOfDays = components1.day!
-
-                let components2 = calendar.dateComponents([.day], from: budget.startDate!, to: Date.now)
-                let numberOfDaysPast = components2.day!
-
-                percentageOfDays = Double(numberOfDaysPast) / Double(numberOfDays)
-            }
-
-            return (true, holdingTotal, budget.amount, percentageOfDays, Int(budget.type), budget.startDate!)
-
-        } else {
+        } catch {
             return (false, 0, 0, 0, 0, Date.now)
         }
     }
 
+    func performViewContextRead<T>(_ body: (NSManagedObjectContext) throws -> T) throws -> T {
+        try container.viewContext.performAndWait {
+            switch persistentStoreState {
+            case .loading:
+                throw PersistentStoreAccessError.loading
+            case let .failed(message):
+                throw PersistentStoreAccessError.failed(message)
+            case .loaded:
+                return try body(container.viewContext)
+            }
+        }
+    }
+
     func results<T: NSManagedObject>(for fetchRequest: NSFetchRequest<T>) -> [T] {
-        return (try? container.viewContext.fetch(fetchRequest)) ?? []
+        (try? performViewContextRead { try $0.fetch(fetchRequest) }) ?? []
+    }
+}
+
+extension ProcessInfo {
+    var isRunningUnitTests: Bool {
+        environment.keys.contains { $0.hasPrefix("XCTest") }
+    }
+}
+
+enum TransactionSummary {
+    static func net<S: Sequence>(_ transactions: S) -> Double where S.Element == Transaction {
+        transactions.reduce(into: 0) { result, transaction in
+            result += transaction.income ? transaction.amount : -transaction.amount
+        }
+    }
+}
+
+enum BudgetWindow {
+    static func progress(
+        startDate: Date,
+        endDate: Date,
+        now: Date,
+        calendar: Calendar
+    ) -> Double {
+        let duration = calendar.dateComponents([.second], from: startDate, to: endDate).second ?? 0
+        let elapsed = calendar.dateComponents([.second], from: startDate, to: now).second ?? 0
+        guard duration > 0 else { return 0 }
+        return Double(elapsed) / Double(duration)
+    }
+}
+
+enum NumericSafety {
+    static func finiteOrZero(_ value: Double) -> Double {
+        value.isFinite ? value : 0
+    }
+
+    static func safeRatio(_ numerator: Double, _ denominator: Double) -> Double {
+        guard numerator.isFinite, denominator.isFinite, denominator != 0 else { return 0 }
+        return finiteOrZero(numerator / denominator)
+    }
+
+    static func clamped(_ value: Double, to range: ClosedRange<Double>) -> Double {
+        min(max(finiteOrZero(value), range.lowerBound), range.upperBound)
+    }
+
+    static func roundedInt(_ value: Double, fallback: Int = 0) -> Int {
+        guard value.isFinite else { return fallback }
+        return Int(exactly: value.rounded()) ?? fallback
+    }
+
+    static func finiteSum<S: Sequence>(_ values: S) -> Double where S.Element == Double {
+        finiteOrZero(values.reduce(0, +))
+    }
+}
+
+enum WidgetInsightMath {
+    static func total<S: Sequence>(_ amounts: S) -> Double where S.Element == Double {
+        NumericSafety.finiteSum(amounts)
+    }
+
+    static func average(total: Double, periodCount: Int) -> Double {
+        NumericSafety.safeRatio(total, Double(periodCount))
+    }
+
+    static func categoryShare(amount: Double, total: Double) -> Double {
+        NumericSafety.clamped(NumericSafety.safeRatio(amount, total), to: 0 ... 1)
+    }
+}
+
+enum BudgetValidation {
+    static func isUsable(startDate: Date?, hasCategory: Bool) -> Bool {
+        startDate != nil && hasCategory
+    }
+}
+
+enum BudgetMath {
+    static func spendingRatio(spent: Double, budgetAmount: Double) -> Double {
+        guard spent.isFinite, budgetAmount.isFinite, budgetAmount > 0 else { return 0 }
+        return NumericSafety.safeRatio(spent, budgetAmount)
+    }
+
+    static func gaugeRatio(spent: Double, budgetAmount: Double) -> Double {
+        NumericSafety.clamped(spendingRatio(spent: spent, budgetAmount: budgetAmount), to: 0 ... 1)
+    }
+
+    static func roundedPercentage(spent: Double, budgetAmount: Double) -> Int {
+        let percentage = spendingRatio(spent: spent, budgetAmount: budgetAmount) * 100
+        return NumericSafety.roundedInt(percentage)
+    }
+
+    static func roundedAmount(_ amount: Double) -> Int {
+        NumericSafety.roundedInt(amount)
     }
 }
 
@@ -1708,15 +1949,18 @@ struct LineGraphDataPoint: Equatable {
     }
 }
 
-func getStartOfMonth(startDay: Int) -> Date {
-    let calendar = Calendar.current
+func getStartOfMonth(
+    startDay: Int,
+    now: Date = .now,
+    calendar: Calendar = .current
+) -> Date {
 
     guard startDay > 0 && startDay <= calendar.maximumRange(of: .day)!.upperBound else {
-        let dateComponents = calendar.dateComponents([.month, .year], from: Date.now)
-        return calendar.date(from: dateComponents) ?? Date.now
+        let dateComponents = calendar.dateComponents([.month, .year], from: now)
+        return calendar.date(from: dateComponents) ?? now
     }
 
-    let today = calendar.startOfDay(for: Date.now)
+    let today = calendar.startOfDay(for: now)
     let currentDay = calendar.component(.day, from: today)
 
     var startComponents = DateComponents()
@@ -1724,7 +1968,7 @@ func getStartOfMonth(startDay: Int) -> Date {
 
     startComponents.day = startDay - currentDay
 
-    return calendar.date(byAdding: startComponents, to: today) ?? Date.now
+    return calendar.date(byAdding: startComponents, to: today) ?? now
 }
 
 func calculateStartOfMonthPeriod(earliestDate: Date, startOfMonthDay: Int) -> Date {

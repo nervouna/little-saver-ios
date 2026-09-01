@@ -7,6 +7,46 @@
 
 import Foundation
 
+enum RecurringScheduleError: Error, Equatable {
+    case invalidType(Int16)
+    case invalidCoefficient(Int16)
+    case dateCalculationFailed
+}
+
+enum RecurringSchedule {
+    static func nextDate(
+        after date: Date,
+        type: Int16,
+        coefficient: Int16,
+        calendar: Calendar
+    ) throws -> Date {
+        guard coefficient > 0 else {
+            throw RecurringScheduleError.invalidCoefficient(coefficient)
+        }
+
+        let component: Calendar.Component
+        let value: Int
+        switch type {
+        case 1:
+            component = .day
+            value = Int(coefficient)
+        case 2:
+            component = .day
+            value = Int(coefficient) * 7
+        case 3:
+            component = .month
+            value = Int(coefficient)
+        default:
+            throw RecurringScheduleError.invalidType(type)
+        }
+
+        guard let result = calendar.date(byAdding: component, value: value, to: date) else {
+            throw RecurringScheduleError.dateCalculationFailed
+        }
+        return result
+    }
+}
+
 extension Transaction {
     var wrappedAmount: Double {
         amount
@@ -29,15 +69,12 @@ extension Transaction {
     }
 
     var nextTransactionDate: Date {
-        if recurringType == 1 {
-            return Calendar.current.date(byAdding: .day, value: Int(recurringCoefficient), to: day ?? Date.now)!
-        } else if recurringType == 2 {
-            return Calendar.current.date(byAdding: .day, value: Int(recurringCoefficient * 7), to: day ?? Date.now)!
-        } else if recurringType == 3 {
-            return Calendar.current.date(byAdding: .month, value: Int(recurringCoefficient), to: day ?? Date.now)!
-        }
-
-        return date ?? Date.now
+        (try? RecurringSchedule.nextDate(
+            after: day ?? date ?? Date.now,
+            type: recurringType,
+            coefficient: recurringCoefficient,
+            calendar: .current
+        )) ?? (date ?? Date.now)
     }
 }
 

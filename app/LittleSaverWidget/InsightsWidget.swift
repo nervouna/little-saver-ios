@@ -26,6 +26,7 @@ struct InsightsProvider: IntentTimelineProvider {
     typealias Intent = InsightsWidgetConfigurationIntent
 
     public typealias Entry = InsightsWidgetEntry
+    typealias LoadedData = (amount: Double, maximum: Double, average: Double, numberOfDays: Int, dates: [Date], dateDictionary: [Date: Double], categories: [HoldingCategory])
 
     func placeholder(in _: Context) -> InsightsWidgetEntry {
         let results = loadData(type: .week, income: true)
@@ -50,17 +51,17 @@ struct InsightsProvider: IntentTimelineProvider {
         completion(timeline)
     }
 
-    func loadData(type: InsightsTimePeriod, income: Bool) -> (amount: Double, maximum: Double, average: Double, numberOfDays: Int, dates: [Date], dateDictionary: [Date: Double], categories: [HoldingCategory]) {
-//        let dataController = DataController()
+    func loadData(type: InsightsTimePeriod, income: Bool) -> LoadedData {
         let dataController = DataController.shared
-        let itemRequest = dataController.fetchRequestForWidgetInsights(type: type, income: income)
-        let categoryRequest = dataController.fetchRequestForCategories(income: income)
+        do {
+            let loaded: LoadedData = try dataController.performViewContextRead { context in
+                let itemRequest = dataController.fetchRequestForWidgetInsights(type: type, income: income)
+                let categoryRequest = dataController.fetchRequestForCategories(income: income)
+                let categories = try context.fetch(categoryRequest)
+                let transactions = try context.fetch(itemRequest.fetchRequest)
+                var iterativeDate = itemRequest.date
 
-        let categories = dataController.results(for: categoryRequest)
-        let transactions = dataController.results(for: itemRequest.fetchRequest)
-        var iterativeDate = itemRequest.date
-
-        switch type {
+                switch type {
         case .unknown:
             return (0, 0, 0, 0, [Date](), [Date: Double](), [HoldingCategory]())
         case .week:
@@ -85,13 +86,9 @@ struct InsightsProvider: IntentTimelineProvider {
                     $0.wrappedDate >= iterativeDate && $0.wrappedDate < nextDate
                 }
 
-                var total = 0.0
+                let total = WidgetInsightMath.total(holding.map(\.wrappedAmount))
 
-                holding.forEach { transaction in
-                    total += transaction.wrappedAmount
-                }
-
-                totalForWeek += total
+                totalForWeek = NumericSafety.finiteOrZero(totalForWeek + total)
 
                 dictionary[iterativeDate] = total
 
@@ -116,17 +113,13 @@ struct InsightsProvider: IntentTimelineProvider {
                     $0.category == category
                 }
 
-                var total = 0.0
-
-                holding.forEach { transaction in
-                    total += transaction.wrappedAmount
-                }
+                let total = WidgetInsightMath.total(holding.map(\.wrappedAmount))
 
                 if total == 0 {
                     continue
                 }
 
-                let newCategory = HoldingCategory(colour: category.wrappedColour, name: category.wrappedName, percent: total / totalForWeek)
+                let newCategory = HoldingCategory(colour: category.wrappedColour, name: category.wrappedName, percent: WidgetInsightMath.categoryShare(amount: total, total: totalForWeek))
 
                 holdingCat.append(newCategory)
             }
@@ -135,7 +128,7 @@ struct InsightsProvider: IntentTimelineProvider {
                 lhs.percent > rhs.percent
             })
 
-            return (totalForWeek, maximum, totalForWeek / Double((numberOfDaysPast.day! + 1)), numberOfDays, dates, dictionary, holdingCat)
+            return (totalForWeek, maximum, WidgetInsightMath.average(total: totalForWeek, periodCount: (numberOfDaysPast.day ?? -1) + 1), numberOfDays, dates, dictionary, holdingCat)
         case .month:
             var dates = [Date]()
             var nextDate = iterativeDate
@@ -155,13 +148,9 @@ struct InsightsProvider: IntentTimelineProvider {
                     $0.wrappedDate >= iterativeDate && $0.wrappedDate < nextDate
                 }
 
-                var total = 0.0
+                let total = WidgetInsightMath.total(holding.map(\.wrappedAmount))
 
-                holding.forEach { transaction in
-                    total += transaction.wrappedAmount
-                }
-
-                totalForMonth += total
+                totalForMonth = NumericSafety.finiteOrZero(totalForMonth + total)
 
                 dictionary[iterativeDate] = total
 
@@ -186,17 +175,13 @@ struct InsightsProvider: IntentTimelineProvider {
                     $0.category == category
                 }
 
-                var total = 0.0
-
-                holding.forEach { transaction in
-                    total += transaction.wrappedAmount
-                }
+                let total = WidgetInsightMath.total(holding.map(\.wrappedAmount))
 
                 if total == 0 {
                     continue
                 }
 
-                let newCategory = HoldingCategory(colour: category.wrappedColour, name: category.wrappedName, percent: total / totalForMonth)
+                let newCategory = HoldingCategory(colour: category.wrappedColour, name: category.wrappedName, percent: WidgetInsightMath.categoryShare(amount: total, total: totalForMonth))
 
                 holdingCat.append(newCategory)
             }
@@ -205,7 +190,7 @@ struct InsightsProvider: IntentTimelineProvider {
                 lhs.percent > rhs.percent
             })
 
-            return (totalForMonth, maximum, totalForMonth / Double((numDays.day! + 1)), numberOfDays, dates, dictionary, holdingCat)
+            return (totalForMonth, maximum, WidgetInsightMath.average(total: totalForMonth, periodCount: (numDays.day ?? -1) + 1), numberOfDays, dates, dictionary, holdingCat)
         case .year:
             // trackin dates
             var dates = [Date]()
@@ -225,13 +210,9 @@ struct InsightsProvider: IntentTimelineProvider {
                     $0.wrappedDate >= iterativeDate && $0.wrappedDate < nextDate
                 }
 
-                var total = 0.0
+                let total = WidgetInsightMath.total(holding.map(\.wrappedAmount))
 
-                holding.forEach { transaction in
-                    total += transaction.wrappedAmount
-                }
-
-                totalForYear += total
+                totalForYear = NumericSafety.finiteOrZero(totalForYear + total)
 
                 dictionary[iterativeDate] = total
 
@@ -256,17 +237,13 @@ struct InsightsProvider: IntentTimelineProvider {
                     $0.category == category
                 }
 
-                var total = 0.0
-
-                holding.forEach { transaction in
-                    total += transaction.wrappedAmount
-                }
+                let total = WidgetInsightMath.total(holding.map(\.wrappedAmount))
 
                 if total == 0 {
                     continue
                 }
 
-                let newCategory = HoldingCategory(colour: category.wrappedColour, name: category.wrappedName, percent: total / totalForYear)
+                let newCategory = HoldingCategory(colour: category.wrappedColour, name: category.wrappedName, percent: WidgetInsightMath.categoryShare(amount: total, total: totalForYear))
 
                 holdingCat.append(newCategory)
             }
@@ -275,8 +252,33 @@ struct InsightsProvider: IntentTimelineProvider {
                 lhs.percent > rhs.percent
             })
 
-            return (totalForYear, maximum, totalForYear / Double((numDays.month! + 1)), numberOfDays, dates, dictionary, holdingCat)
+            return (totalForYear, maximum, WidgetInsightMath.average(total: totalForYear, periodCount: (numDays.month ?? -1) + 1), numberOfDays, dates, dictionary, holdingCat)
+                }
+            }
+            return sanitized(loaded)
+        } catch {
+            return (0, 0, 0, 0, [], [:], [])
         }
+    }
+
+    private func sanitized(_ loaded: LoadedData) -> LoadedData {
+        let dictionary = loaded.dateDictionary.mapValues(NumericSafety.finiteOrZero)
+        let categories = loaded.categories.map {
+            HoldingCategory(
+                colour: $0.colour,
+                name: $0.name,
+                percent: NumericSafety.clamped($0.percent, to: 0 ... 1)
+            )
+        }
+        return (
+            NumericSafety.finiteOrZero(loaded.amount),
+            NumericSafety.finiteOrZero(loaded.maximum),
+            NumericSafety.finiteOrZero(loaded.average),
+            loaded.numberOfDays,
+            loaded.dates,
+            dictionary,
+            categories
+        )
     }
 }
 
@@ -312,7 +314,7 @@ struct InsightsWidgetEntryView: View {
         if entry.amount < 10000 && showCents {
             return "\(String(format: "%.2f", entry.amount))"
         } else {
-            return "\(Int(round(entry.amount)))"
+            return "\(NumericSafety.roundedInt(entry.amount))"
         }
     }
 
@@ -468,7 +470,7 @@ struct InsightsWidgetEntryView: View {
                                         .lineLimit(1)
                                         .font(.system(size: 8, weight: .regular, design: .rounded))
                                         .foregroundColor(Color.PrimaryText)
-                                        .opacity((entry.average / Double(getMax())) < 0.2 || (entry.average / Double(getMax())) > 0.8 ? 0 : 1)
+                                        .opacity(NumericSafety.safeRatio(entry.average, Double(getMax())) < 0.2 || NumericSafety.safeRatio(entry.average, Double(getMax())) > 0.8 ? 0 : 1)
 
                                     Line()
                                         .stroke(Color.SubtitleText, style: StrokeStyle(lineWidth: 2, lineCap: .round, dash: [5]))
@@ -613,7 +615,7 @@ struct InsightsWidgetEntryView: View {
                                         .lineLimit(1)
                                         .font(.system(size: 8, weight: .regular, design: .rounded))
                                         .foregroundColor(Color.PrimaryText)
-                                        .opacity((entry.average / Double(getMax())) < 0.2 || (entry.average / Double(getMax())) > 0.8 ? 0 : 1)
+                                        .opacity(NumericSafety.safeRatio(entry.average, Double(getMax())) < 0.2 || NumericSafety.safeRatio(entry.average, Double(getMax())) > 0.8 ? 0 : 1)
 
                                     Line()
                                         .stroke(Color.SubtitleText, style: StrokeStyle(lineWidth: 2, lineCap: .round, dash: [5]))
@@ -650,7 +652,7 @@ struct InsightsWidgetEntryView: View {
         if maxi == 0 {
             return 0
         } else {
-            let height = (size.height * 0.85) - ((entry.average / Double(maxi)) * (size.height * 0.85))
+            let height = (size.height * 0.85) - (NumericSafety.safeRatio(entry.average, Double(maxi)) * (size.height * 0.85))
             return height
         }
     }
@@ -669,7 +671,7 @@ struct InsightsWidgetEntryView: View {
         } else if entry.average >= 1000 {
             return stringArray[0] + "." + stringArray[1] + "k"
         } else {
-            return String(Int(round(entry.average)))
+            return String(NumericSafety.roundedInt(entry.average))
         }
     }
 
@@ -703,8 +705,8 @@ struct InsightsWidgetEntryView: View {
 
     func getMax() -> Int {
         let maximum = entry.maximum * 1.1
-
-        return Int(ceil(maximum / 10) * 10)
+        let scaledValue = ceil(NumericSafety.safeRatio(maximum, 10)) * 10
+        return NumericSafety.roundedInt(scaledValue)
     }
 
     func getBarHeight(point: CGFloat, size: CGSize) -> CGFloat {
@@ -713,7 +715,7 @@ struct InsightsWidgetEntryView: View {
         if maxi == 0 {
             return 0
         } else {
-            let height = (point / CGFloat(maxi)) * (size.height * 0.85)
+            let height = NumericSafety.safeRatio(Double(point), Double(maxi)) * (size.height * 0.85)
             return height
         }
     }
@@ -820,7 +822,7 @@ struct InsightsWidgetCategoryBreakdownView: View {
                                 .foregroundColor(Color.PrimaryText)
                                 .frame(maxWidth: .infinity, alignment: .leading)
 
-                            Text("\(Int(round(category.percent * 100)))%")
+                            Text("\(NumericSafety.roundedInt(category.percent * 100))%")
                                 .font(.system(size: 12, weight: .regular, design: .rounded))
                                 .foregroundColor(Color.SubtitleText)
                         }

@@ -844,19 +844,24 @@ struct ImportDataView: View {
             return
         }
 
-        var holdingRows = data.components(separatedBy: .newlines).filter { $0 != "" }
-
-        if !holdingRows[0].containsDigits {
-            holdingRows.removeFirst()
+        var values: [[String]]
+        do {
+            values = try CSVDocumentParser.parse(data)
+        } catch {
+            showToast = true
+            toastMessage = error.localizedDescription
+            return
         }
 
-        guard !holdingRows.isEmpty else {
+        if let first = values.first, !first.joined().containsDigits {
+            values.removeFirst()
+        }
+
+        guard !values.isEmpty else {
             showToast = true
             toastMessage = "Invalid File"
             return
         }
-
-        let values = holdingRows.map { $0.components(separatedBy: ",") }.filter { !$0.isEmpty }
 
         rows = values
 
@@ -896,35 +901,25 @@ struct ImportDataView: View {
         let dateColumnIndex = selectedColumns[2]
         let amountColumnIndex = selectedColumns[3]
 
-        let dateFormatter = DateFormatter()
-        dateFormatter.dateFormat = dateFormatString
-
         let categoryDictionary: [String: Category] = Dictionary(uniqueKeysWithValues: uniqueCategories.map { ($0.excelValue, $0.category!) })
-
-        rows.forEach { row in
-//            let rowCategory = categoryDictionary[row[categoryColumnIndex]]
-            if let transactionDate = dateFormatter.date(from: row[dateColumnIndex]) {
-                if let rowCategory = categoryDictionary[row[categoryColumnIndex]] {
-                    if let transactionAmount = Double(row[amountColumnIndex]) {
-                        _ = dataController.newTransaction(note: row[noteColumnIndex], category: rowCategory, income: rowCategory.income, amount: abs(transactionAmount), date: transactionDate, repeatType: 0, repeatCoefficient: 1, delay: false)
-                    } else {
-                        processingState = .error
-                        errorMessage = "Invalid values in amount column."
-                        return
-                    }
-                } else {
-                    processingState = .error
-                    errorMessage = "Error occurred while matching categories."
-                    return
-                }
-            } else {
-                processingState = .error
-                errorMessage = "Invalid dates in date column."
-                return
-            }
+        do {
+            _ = try CSVTransactionImporter.importRows(
+                rows,
+                mapping: CSVImportMapping(
+                    categoryColumn: categoryColumnIndex,
+                    noteColumn: noteColumnIndex,
+                    dateColumn: dateColumnIndex,
+                    amountColumn: amountColumnIndex
+                ),
+                dateFormat: dateFormatString,
+                categoriesByName: categoryDictionary,
+                into: dataController
+            )
+        } catch {
+            processingState = .error
+            errorMessage = error.localizedDescription
+            return
         }
-
-        dataController.save()
 
         DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
             withAnimation {

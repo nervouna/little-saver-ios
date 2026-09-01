@@ -63,7 +63,6 @@ struct Provider: IntentTimelineProvider {
     }
 
     func loadAmount(type: TimePeriod, insightsType: InsightsType) -> Double {
-//        let dataController = DataController()
         let dataController = DataController.shared
 
         let timeframe: Int
@@ -81,40 +80,53 @@ struct Provider: IntentTimelineProvider {
             timeframe = 0
         }
 
-        switch insightsType {
-        case .net:
-            let (amount, positive) = dataController.getLogViewTotalNet(type: timeframe)
+        do {
+            let amount: Double = try dataController.performViewContextRead { context in
+                let incomeFilter: Bool?
+                switch insightsType {
+                case .net:
+                    incomeFilter = nil
+                case .income:
+                    incomeFilter = true
+                case .expense:
+                    incomeFilter = false
+                default:
+                    return 0
+                }
 
-            if positive {
-                return amount
-            } else {
-                return -amount
+                let request = dataController.fetchRequestForLogView(
+                    type: timeframe,
+                    optionalIncome: incomeFilter
+                )
+                let transactions = try context.fetch(request)
+                if insightsType == .net {
+                    return TransactionSummary.net(transactions)
+                }
+                return transactions.reduce(0) { $0 + $1.amount }
             }
-
-        case .income:
-            return dataController.getLogViewTotalIncome(type: timeframe)
-        case .expense:
-            return dataController.getLogViewTotalSpent(type: timeframe)
-        default:
+            return NumericSafety.finiteOrZero(amount)
+        } catch {
             return 0
         }
     }
 
     func loadTransactions(type: TimePeriod, count: Int) -> [HoldingTransaction] {
-//        let dataController = DataController()
         let dataController = DataController.shared
-        let itemRequest = dataController.fetchRequestForRecentTransactionsWithCount(type: type, count: count)
-        let holding = dataController.results(for: itemRequest)
-
-        var sending = [HoldingTransaction]()
-
-        holding.forEach { transaction in
-            let t = HoldingTransaction(colour: transaction.category?.wrappedColour ?? "", note: transaction.wrappedNote, amount: transaction.wrappedAmount, income: transaction.income)
-
-            sending.append(t)
+        do {
+            return try dataController.performViewContextRead { context in
+                let request = dataController.fetchRequestForRecentTransactionsWithCount(type: type, count: count)
+                return try context.fetch(request).map { transaction in
+                    HoldingTransaction(
+                        colour: transaction.category?.wrappedColour ?? "",
+                        note: transaction.wrappedNote,
+                        amount: NumericSafety.finiteOrZero(transaction.wrappedAmount),
+                        income: transaction.income
+                    )
+                }
+            }
+        } catch {
+            return []
         }
-
-        return sending
     }
 }
 

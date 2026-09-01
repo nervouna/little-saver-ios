@@ -18,12 +18,23 @@ struct LittleSaverApp: App {
 
     var body: some Scene {
         WindowGroup {
-            ContentView()
-                .environment(\.managedObjectContext, dataController.container.viewContext)
-                .environmentObject(appLockVM)
-                .environmentObject(dataController)
-                .environmentObject(unlockManager)
-                .environmentObject(tabBarManager)
+            if ProcessInfo.processInfo.isRunningUnitTests {
+                EmptyView()
+            } else {
+                switch dataController.persistentStoreState {
+                case .loading:
+                    ProgressView("正在准备数据…")
+                case .loaded:
+                    ContentView()
+                        .environment(\.managedObjectContext, dataController.container.viewContext)
+                        .environmentObject(appLockVM)
+                        .environmentObject(dataController)
+                        .environmentObject(unlockManager)
+                        .environmentObject(tabBarManager)
+                case let .failed(message):
+                    StorageUnavailableView(message: message)
+                }
+            }
         }
     }
 
@@ -36,5 +47,23 @@ struct LittleSaverApp: App {
         _unlockManager = StateObject(wrappedValue: unlockManager)
 
         UITableView.appearance().backgroundColor = .clear
+    }
+}
+
+private struct StorageUnavailableView: View {
+    let message: String
+
+    var body: some View {
+        VStack(spacing: 12) {
+            Image(systemName: "externaldrive.badge.exclamationmark")
+                .font(.largeTitle)
+            Text("无法打开数据")
+                .font(.headline)
+            Text(message)
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+        }
+        .padding()
     }
 }

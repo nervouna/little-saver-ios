@@ -5,7 +5,6 @@
 //  Created by Rafael Soh on 19/5/22.
 //
 
-import CloudKitSyncMonitor
 import CoreData
 import Foundation
 import SwiftUIIntrospect
@@ -13,8 +12,6 @@ import Popovers
 import SwiftUI
 
 struct LogView: View {
-    @ObservedObject var syncMonitor = SyncMonitor.shared
-
     @State var updatedRecurring = false
 
     @FetchRequest(sortDescriptors: []) private var transactions: FetchedResults<Transaction>
@@ -266,34 +263,23 @@ struct LogView: View {
             .fullScreenCover(isPresented: $searchMode) {
                 SearchView()
             }
-            .onChange(of: syncMonitor.syncStateSummary) { newState in
-                if newState == .succeeded && !updatedRecurring {
-                    dataController.updateRecurringTransactions()
-                    updatedRecurring = true
-
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 60) {
-                        updatedRecurring = false
-                    }
-                }
-            }
             .onReceive(NotificationCenter.default.publisher(for: UIApplication.willEnterForegroundNotification)) { _ in
-                if syncMonitor.syncStateSummary == .succeeded && !updatedRecurring {
+                if !updatedRecurring {
                     dataController.updateRecurringTransactions()
                     updatedRecurring = true
 
                     DispatchQueue.main.asyncAfter(deadline: .now() + 60) {
                         updatedRecurring = false
                     }
-                } else if !NSUbiquitousKeyValueStore.default.bool(forKey: "icloud_sync") {
-                    dataController.updateRecurringTransactions()
                 }
             }
             .onChange(of: launchSearch) { _ in
                 searchMode = true
             }
             .onAppear {
-                if !NSUbiquitousKeyValueStore.default.bool(forKey: "icloud_sync") {
+                if !updatedRecurring {
                     dataController.updateRecurringTransactions()
+                    updatedRecurring = true
                 }
             }
 //            .animation(.spring(duration: 0.5), value: released)

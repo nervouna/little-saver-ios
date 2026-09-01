@@ -101,6 +101,10 @@ class UnlockManager: NSObject, ObservableObject, SKPaymentTransactionObserver, S
 
         super.init()
 
+        guard !ProcessInfo.processInfo.isRunningUnitTests else {
+            return
+        }
+
         // Start watching the payment queue.
         SKPaymentQueue.default().add(self)
 

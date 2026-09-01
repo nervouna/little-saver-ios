@@ -50,47 +50,39 @@ struct BudgetWidgetProvider: IntentTimelineProvider {
     }
 
     func loadData(budgetId: String) -> (total: Double, percentage: Double, budget: HoldingBudget) {
-//        let dataController = DataController()
         let dataController = DataController.shared
+        do {
+            return try dataController.performViewContextRead { context in
+                guard let objectIDURL = URL(string: budgetId),
+                      let managedObjectID = dataController.container.persistentStoreCoordinator.managedObjectID(forURIRepresentation: objectIDURL),
+                      let budget = try context.existingObject(with: managedObjectID) as? Budget,
+                      BudgetValidation.isUsable(startDate: budget.startDate, hasCategory: budget.category != nil),
+                      let startDate = budget.startDate else {
+                    return (0, 0, HoldingBudget(type: 1, emoji: "failed", name: "", colour: "", budgetAmount: 0))
+                }
 
-        if let objectIDURL = URL(string: budgetId) {
-            let managedObjectID = dataController.container.persistentStoreCoordinator.managedObjectID(forURIRepresentation: objectIDURL)!
-
-            let budget = dataController.container.viewContext.object(with: managedObjectID) as! Budget
-
-            let fetchRequest = dataController.fetchRequestForBudgetTransactions(budget: budget)
-
-            let transactions = dataController.results(for: fetchRequest)
-
-            var holdingTotal = 0.0
-
-            transactions.forEach { transaction in
-                holdingTotal += transaction.wrappedAmount
+                let transactions = try context.fetch(dataController.fetchRequestForBudgetTransactions(budget: budget))
+                let total = transactions.reduce(0) { $0 + $1.wrappedAmount }
+                guard total.isFinite, budget.amount.isFinite else {
+                    return (0, 0, HoldingBudget(type: 1, emoji: "failed", name: "", colour: "", budgetAmount: 0))
+                }
+                let holdingBudget = HoldingBudget(
+                    type: Int(budget.type),
+                    emoji: budget.wrappedEmoji,
+                    name: budget.wrappedName,
+                    colour: budget.wrappedColour,
+                    budgetAmount: budget.amount
+                )
+                let percentage = BudgetWindow.progress(
+                    startDate: startDate,
+                    endDate: budget.endDate,
+                    now: .now,
+                    calendar: .current
+                )
+                return (total, percentage, holdingBudget)
             }
-
-            let returnBudget = HoldingBudget(type: Int(budget.type), emoji: budget.wrappedEmoji, name: budget.wrappedName, colour: budget.wrappedColour, budgetAmount: budget.amount)
-
-            let percentageOfDays: Double
-
-            let calendar = Calendar.current
-
-            if budget.type == 1 {
-                let components = calendar.dateComponents([.minute], from: budget.startDate!, to: Date.now)
-                percentageOfDays = Double(components.minute!) / 1440
-            } else {
-                let components1 = calendar.dateComponents([.day], from: budget.startDate!, to: budget.endDate)
-                let numberOfDays = components1.day!
-
-                let components2 = calendar.dateComponents([.day], from: budget.startDate!, to: Date.now)
-                let numberOfDaysPast = components2.day!
-
-                percentageOfDays = Double(numberOfDaysPast) / Double(numberOfDays)
-            }
-
-            return (holdingTotal, percentageOfDays, returnBudget)
-        } else {
-            let budget = HoldingBudget(type: 1, emoji: "failed", name: "", colour: "", budgetAmount: 0)
-            return (0, 0, budget)
+        } catch {
+            return (0, 0, HoldingBudget(type: 1, emoji: "failed", name: "", colour: "", budgetAmount: 0))
         }
     }
 }
@@ -134,7 +126,11 @@ struct BudgetWidgetEntryView: View {
     }
 
     var percentString1: String {
-        return "\(Int(round((entry.totalSpent / entry.budget.budgetAmount) * 100)))%"
+        return "\(BudgetMath.roundedPercentage(spent: entry.totalSpent, budgetAmount: entry.budget.budgetAmount))%"
+    }
+
+    var spendingRatio: Double {
+        BudgetMath.spendingRatio(spent: entry.totalSpent, budgetAmount: entry.budget.budgetAmount)
     }
 
     var systemSmallWidgetText: String {
@@ -227,8 +223,8 @@ struct BudgetWidgetEntryView: View {
                                         .fill(Color.SecondaryBackground)
                                         .frame(width: proxy.size.width, height: proxy.size.width / 2)
 
-                                    if entry.totalSpent / entry.budget.budgetAmount < 0.97 {
-                                        DonutSemicircle(percent: 1 - (entry.totalSpent / entry.budget.budgetAmount), cornerRadius: 4, width: 15)
+                                    if spendingRatio < 0.97 {
+                                        DonutSemicircle(percent: 1 - spendingRatio, cornerRadius: 4, width: 15)
                                             .fill(Color(hex: entry.budget.colour))
                                             .frame(width: proxy.size.width, height: proxy.size.width / 2)
                                     }
@@ -260,10 +256,10 @@ struct BudgetWidgetEntryView: View {
 
                             HStack {
                                 if entry.totalSpent > 999.99 || entry.budget.budgetAmount > 999.99 {
-                                    Text("\(Int(round(entry.totalSpent)))")
+                                    Text("\(BudgetMath.roundedAmount(entry.totalSpent))")
                                         .frame(width: 50, alignment: .leading)
                                     Spacer()
-                                    Text("\(Int(round(entry.budget.budgetAmount)))")
+                                    Text("\(BudgetMath.roundedAmount(entry.budget.budgetAmount))")
                                         .frame(width: 50, alignment: .trailing)
                                 } else {
                                     Text("\(entry.totalSpent, specifier: "%.2f")")
@@ -319,8 +315,8 @@ struct BudgetWidgetEntryView: View {
                                         .fill(Color.SecondaryBackground)
                                         .frame(width: proxy.size.width, height: proxy.size.width / 2)
 
-                                    if entry.totalSpent / entry.budget.budgetAmount < 0.97 {
-                                        DonutSemicircle(percent: 1 - (entry.totalSpent / entry.budget.budgetAmount), cornerRadius: 4, width: 15)
+                                    if spendingRatio < 0.97 {
+                                        DonutSemicircle(percent: 1 - spendingRatio, cornerRadius: 4, width: 15)
                                             .fill(Color(hex: entry.budget.colour))
                                             .frame(width: proxy.size.width, height: proxy.size.width / 2)
                                     }
@@ -352,10 +348,10 @@ struct BudgetWidgetEntryView: View {
 
                             HStack {
                                 if entry.totalSpent > 999.99 || entry.budget.budgetAmount > 999.99 {
-                                    Text("\(Int(round(entry.totalSpent)))")
+                                    Text("\(BudgetMath.roundedAmount(entry.totalSpent))")
                                         .frame(width: 50, alignment: .leading)
                                     Spacer()
-                                    Text("\(Int(round(entry.budget.budgetAmount)))")
+                                    Text("\(BudgetMath.roundedAmount(entry.budget.budgetAmount))")
                                         .frame(width: 50, alignment: .trailing)
                                 } else {
                                     Text("\(entry.totalSpent, specifier: "%.2f")")
