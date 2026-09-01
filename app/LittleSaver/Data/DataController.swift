@@ -28,6 +28,18 @@ enum CustomError: Swift.Error, CustomLocalizedStringResourceConvertible {
 }
 
 class DataController: ObservableObject {
+    enum CloudKitSchemaInitializationPolicy {
+        static func shouldInitialize(
+            mode: PersistentStoreMode,
+            arguments: [String],
+            isDebugBuild: Bool
+        ) -> Bool {
+            isDebugBuild
+                && mode == .cloudSync
+                && arguments.contains("--initialize-cloudkit-schema")
+        }
+    }
+
     private static let managedObjectModel: NSManagedObjectModel? = {
         guard let modelURL = Bundle.main.url(
             forResource: AppIdentifiers.persistentModel,
@@ -142,18 +154,6 @@ class DataController: ObservableObject {
         description.setOption(true as NSNumber, forKey: NSPersistentHistoryTrackingKey)
         description.setOption(true as NSNumber, forKey: NSPersistentStoreRemoteChangeNotificationPostOptionKey)
 
-//        let keyValueStore = NSUbiquitousKeyValueStore.default
-//
-//        if keyValueStore.object(forKey: "icloud_sync") == nil {
-//            keyValueStore.set(true, forKey: "icloud_sync")
-//        }
-//
-//        if !keyValueStore.bool(forKey: "icloud_sync") {
-//            description.cloudKitContainerOptions = nil
-//        } else {
-//            description.cloudKitContainerOptions = NSPersistentCloudKitContainerOptions(containerIdentifier: AppIdentifiers.cloudKitContainer)
-//        }
-
         switch configuration.mode {
         case .cloudSync:
             description.cloudKitContainerOptions = NSPersistentCloudKitContainerOptions(
@@ -177,6 +177,22 @@ class DataController: ObservableObject {
                 return
             }
 
+            #if DEBUG
+            if CloudKitSchemaInitializationPolicy.shouldInitialize(
+                mode: configuration.mode,
+                arguments: ProcessInfo.processInfo.arguments,
+                isDebugBuild: true
+            ) {
+                do {
+                    try self.container.initializeCloudKitSchema(options: [])
+                } catch {
+                    NSLog("CloudKit schema initialization failed: %@", error.localizedDescription)
+                    self.publishPersistentStoreState(.failed("CloudKit schema initialization failed."))
+                    return
+                }
+            }
+            #endif
+
             self.container.viewContext.performAndWait {
                 self.container.viewContext.automaticallyMergesChangesFromParent = true
                 self.container.viewContext.mergePolicy = NSMergeByPropertyObjectTrumpMergePolicy
@@ -184,19 +200,6 @@ class DataController: ObservableObject {
             self.publishPersistentStoreState(.loaded)
         }
 
-//        #if DEBUG
-//            do {
-//                // Use the container to initialize the development schema.
-//                try container.initializeCloudKitSchema(options: [])
-//            } catch {
-//                // Handle any errors.
-//            }
-//        #endif
-////        do {
-////            try container.initializeCloudKitSchema()
-////        } catch {
-////            print(error)
-////        }
     }
 
     private func publishPersistentStoreState(_ state: PersistentStoreState) {

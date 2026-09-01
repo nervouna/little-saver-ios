@@ -108,16 +108,6 @@ struct CustomTabBar: View {
                 self.animate = true
             }
         }
-        .onOpenURL { url in
-            guard
-                url.host == "newExpense"
-
-            else {
-                return
-            }
-
-            addTransaction = true
-        }
     }
 }
 

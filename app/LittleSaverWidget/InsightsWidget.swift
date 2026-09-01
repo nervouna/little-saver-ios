@@ -496,7 +496,7 @@ struct InsightsWidgetEntryView: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .widgetURL(URL(string: "\(AppIdentifiers.urlScheme)://insights"))
+            .widgetURL(DeepLink.insights.url)
             .containerBackground(for: .widget) {
                 Color.PrimaryBackground
             }
@@ -642,7 +642,7 @@ struct InsightsWidgetEntryView: View {
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
-            .widgetURL(URL(string: "\(AppIdentifiers.urlScheme)://insights"))
+            .widgetURL(DeepLink.insights.url)
         }
     }
 
@@ -838,7 +838,7 @@ struct InsightsWidgetCategoryBreakdownView: View {
                     .frame(maxHeight: .infinity)
             }
 
-            Link(destination: URL(string: "\(AppIdentifiers.urlScheme)://newExpense")!) {
+            Link(destination: DeepLink.newExpense.url) {
                 HStack(spacing: 4) {
                     Image(systemName: "plus")
                         .font(.system(size: 9, weight: .medium, design: .rounded))

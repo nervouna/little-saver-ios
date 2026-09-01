@@ -39,10 +39,7 @@ struct HomeView: View {
     var topEdge: CGFloat
     var bottomEdge: CGFloat
 
-    @State var fromURL1: Bool = false
-    @State var fromURL2: Bool = false
-    @State var fromURL3: Bool = false
-    @State var fromURL4: Bool = false
+    @State private var deepLinkRouter = DeepLinkRouter()
 
     @State var launchAdd: Bool = false
     @State var launchSearch: Bool = false
@@ -104,18 +101,6 @@ struct HomeView: View {
             if appLockVM.isAppLockEnabled && !appLockVM.isAppUnLocked {
                 AppLockView()
                     .ignoresSafeArea(.all)
-                    .onOpenURL { url in
-
-                        if url.host == "newExpense" {
-                            fromURL1 = true
-                        } else if url.host == "search" {
-                            fromURL2 = true
-                        } else if url.host == "insights" {
-                            fromURL3 = true
-                        } else if url.host == "budget" {
-                            fromURL4 = true
-                        }
-                    }
             }
         }
         .toast(isPresenting: $toastPresenter.showToast, duration: 4, tapToDismiss: true, offsetY: 12, alert: {
@@ -143,41 +128,30 @@ struct HomeView: View {
             TransactionView(toEdit: transaction)
         }
         .confettiCannon(counter: $counter, num: 50, openingAngle: Angle(degrees: 0), closingAngle: Angle(degrees: 360), radius: 200)
-        .onAppear {
-            if appLockVM.isAppLockEnabled && fromURL1 {
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                    launchAdd.toggle()
-                }
-
-                fromURL1 = false
-            }
-
-            if appLockVM.isAppLockEnabled && fromURL2 {
-                currentTab = "Log"
-
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                    launchSearch.toggle()
-                }
-
-                fromURL2 = false
-            }
-
-            if appLockVM.isAppLockEnabled && fromURL3 {
-                currentTab = "Insights"
-            }
-
-            if appLockVM.isAppLockEnabled && fromURL4 {
-                currentTab = "Budget"
+        .onOpenURL { url in
+            guard let link = DeepLink(url: url) else { return }
+            let isLocked = appLockVM.isAppLockEnabled && !appLockVM.isAppUnLocked
+            if let route = deepLinkRouter.receive(link, isLocked: isLocked) {
+                handle(route)
             }
         }
-        .onOpenURL { url in
-            if url.host == "search" {
-                currentTab = "Log"
-            } else if url.host == "insights" {
-                currentTab = "Insights"
-            } else if url.host == "budget" {
-                currentTab = "Budget"
-            }
+        .onChange(of: appLockVM.isAppUnLocked) { isUnlocked in
+            guard isUnlocked, let route = deepLinkRouter.unlock() else { return }
+            handle(route)
+        }
+    }
+
+    private func handle(_ link: DeepLink) {
+        switch link {
+        case .search:
+            currentTab = "Log"
+            launchSearch.toggle()
+        case .newExpense:
+            launchAdd.toggle()
+        case .insights:
+            currentTab = "Insights"
+        case .budget:
+            currentTab = "Budget"
         }
     }
 }

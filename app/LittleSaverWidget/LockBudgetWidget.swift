@@ -171,7 +171,7 @@ struct LockBudgetWidgetEntryView: View {
                 Text("Select budget in widget options")
             } else {
                 Text("\(entry.budget.emoji) \(currencySymbol)\(difference, specifier: (showCents && difference < 100) ? "%.2f" : "%.0f") \(subtitle)")
-                    .widgetURL(URL(string: "\(AppIdentifiers.urlScheme)://budget?budget=\(entry.budget.name)"))
+                    .widgetURL(DeepLink.budget(name: entry.budget.name).url)
             }
 
         case .accessoryCircular:
@@ -193,7 +193,7 @@ struct LockBudgetWidgetEntryView: View {
                         Text("\(BudgetMath.roundedPercentage(spent: entry.totalSpent, budgetAmount: entry.budget.budgetAmount))%")
                     }
                     .gaugeStyle(AccessoryCircularGaugeStyle())
-                    .widgetURL(URL(string: "\(AppIdentifiers.urlScheme)://budget?budget=\(entry.budget.name)"))
+                    .widgetURL(DeepLink.budget(name: entry.budget.name).url)
                     .containerBackground(for: .widget) { Color.clear }
                 }
             } else {
@@ -218,7 +218,7 @@ struct LockBudgetWidgetEntryView: View {
                             Text("\(BudgetMath.roundedPercentage(spent: entry.totalSpent, budgetAmount: entry.budget.budgetAmount))%")
                         }
                         .gaugeStyle(AccessoryCircularGaugeStyle())
-                        .widgetURL(URL(string: "\(AppIdentifiers.urlScheme)://budget?budget=\(entry.budget.name)"))
+                        .widgetURL(DeepLink.budget(name: entry.budget.name).url)
                     } else {
                         EmptyView()
                     }
@@ -267,7 +267,7 @@ struct LockBudgetWidgetEntryView: View {
                         .frame(width: proxy.size.width, height: proxy.size.height, alignment: .top)
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .widgetURL(URL(string: "\(AppIdentifiers.urlScheme)://budget?budget=\(entry.budget.name)"))
+                    .widgetURL(DeepLink.budget(name: entry.budget.name).url)
                     .containerBackground(for: .widget) { Color.clear }
                 }
             } else {
@@ -312,7 +312,7 @@ struct LockBudgetWidgetEntryView: View {
                         .frame(width: proxy.size.width, height: proxy.size.height, alignment: .top)
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .widgetURL(URL(string: "\(AppIdentifiers.urlScheme)://budget?budget=\(entry.budget.name)"))
+                    .widgetURL(DeepLink.budget(name: entry.budget.name).url)
                 }
             }
 

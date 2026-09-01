@@ -248,6 +248,33 @@ final class DataFoundationTests: XCTestCase {
         XCTAssertNil(DeepLink(url: URL(string: "\(AppIdentifiers.urlScheme)://budget?budget=")!))
     }
 
+    func testDeepLinkRouterDefersWhileLockedAndRoutesAfterUnlock() {
+        var router = DeepLinkRouter()
+
+        XCTAssertNil(router.receive(.budget(name: "Food & Drinks"), isLocked: true))
+        XCTAssertEqual(router.pendingLink, .budget(name: "Food & Drinks"))
+        XCTAssertEqual(router.unlock(), .budget(name: "Food & Drinks"))
+        XCTAssertNil(router.pendingLink)
+
+        XCTAssertEqual(router.receive(.newExpense, isLocked: false), .newExpense)
+        XCTAssertNil(router.pendingLink)
+
+        XCTAssertNil(router.receive(.search, isLocked: true))
+        XCTAssertEqual(router.receive(.insights, isLocked: false), .insights)
+        XCTAssertNil(router.unlock())
+    }
+
+    func testCloudKitSchemaInitializationRequiresDebugCloudModeAndExplicitArgument() {
+        let argument = ["LittleSaver", "--initialize-cloudkit-schema"]
+        let policy = DataController.CloudKitSchemaInitializationPolicy.self
+
+        XCTAssertTrue(policy.shouldInitialize(mode: .cloudSync, arguments: argument, isDebugBuild: true))
+        XCTAssertFalse(policy.shouldInitialize(mode: .sharedLocal, arguments: argument, isDebugBuild: true))
+        XCTAssertFalse(policy.shouldInitialize(mode: .inMemory, arguments: argument, isDebugBuild: true))
+        XCTAssertFalse(policy.shouldInitialize(mode: .cloudSync, arguments: ["LittleSaver"], isDebugBuild: true))
+        XCTAssertFalse(policy.shouldInitialize(mode: .cloudSync, arguments: argument, isDebugBuild: false))
+    }
+
     func testUnknownProcessConfigurationFailsExplicitly() {
         XCTAssertThrowsError(try DataController.Configuration.currentProcess(bundleIdentifier: "example.invalid"))
     }

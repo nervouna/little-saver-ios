@@ -170,7 +170,7 @@
 //
 //            }
 //            .padding(0.5)
-//            .widgetURL(URL(string: "\(AppIdentifiers.urlScheme)://newExpense"))
+//            .widgetURL(DeepLink.newExpense.url)
 //        }
 //
 //    }

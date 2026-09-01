@@ -60,3 +60,21 @@ enum DeepLink: Equatable {
         return components.url!
     }
 }
+
+struct DeepLinkRouter: Equatable {
+    private(set) var pendingLink: DeepLink?
+
+    mutating func receive(_ link: DeepLink, isLocked: Bool) -> DeepLink? {
+        guard isLocked else {
+            pendingLink = nil
+            return link
+        }
+        pendingLink = link
+        return nil
+    }
+
+    mutating func unlock() -> DeepLink? {
+        defer { pendingLink = nil }
+        return pendingLink
+    }
+}

@@ -366,7 +366,7 @@ struct LittleSaverWidgetEntryView: View {
                 .containerBackground(for: .widget) {
                     Color.PrimaryBackground
                 }
-                .widgetURL(entry.transactions.count < 2 ? URL(string: "\(AppIdentifiers.urlScheme)://newExpense") : nil)
+                .widgetURL(entry.transactions.count < 2 ? DeepLink.newExpense.url : nil)
                 .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
             } else {
                 GeometryReader { proxy in
@@ -461,7 +461,7 @@ struct LittleSaverWidgetEntryView: View {
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .background(Color.PrimaryBackground)
-                .widgetURL(entry.transactions.count < 2 ? URL(string: "\(AppIdentifiers.urlScheme)://newExpense") : nil)
+                .widgetURL(entry.transactions.count < 2 ? DeepLink.newExpense.url : nil)
                 .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
             }
 
@@ -489,7 +489,7 @@ struct LittleSaverWidgetEntryView: View {
                                     .font(.system(size: 15, weight: .medium, design: .rounded))
                                     .foregroundColor(Color.SubtitleText)
 
-                                Link(destination: URL(string: "\(AppIdentifiers.urlScheme)://newExpense")!) {
+                                Link(destination: DeepLink.newExpense.url) {
                                     HStack(spacing: 4) {
                                         Image(systemName: "plus")
                                             .font(.system(size: 13, weight: .semibold, design: .rounded))
@@ -540,7 +540,7 @@ struct LittleSaverWidgetEntryView: View {
                                 }
 
                                 if entry.transactions.count < 5 {
-                                    Link(destination: URL(string: "\(AppIdentifiers.urlScheme)://newExpense")!) {
+                                    Link(destination: DeepLink.newExpense.url) {
                                         HStack(spacing: 4) {
                                             Image(systemName: "plus")
                                                 .font(.system(size: 13, weight: .semibold, design: .rounded))

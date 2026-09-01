@@ -59,14 +59,6 @@ struct SettingsView: View {
   @EnvironmentObject var appLockVM: AppLockViewModel
   @Namespace var animation
 
-  var iCloudString: String {
-    if NSUbiquitousKeyValueStore.default.bool(forKey: "icloud_sync") {
-      return String(localized: "On")
-    } else {
-      return String(localized: "Off")
-    }
-  }
-
   @Environment(\.openURL) var openURL
   let supportEmail = SupportEmail(toAddress: "rafasohhh@gmail.com", subject: "Support Email")
   let featureRequestEmail = SupportEmail(
@@ -317,7 +309,7 @@ struct SettingsView: View {
               NavigationLink(destination: SettingsCloudView()) {
                 SettingsRowView(
                   systemImage: "icloud.fill", title: "iCloud Sync", colour: 111,
-                  optionalText: iCloudString)
+                  optionalText: String(localized: "Status"))
               }
 
               //

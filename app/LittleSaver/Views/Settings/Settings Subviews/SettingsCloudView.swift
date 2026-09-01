@@ -2,77 +2,108 @@
 //  SettingsCloudView.swift
 //  LittleSaver
 //
-//  Created by Rafael Soh on 5/11/23.
-//
 
-import Foundation
 import SwiftUI
+
+#if !targetEnvironment(simulator)
+import CloudKitSyncMonitor
+import Combine
+
+@MainActor
+private final class CloudSyncStatusModel: ObservableObject {
+  @Published private(set) var status = "Checking…"
+  private var monitor: SyncMonitor?
+  private var monitorChange: AnyCancellable?
+
+  func start() {
+    guard monitor == nil,
+          !ProcessInfo.processInfo.isRunningUnitTests,
+          Bundle.main.bundleIdentifier == AppIdentifiers.appBundle else {
+      status = "Unavailable"
+      return
+    }
+
+    let monitor = SyncMonitor.shared
+    self.monitor = monitor
+    update(from: monitor)
+    monitorChange = monitor.objectWillChange.sink { [weak self, weak monitor] _ in
+      DispatchQueue.main.async {
+        guard let self, let monitor else { return }
+        self.update(from: monitor)
+      }
+    }
+  }
+
+  private func update(from monitor: SyncMonitor) {
+    switch monitor.syncStateSummary {
+    case .noNetwork: status = "Waiting for network"
+    case .accountNotAvailable: status = "iCloud unavailable"
+    case .error: status = "Sync error"
+    case .notSyncing: status = "Not syncing"
+    case .notStarted: status = "Ready"
+    case .inProgress: status = "Syncing…"
+    case .succeeded: status = "Up to date"
+    case .unknown: status = "Status unavailable"
+    }
+  }
+}
+#endif
 
 struct SettingsCloudView: View {
   @Environment(\.presentationMode) var presentationMode: Binding<PresentationMode>
-  @State private var iCloudStorage: Bool = false
-  @Namespace var animation
+
+  #if !targetEnvironment(simulator)
+  @StateObject private var statusModel = CloudSyncStatusModel()
+  #endif
 
   var body: some View {
     VStack(spacing: 10) {
       Text("iCloud Sync")
         .font(.system(.title3, design: .rounded).weight(.semibold))
         .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
-        //                .font(.system(size: 20, weight: .semibold, design: .rounded))
         .foregroundColor(Color.PrimaryText)
         .frame(maxWidth: .infinity)
         .overlay(alignment: .leading) {
           Button {
-            self.presentationMode.wrappedValue.dismiss()
+            presentationMode.wrappedValue.dismiss()
           } label: {
             SettingsBackButton()
           }
         }
         .padding(.bottom, 20)
 
-      VStack(spacing: 0) {
-        HStack {
-          Text("Enable Sync")
-            .font(.system(.body, design: .rounded))
-            .foregroundColor(Color.PrimaryText)
-
-          Spacer()
-
-          ZStack(alignment: iCloudStorage ? .trailing : .leading) {
-            Capsule()
-              .frame(width: 42, height: 28)
-              .foregroundColor(iCloudStorage ? .green : .gray.opacity(0.8))
-
-            Circle()
-              .foregroundColor(Color.white)
-              .padding(2)
-              .frame(width: 28, height: 28)
-              .matchedGeometryEffect(id: "toggle", in: animation)
-          }
-          .onTapGesture {
-            iCloudStorage.toggle()
-          }
-          .onChange(of: iCloudStorage) { newValue in
-            NSUbiquitousKeyValueStore.default.set(newValue, forKey: "icloud_sync")
-          }
-        }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 9)
+      HStack {
+        Text("Status")
+          .font(.system(.body, design: .rounded))
+          .foregroundColor(Color.PrimaryText)
+        Spacer()
+        Text(statusText)
+          .font(.system(.body, design: .rounded))
+          .foregroundColor(Color.SubtitleText)
       }
+      .frame(maxWidth: .infinity)
       .padding(.horizontal, 15)
+      .padding(.vertical, 12)
       .background(Color.SettingsBackground, in: RoundedRectangle(cornerRadius: 9))
 
-      Text("Close and reload app for change to take effect.")
+      Text("Sync is automatic. When iCloud or the network is unavailable, changes remain on this device and retry later.")
         .font(.system(.caption, design: .rounded).weight(.medium))
         .multilineTextAlignment(.leading)
         .foregroundColor(Color.SubtitleText)
         .padding(.horizontal, 15)
         .frame(maxWidth: .infinity, alignment: .leading)
     }
-    .onAppear {
-      iCloudStorage = NSUbiquitousKeyValueStore.default.bool(forKey: "icloud_sync")
-    }
+    #if !targetEnvironment(simulator)
+    .onAppear { statusModel.start() }
+    #endif
     .modifier(SettingsSubviewModifier())
+  }
 
+  private var statusText: String {
+    #if targetEnvironment(simulator)
+    return "Unavailable in Simulator"
+    #else
+    return statusModel.status
+    #endif
   }
 }

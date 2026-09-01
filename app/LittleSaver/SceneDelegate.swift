@@ -16,7 +16,7 @@ class SceneDelegate: NSObject, UIWindowSceneDelegate {
         options connectionOptions: UIScene.ConnectionOptions
     ) {
         if let shortcutItem = connectionOptions.shortcutItem {
-            guard let url = URL(string: shortcutItem.type) else {
+            guard let url = URL(string: shortcutItem.type), DeepLink(url: url) != nil else {
                 return
             }
 
@@ -29,7 +29,7 @@ class SceneDelegate: NSObject, UIWindowSceneDelegate {
         performActionFor shortcutItem: UIApplicationShortcutItem,
         completionHandler: @escaping (Bool) -> Void
     ) {
-        guard let url = URL(string: shortcutItem.type) else {
+        guard let url = URL(string: shortcutItem.type), DeepLink(url: url) != nil else {
             completionHandler(false)
             return
         }

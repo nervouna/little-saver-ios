@@ -280,7 +280,7 @@ struct BudgetWidgetEntryView: View {
                 .containerBackground(for: .widget) {
                     Color.PrimaryBackground
                 }
-                .widgetURL(URL(string: "\(AppIdentifiers.urlScheme)://budget?budget=\(entry.budget.name)"))
+                .widgetURL(DeepLink.budget(name: entry.budget.name).url)
             } else {
                 VStack(spacing: 12) {
                     HStack(alignment: .top) {
@@ -371,7 +371,7 @@ struct BudgetWidgetEntryView: View {
                 .padding(15)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .background(Color.PrimaryBackground)
-                .widgetURL(URL(string: "\(AppIdentifiers.urlScheme)://budget?budget=\(entry.budget.name)"))
+                .widgetURL(DeepLink.budget(name: entry.budget.name).url)
             }
         }
     }

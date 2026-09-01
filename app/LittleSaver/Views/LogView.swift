@@ -294,12 +294,6 @@ struct LogView: View {
 //                    released = .none
 //                }
 //            }
-            .onOpenURL { url in
-                guard url.host == "search" else {
-                    return
-                }
-                searchMode = true
-            }
         }
     }
 
