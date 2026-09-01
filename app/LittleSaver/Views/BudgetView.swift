@@ -5,7 +5,6 @@
 //  Created by Rafael Soh on 20/5/22.
 //
 
-import CrookedText
 import Foundation
 import Popovers
 import SwiftUI
@@ -410,11 +409,11 @@ struct MainBudgetView: View {
                     }
                 }
 
-                CrookedText(text: String(localized: "OVERALL SPENT: \(percentString1)"), radius: width / 2 + 8)
+                Text("OVERALL SPENT: \(percentString1)")
                     .font(.system(.footnote, design: .rounded).weight(.medium))
-//                    .font(.system(size: 13, weight: .medium, design: .rounded))
                     .foregroundColor(Color.SubtitleText)
-                    .frame(width: width, height: 10)
+                    .frame(width: width)
+                    .offset(y: 20)
 
                 VStack(spacing: -4) {
                     let internalWidth = soloBudget ? width - 90 : width - 60

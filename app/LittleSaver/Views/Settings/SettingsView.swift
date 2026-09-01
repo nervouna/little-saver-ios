@@ -6,9 +6,7 @@
 //
 
 import Combine
-import ConfettiSwiftUI
 import Foundation
-import StoreKit
 import SwiftUI
 import UserNotifications
 import WidgetKit
@@ -60,9 +58,6 @@ struct SettingsView: View {
   @Namespace var animation
 
   @Environment(\.openURL) var openURL
-  let supportEmail = SupportEmail(toAddress: "rafasohhh@gmail.com", subject: "Support Email")
-  let featureRequestEmail = SupportEmail(
-    toAddress: "rafasohhh@gmail.com", subject: "Feature Request")
 
   @AppStorage("numberEntryType", store: UserDefaults(suiteName: AppIdentifiers.appGroup))
   var numberEntryType: Int = 2
@@ -117,9 +112,7 @@ struct SettingsView: View {
 
   // popups
 
-  @State var showTipJarMenu = false
   @State var showImportGuide = false
-  @State var showUpdate: Bool = false
 
   @EnvironmentObject var tabBarManager: TabBarManager
 
@@ -363,55 +356,28 @@ struct SettingsView: View {
               }
 
               Button {
-                showTipJarMenu = true
-              } label: {
-                SettingsRowView(systemImage: "heart.fill", title: "Tip Jar", colour: 123)
-              }
-
-              Button {
-                supportEmail.send(openURL: openURL)
-              } label: {
-                SettingsRowView(systemImage: "ladybug.fill", title: "Report Bug", colour: 124)
-              }
-
-              Button {
-                featureRequestEmail.send(openURL: openURL)
-              } label: {
-                SettingsRowView(
-                  systemImage: "hand.wave.fill", title: "Feature Request", colour: 125)
-              }
-
-              Button {
-                let url = "https://apps.apple.com/app/id1635280255?action=write-review"
-                guard let writeReviewURL = URL(string: url)
-                else { fatalError("Expected a valid URL") }
-                UIApplication.shared.open(writeReviewURL, options: [:], completionHandler: nil)
-              } label: {
-                SettingsRowView(systemImage: "star.fill", title: "Rate on App Store", colour: 126)
-              }
-
-              Button {
-                shareSheet(url: "https://apps.apple.com/app/id1635280255")
-              } label: {
-                SettingsRowView(systemImage: "shareplay", title: "Share with Friends", colour: 127)
-              }
-
-              Button {
-                if let url = URL(string: "https://www.x.com/budgetwithdime") {
-                  UIApplication.shared.open(url)
-                }
-              } label: {
-                SettingsRowView(systemImage: "bird.fill", title: "Follow Dime on X", colour: 128)
-                  .frame(maxWidth: .infinity)
-              }
-
-              Button {
-                if let url = URL(string: "https://www.x.com/rarfell") {
-                  UIApplication.shared.open(url)
+                if let url = URL(string: "https://github.com/nervouna/little-saver-ios") {
+                  openURL(url)
                 }
               } label: {
                 SettingsRowView(
-                  systemImage: "camera.fill", title: "Follow Rafael on X", colour: 129)
+                  systemImage: "chevron.left.forwardslash.chevron.right", title: "Source Code", colour: 123)
+              }
+
+              Button {
+                if let url = URL(string: "https://github.com/nervouna/little-saver-ios/issues") {
+                  openURL(url)
+                }
+              } label: {
+                SettingsRowView(systemImage: "ladybug.fill", title: "GitHub Issues", colour: 124)
+              }
+
+              NavigationLink(destination: PrivacyPolicyView()) {
+                SettingsRowView(systemImage: "hand.raised.fill", title: "Privacy", colour: 125)
+              }
+
+              NavigationLink(destination: OpenSourceLicensesView()) {
+                SettingsRowView(systemImage: "doc.text.fill", title: "Open Source Licenses", colour: 126)
               }
             }
             .padding(10)
@@ -421,28 +387,11 @@ struct SettingsView: View {
           .padding(.bottom, 15)
 
           VStack(spacing: 5) {
-            HStack(spacing: 3) {
-              Text("Version \(UIApplication.appVersion ?? "") (\(UIApplication.buildNumber ?? ""))")
-                .font(.system(.footnote, design: .rounded).weight(.medium))
+            Text("Version \(UIApplication.appVersion ?? "") (\(UIApplication.buildNumber ?? ""))")
+              .font(.system(.footnote, design: .rounded).weight(.medium))
+              .foregroundColor(Color.SubtitleText)
 
-                //                                .font(.system(size: 14, weight: .medium, design: .rounded))
-                .foregroundColor(Color.SubtitleText)
-
-              Text("·")
-                .font(.system(.footnote, design: .rounded).weight(.medium))
-
-                .foregroundColor(Color.SubtitleText)
-
-              Text("What's New")
-                .font(.system(.footnote, design: .rounded).weight(.medium))
-
-                .foregroundColor(Color.PrimaryText)
-                .onTapGesture {
-                  showUpdate = true
-                }
-            }
-
-            Text("Made with ❤️ by \(makeAttributedString()) from 🇸🇬")
+            Text("基于 Dime 开源项目")
               .font(.system(.footnote, design: .rounded).weight(.medium))
 
               .foregroundColor(Color.SubtitleText)
@@ -457,12 +406,6 @@ struct SettingsView: View {
       .navigationBarTitle("")
       .navigationBarHidden(true)
       .background(Color.PrimaryBackground)
-      .fullScreenCover(isPresented: $showTipJarMenu) {
-        TipJarAlert()
-      }
-      .fullScreenCover(isPresented: $showUpdate) {
-        UpdateAlert()
-      }
       .fullScreenCover(isPresented: $showImportGuide) {
         ImportDataView()
       }
@@ -509,27 +452,6 @@ struct SettingsView: View {
     .frame(maxWidth: .infinity)
   }
 
-  func makeAttributedString() -> AttributedString {
-    var string = AttributedString("Rafael")
-    string.foregroundColor = Color.PrimaryText
-    string.link = URL(string: "https://www.x.com/rarfell")
-
-    return string
-  }
-
-  func shareSheet(url: String) {
-    let url = URL(string: url)
-    let activityView = UIActivityViewController(activityItems: [url!], applicationActivities: nil)
-
-    let allScenes = UIApplication.shared.connectedScenes
-    let scene = allScenes.first { $0.activationState == .foregroundActive }
-
-    if let windowScene = scene as? UIWindowScene {
-      windowScene.keyWindow?.rootViewController?.present(
-        activityView, animated: true, completion: nil)
-    }
-  }
-
   func exportData() {
     let fetchRequest = dataController.fetchRequestForExport()
     let transactions = dataController.results(for: fetchRequest)
@@ -574,240 +496,6 @@ struct SettingsView: View {
   }
 }
 
-struct TipJarAlert: View {
-  @Environment(\.dismiss) var dismiss
-  @Environment(\.colorScheme) var systemColorScheme
-  @EnvironmentObject var unlockManager: UnlockManager
-
-  @State private var offset: CGFloat = 0
-
-  @AppStorage("bottomEdge", store: UserDefaults(suiteName: AppIdentifiers.appGroup))
-  var bottomEdge: Double = 15
-
-  @State var opacity = 0.0
-  @State var counter = 0
-
-  var bottomCaption: String {
-    if unlockManager.failedTransaction {
-      return "Tip failed to go through, please try again!"
-    } else if unlockManager.purchaseCount > 0 {
-      return "Thanks a million, \(Image(systemName: "heart.fill")) Rafael"
-    } else {
-      return "Have a great day ahead!"
-    }
-  }
-
-  //    var sortedProducts: [SKProduct] {
-  //        let holding = unlockManager.loadedProducts.sorted {
-  //            $0.price.doubleValue > $1.price.doubleValue
-  //        }
-  //
-  //        return holding
-  //    }
-
-  var body: some View {
-    ZStack(alignment: .bottom) {
-      Color.PrimaryBackground.opacity(opacity)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .contentShape(Rectangle())
-        .onTapGesture {
-          withAnimation(.easeIn(duration: 0.15)) {
-            opacity = 0
-            offset += 300
-          }
-          DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
-            dismiss()
-          }
-        }
-        .onAppear {
-          DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
-            withAnimation {
-              opacity = 0.4
-            }
-          }
-        }
-
-      VStack {
-        switch unlockManager.requestState {
-        case .loading:
-          ProgressView {
-            Text("Loading")
-              .font(.system(.body, design: .rounded).weight(.medium))
-              //                            .font(.system(size: 18, weight: .medium, design: .rounded))
-              .foregroundColor(Color.SubtitleText)
-              .frame(maxWidth: .infinity)
-              .frame(height: 200)
-          }
-        case .failed:
-          Text("Unable to load tip options, please try again later 🥲")
-            .font(.system(.body, design: .rounded).weight(.medium))
-
-            //                        .font(.system(size: 18, weight: .medium, design: .rounded))
-            .multilineTextAlignment(.center)
-            .foregroundColor(Color.SubtitleText)
-            .frame(maxWidth: .infinity)
-            .frame(height: 200)
-        default:
-          VStack(alignment: .leading, spacing: 4) {
-            HStack {
-              Image(systemName: "heart.fill")
-                .font(.system(.callout, design: .rounded))
-
-              //                                .font(.system(size: 16))
-              Text("Tip Jar")
-                .font(.system(.title2, design: .rounded).weight(.medium))
-
-              //                                .font(.system(size: 22, weight: .medium, design: .rounded))
-            }
-            .foregroundColor(.PrimaryText)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .overlay(alignment: .trailing) {
-              Button {
-                withAnimation(.easeIn(duration: 0.15)) {
-                  opacity = 0
-                  offset += 300
-                }
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
-                  dismiss()
-                }
-              } label: {
-                Image(systemName: "xmark")
-                  .font(.system(.subheadline, design: .rounded).weight(.semibold))
-
-                  //                                    .font(.system(size: 14, weight: .semibold))
-                  .foregroundColor(Color.SubtitleText)
-                  .padding(7)
-                  .background(Color.SecondaryBackground, in: Circle())
-                  .contentShape(Circle())
-              }
-              .offset(x: 5, y: -5)
-            }
-
-            Text(
-              "Hey! Dime was built by a solo student developer, and is intended to be completely free-of-charge, with no paywalls or ads. If you enjoy using Dime and want to support development, please consider a small tip."
-            )
-            .font(.system(.callout, design: .rounded).weight(.medium))
-
-            //                            .font(.system(size: 16, weight: .medium, design: .rounded))
-            .foregroundColor(.SubtitleText)
-            .padding(.bottom, 20)
-
-            ProductView(
-              products: unlockManager.loadedProducts.sorted {
-                $0.price.doubleValue < $1.price.doubleValue
-              }
-            )
-            .padding(.bottom, 20)
-
-            Text(bottomCaption)
-              .font(.system(.subheadline, design: .rounded).weight(.medium))
-
-              //                                .font(.system(size: 14, weight: .medium, design: .rounded))
-              .frame(maxWidth: .infinity)
-              .foregroundColor(.SubtitleText)
-          }
-        }
-      }
-      .padding(18)
-      .animation(.easeInOut, value: unlockManager.failedTransaction)
-      .background(
-        RoundedRectangle(cornerRadius: 13).fill(Color.PrimaryBackground).shadow(
-          color: systemColorScheme == .dark ? Color.clear : Color.gray.opacity(0.25), radius: 6)
-      )
-      .overlay(
-        RoundedRectangle(cornerRadius: 13).stroke(
-          systemColorScheme == .dark ? Color.gray.opacity(0.1) : Color.clear, lineWidth: 1.3)
-      )
-      .offset(y: offset)
-      .confettiCannon(
-        counter: $counter, num: 50, openingAngle: Angle(degrees: 0),
-        closingAngle: Angle(degrees: 360), radius: 200
-      )
-      .gesture(
-        DragGesture()
-          .onChanged { gesture in
-            if gesture.translation.height < 0 {
-              offset = gesture.translation.height / 3
-            } else {
-              offset = gesture.translation.height
-            }
-          }
-          .onEnded { value in
-            if value.translation.height > 30 {
-              withAnimation(.easeIn(duration: 0.15)) {
-                opacity = 0
-                offset += 300
-              }
-              DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
-                dismiss()
-              }
-
-            } else {
-              withAnimation {
-                offset = 0
-              }
-            }
-          }
-      )
-      .padding(.horizontal, 17)
-      .padding(.bottom, bottomEdge == 0 ? 13 : bottomEdge)
-      .onChange(of: unlockManager.purchaseCount) { _ in
-        counter += 1
-      }
-    }
-    .edgesIgnoringSafeArea(.all)
-    .background(BackgroundBlurView())
-  }
-}
-
-struct ProductView: View {
-  @EnvironmentObject var unlockManager: UnlockManager
-  let products: [SKProduct]
-
-  var body: some View {
-    VStack {
-      ForEach(products, id: \.self) { product in
-        HStack {
-          Text(getText(product.productIdentifier))
-
-          Spacer()
-
-          Button {
-            unlock(product)
-          } label: {
-            Text(product.localizedPrice)
-              .monospacedDigit()
-              .padding(6)
-              .background(
-                Color.SecondaryBackground, in: RoundedRectangle(cornerRadius: 8, style: .continuous)
-              )
-          }
-        }
-      }
-    }
-    .foregroundColor(.PrimaryText)
-    .font(.system(.body, design: .rounded).weight(.semibold))
-    .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
-    //        .font(.system(size: 18, weight: .semibold, design: .rounded))
-  }
-
-  func unlock(_ product: SKProduct) {
-    unlockManager.buy(product: product)
-  }
-
-  func getText(_ string: String) -> String {
-    if string == "io.damao.littlesaver.smalltip" {
-      return String(localized: "☕ Coffee-Sized Tip")
-    } else if string == "io.damao.littlesaver.mediumtip" {
-      return String(localized: "🌮 Taco-Sized Tip")
-    } else if string == "io.damao.littlesaver.largetip" {
-      return String(localized: "🍕 Pizza-Sized Tip")
-    } else {
-      return ""
-    }
-  }
-}
-
 struct SettingsRowView: View {
   var systemImage: String
   var title: String
@@ -839,8 +527,8 @@ struct SettingsRowView: View {
 
       Spacer()
 
-      if optionalText != nil {
-        Text(optionalText!)
+      if let optionalText {
+        Text(optionalText)
           .font(.system(.body, design: .rounded))
 
           //                    .font(.system(size: 17, weight: .regular, design: .rounded))
@@ -868,5 +556,150 @@ struct SettingsCategoryView: View {
       .navigationBarTitle("")
       .navigationBarHidden(true)
       .background(Color.PrimaryBackground)
+  }
+}
+
+private struct PrivacyPolicyView: View {
+  var body: some View {
+    LegalTextView(
+      title: "隐私说明",
+      sections: [
+        ("数据存储", "小小存钱罐将交易、分类、预算与应用设置保存在你的设备上。启用 iCloud 的设备会通过你的私人 CloudKit 数据库同步这些数据。开发者无法查看你的私人数据库内容。"),
+        ("通知与生物识别", "提醒由系统在本地安排。应用锁仅使用系统提供的生物识别验证结果，不读取或保存你的生物识别数据。"),
+        ("数据传输", "应用不包含广告、分析 SDK 或开发者运营的服务器。你主动使用导入、导出、源代码或问题反馈入口时，数据会按你选择的系统功能或外部网站处理。"),
+        ("你的控制", "你可以在设置中导出或清除数据，也可以在系统设置中管理通知、iCloud 和生物识别权限。")
+      ])
+  }
+}
+
+struct BundledThirdPartyLicense: Identifiable, Equatable {
+  let name: String
+  let attribution: String
+  let resourceName: String
+
+  var id: String { resourceName }
+
+  static let all = [
+    BundledThirdPartyLicense(
+      name: "CloudKitSyncMonitor",
+      attribution: "Copyright (c) 2020 Grant Grueninger",
+      resourceName: "CloudKitSyncMonitor"),
+    BundledThirdPartyLicense(
+      name: "ConfettiSwiftUI",
+      attribution: "Copyright (c) 2020 Simon Bachmann",
+      resourceName: "ConfettiSwiftUI"),
+    BundledThirdPartyLicense(
+      name: "Popovers",
+      attribution: "Copyright (c) 2022 A. Zheng",
+      resourceName: "Popovers"),
+    BundledThirdPartyLicense(
+      name: "SwiftUI Introspect",
+      attribution: "Copyright 2019 Timber Software",
+      resourceName: "SwiftUIIntrospect")
+  ]
+
+  func text(in bundle: Bundle = .main) throws -> String {
+    let resourceURL = bundle.url(
+      forResource: resourceName,
+      withExtension: "txt",
+      subdirectory: "ThirdPartyLicenses")
+      ?? bundle.url(forResource: resourceName, withExtension: "txt")
+
+    guard let resourceURL else {
+      throw BundledThirdPartyLicenseError.missingResource(resourceName)
+    }
+    return try String(contentsOf: resourceURL, encoding: .utf8)
+  }
+}
+
+enum BundledThirdPartyLicenseError: LocalizedError {
+  case missingResource(String)
+
+  var errorDescription: String? {
+    switch self {
+    case .missingResource(let name):
+      return "无法读取 \(name) 的许可文本。"
+    }
+  }
+}
+
+private struct OpenSourceLicensesView: View {
+  var body: some View {
+    List {
+      Section {
+        VStack(alignment: .leading, spacing: 6) {
+          Text("小小存钱罐")
+            .font(.headline)
+          Text("本项目基于 Rafael Soh 创建的 Dime 二次开发，并在 GNU General Public License v3.0 下发布。完整许可与原作者署名见源代码仓库。")
+            .font(.body)
+            .foregroundColor(.SubtitleText)
+        }
+        .padding(.vertical, 4)
+      }
+
+      Section("第三方许可") {
+        ForEach(BundledThirdPartyLicense.all) { license in
+          NavigationLink(destination: ThirdPartyLicenseDetailView(license: license)) {
+            VStack(alignment: .leading, spacing: 4) {
+              Text(license.name)
+              Text(license.attribution)
+                .font(.caption)
+                .foregroundColor(.SubtitleText)
+            }
+          }
+        }
+      }
+    }
+    .navigationTitle("开源许可")
+  }
+}
+
+private struct ThirdPartyLicenseDetailView: View {
+  let license: BundledThirdPartyLicense
+  @State private var contents = "正在读取许可文本…"
+
+  var body: some View {
+    ScrollView {
+      Text(contents)
+        .font(.body.monospaced())
+        .textSelection(.enabled)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(20)
+    }
+    .navigationTitle(license.name)
+    .background(Color.PrimaryBackground)
+    .task {
+      do {
+        contents = try license.text()
+      } catch {
+        contents = error.localizedDescription
+      }
+    }
+  }
+}
+
+private struct LegalTextView: View {
+  let title: String
+  let sections: [(String, String)]
+
+  var body: some View {
+    ScrollView {
+      VStack(alignment: .leading, spacing: 20) {
+        ForEach(Array(sections.enumerated()), id: \.offset) { _, section in
+          VStack(alignment: .leading, spacing: 6) {
+            Text(section.0)
+              .font(.headline)
+              .foregroundColor(.PrimaryText)
+            Text(section.1)
+              .font(.body)
+              .foregroundColor(.SubtitleText)
+              .fixedSize(horizontal: false, vertical: true)
+          }
+        }
+      }
+      .padding(20)
+    }
+    .navigationTitle(title)
+    .background(Color.PrimaryBackground)
   }
 }

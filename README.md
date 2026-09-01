@@ -1,74 +1,41 @@
-# Dime
+# 小小存钱罐
 
-<p align="center">
-  <img src="./docs/assets/hero.png" width="451" style="max-width: 100%; height: auto;" />
-</p>
+小小存钱罐是一款开源的 iPhone 个人收支与预算应用。它专注于快速记账、预算管理和清晰的消费回顾，数据默认保存在你的设备上，并可通过私人 CloudKit 数据库在同一 Apple 账户的设备间同步。
 
-Dime is a 100% free, open-source personal finance tracker built with iOS design guidelines in mind. [Download Dime on the App Store.](https://apps.apple.com/sg/app/dime-budget-expense-tracker/id1635280255)
+## 功能
 
-## App Preview
+- 记录收入、支出和备注
+- 自定义分类与预算
+- 周期交易和时间范围统计
+- CSV 导入与导出
+- iCloud 同步状态
+- 主屏幕与锁屏小组件
+- Siri、Intent 和 App Shortcut
+- 本地记账提醒
+- 系统生物识别应用锁
 
-<p align="center">
-  <img src="./docs/assets/3.png" height="300" /> 
-  <img src="./docs/assets/4.png" height="300" /> 
-  <img src="./docs/assets/5.png" height="300" />
-  <img src="./docs/assets/6.png" height="300" />
-</p>
-<p align="center">
-  <img src="./docs/assets/7.png" height="300" />
-  <img src="./docs/assets/8.png" height="300" />
-  <img src="./docs/assets/9.png" height="300" />
-</p>
+## 构建
 
-## Why You’ll Love Dime
+需要 macOS 和 Xcode。克隆仓库后打开 `app/LittleSaver.xcodeproj`，等待 Xcode 按仓库中的 `Package.resolved` 解析依赖，然后选择 `LittleSaver` Scheme 构建。Simulator 构建不需要开发者账号；真机构建需要可用的 Apple 开发者账号。
 
-- 100% free forever, with no paywall or ads.
-- Beautifully iOS-centric design, with simplicity at its core.
-- Insightful expenditure breakdowns over various time periods.
-- Create budgets based on expense categories and stick to them.
-- Create recurring expenses with custom time frames.
-- Sync your expenses, categories and budgets with other devices via iCloud.
-- Custom reminders to input your expenses.
-- Biometric authentication to protect your data.
-- Home screen quick actions make capturing new expenses a breeze.
-- A gorgeous night theme for dark mode fanatics.
-- Informative home and lock screen widgets keep you updated at a glance.
+应用使用以下标识：
 
-## How to help
+- App Bundle ID：`io.damao.littlesaver`
+- App Group：`group.io.damao.littlesaver`
+- CloudKit Container：`iCloud.io.damao.littlesaver`
 
-- Please feel free to raise [issues](https://github.com/rarfell/dimeApp/issues) for any inquiries, suggestions for improvements, or bugs you encounter.
-- You're welcome to fork the repository and propose changes through a pull request, although the decision to merge it rests with the project maintainers.
-- To follow along with app updates, follow [@budgetwithdime](https://x.com/budgetwithdime) on X / Twitter
-- If you would like to discuss with the contributors, feel free to drop [Rafael](https://x.com/rarfell) or [Jeffrey](https://x.com/jefcodes) a DM!
+使用自己的开发者账号构建时，需要在 Xcode 中为 App、Widget、Intent 和 Intent UI 配置相应签名。不要把个人证书、描述文件或密钥提交到仓库。
 
-## How to build
+## 隐私
 
-### Required
+应用不包含广告或分析 SDK。交易、分类、预算与设置保存在设备和你的私人 CloudKit 数据库中；通知由系统在本地安排。详细说明见[隐私说明](docs/privacypolicy.md)。
 
-- Xcode
+## 开源与上游
 
-### Build Steps
+本项目是 [Dime](https://github.com/rarfell/dimeApp) 的 fork。Dime 由 Rafael Soh 创建；本项目保留原作者署名，并感谢所有上游贡献者。
 
-- Clone this project either via Xcode or terminal:
-  `git clone https://github.com/rarfell/dimeApp.git`
-- For branch selection use:
-  `--single-branch --branch [branchname]` after `clone`
-- After completion, open `dime.xcodeproj` using Xcode.
-- Please let all dependecies update automatically but we would recommend to run
-  `File > Packages > Resolve Package Versions` to ensure, everything is updated.
+小小存钱罐沿用 GNU General Public License v3.0，完整条款见 [LICENSE](LICENSE)。第三方组件与许可见 [THIRD_PARTY_LICENSES.md](THIRD_PARTY_LICENSES.md)。
 
-## Third party dependencies
+## 参与贡献
 
-- [Alamofire](https://github.com/Alamofire/Alamofire)
-- [CloudKitSyncMonitor](https://github.com/ggruen/CloudKitSyncMonitor)
-- [ConfettiSwiftUI](https://github.com/simibac/ConfettiSwiftUI)
-- [CrookedText](https://github.com/duemunk/CrookedText)
-- [SwiftUI Introspect](https://github.com/siteline/swiftui-introspect)
-- [IsScrolling](https://github.com/fatbobman/IsScrolling)
-- [Popovers](https://github.com/aheze/Popovers/)
-- ScrollViewStyle
-- STools
-
-## Licence
-
-This project is licensed under the GNU General Public License v3.0 - see the [LICENSE](LICENSE) file for details.
+源代码托管在 [nervouna/little-saver-ios](https://github.com/nervouna/little-saver-ios)。问题与建议请提交到 [GitHub Issues](https://github.com/nervouna/little-saver-ios/issues)。

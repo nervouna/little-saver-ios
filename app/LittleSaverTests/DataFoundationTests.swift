@@ -18,6 +18,17 @@ final class DataFoundationTests: XCTestCase {
         calendar = nil
     }
 
+    func testBundledThirdPartyLicensesAreReadableAndComplete() throws {
+        XCTAssertEqual(BundledThirdPartyLicense.all.count, 4)
+
+        for license in BundledThirdPartyLicense.all {
+            let text = try license.text(in: .main)
+            XCTAssertTrue(text.contains(license.attribution))
+            XCTAssertTrue(text.contains("Permission is hereby granted"))
+            XCTAssertTrue(text.contains("THE SOFTWARE IS PROVIDED \"AS IS\""))
+        }
+    }
+
     func testRuntimeRolesMapOnlyKnownBundleIdentifiers() throws {
         XCTAssertEqual(try AppRuntimeRole(bundleIdentifier: AppIdentifiers.appBundle), .mainApplication)
         XCTAssertEqual(try AppRuntimeRole(bundleIdentifier: AppIdentifiers.widgetBundle), .widget)

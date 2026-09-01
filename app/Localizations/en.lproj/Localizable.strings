@@ -1,6 +1,6 @@
 /* 
   Localizable.strings
-  dime
+  LittleSaver
 
   Created by Rafael Soh on 6/3/23.
   
@@ -8,7 +8,7 @@
 
 // welcome sheet
 
-"dime_name" = "Dime";
+"app_name" = "小小存钱罐";
 "welcome_header_1" = "Track your finances";
 "welcome_subtitle_1" = "Add new entries in a simple, straightforward manner";
 "welcome_header_2" = "Analyse your expenditure";
@@ -216,12 +216,6 @@
 "Erase Data" = "Erase Data";
 "Animated Charts" = "Animated Charts";
 "Feature Lab" = "Feature Lab";
-"Tip Jar" = "Tip Jar";
-"Report Bug" = "Report Bug";
-"Rate on App Store" = "Rate on App Store";
-"Share with Friends" = "Share with Friends";
-"Follow Dime on Twitter" = "Follow Dime on Twitter";
-"Follow Rafael on Instagram" = "Follow Rafael on Instagram";
 "Light" = "Light";
 "Dark" = "Dark";
 "System" = "System";
@@ -243,7 +237,6 @@
 "If you're too lazy to add a decimal point, I gotchu covered." = "If you're too lazy to add a decimal point, I gotchu covered.";
 "\"Cent-less\"" = "\"Cent-less\"";
 "If your transactions usually amount to whole numbers - this one is for you." = "If your transactions usually amount to whole numbers - this one is for you.";
-"Enable Sync" = "Enable Sync";
 "Permanently Delete Everythin'" = "Permanently Delete Everythin'";
 "This action would delete all existing transactions, categories, and budgets, and cannot be undone." = "This action would delete all existing transactions, categories, and budgets, and cannot be undone.";
 "Danger Zone" = "Danger Zone";
@@ -258,17 +251,7 @@
 "Swaps the time label of each transaction with its category name. However, if you do not manually input a note for each transaction - in which case the note is the category name by default - duplicate text will appear." = "Swaps the time label of each transaction with its category name. However, if you do not manually input a note for each transaction - in which case the note is the category name by default - duplicate text will appear.";
 "Keep the streak going!" = "Keep the streak going!";
 "Remember to input your expenses today." = "Remember to input your expenses today.";
-"Loading" = "Loading";
-"Unable to load tip options, please try again later 🥲" = "Unable to load tip options, please try again later 🥲";
-"Hey! Dime was built by a solo student developer, and is intended to be completely free-of-charge, with no paywalls or ads. If you enjoy using Dime and want to support development, please consider a small tip." = "Hey! Dime was built by a solo student developer, and is intended to be completely free-of-charge, with no paywalls or ads. If you enjoy using Dime and want to support development, please consider a small tip.";
-"Tip failed to go through, please try again!" = "Tip failed to go through, please try again!";
-"Thanks a million, %@ Rafael" = "Thanks a million, %@ Rafael";
-"Have a great day ahead!" = "Have a great day ahead!";
 "Version %@ (%@)" = "Version %@ (%@)";
-"Made with ❤️ by %@ from 🇸🇬" = "Made with ❤️ by %@ from 🇸🇬";
-"☕ Coffee-Sized Tip" = "☕ Coffee-Sized Tip";
-"🌮 Taco-Sized Tip" = "🌮 Taco-Sized Tip";
-"🍕 Pizza-Sized Tip" = "🍕 Pizza-Sized Tip";
 
 // Widgets
 

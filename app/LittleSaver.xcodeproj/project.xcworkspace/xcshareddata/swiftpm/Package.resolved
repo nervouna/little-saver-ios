@@ -2,15 +2,6 @@
   "originHash" : "ae8559a74005595848c7f375a437bfb1a9b6e513a1e16ca5be5d648d5d854e5e",
   "pins" : [
     {
-      "identity" : "alamofire",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/Alamofire/Alamofire",
-      "state" : {
-        "revision" : "b2fa556e4e48cbf06cf8c63def138c98f4b811fa",
-        "version" : "5.8.0"
-      }
-    },
-    {
       "identity" : "cloudkitsyncmonitor",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/ggruen/CloudKitSyncMonitor.git",
@@ -26,24 +17,6 @@
       "state" : {
         "revision" : "8d3a15d0aa2991e0761749b767ef8d89bca6275a",
         "version" : "1.0.1"
-      }
-    },
-    {
-      "identity" : "crookedtext",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/duemunk/CrookedText",
-      "state" : {
-        "revision" : "70ae8691bdfb62698571e69bd855acf4030795ea",
-        "version" : "0.0.1"
-      }
-    },
-    {
-      "identity" : "isscrolling",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/fatbobman/IsScrolling.git",
-      "state" : {
-        "revision" : "7def8d8f789a326b6f725a76cee8ec3fa69511df",
-        "version" : "1.1.2"
       }
     },
     {

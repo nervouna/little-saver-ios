@@ -27,18 +27,11 @@ struct ContentView: View {
     @AppStorage("currency", store: UserDefaults(suiteName: AppIdentifiers.appGroup)) var currency: String = Locale.current.currencyCode!
 
     @State var showIntro: Bool = false
-    @State var showUpdate: Bool = false
 
     var center = UNUserNotificationCenter.current()
 
     @AppStorage("topEdge", store: UserDefaults(suiteName: AppIdentifiers.appGroup)) var savedTopEdge: Double = 30
     @AppStorage("bottomEdge", store: UserDefaults(suiteName: AppIdentifiers.appGroup)) var savedBottomEdge: Double = 15
-
-    // updateSheetShowing
-
-    @AppStorage("previousVersion", store: UserDefaults(suiteName: AppIdentifiers.appGroup)) var previousVersionString: String = "Version \(UIApplication.appVersion ?? "") (\(UIApplication.buildNumber ?? ""))"
-
-    @AppStorage("showUpdateSheet", store: UserDefaults(suiteName: AppIdentifiers.appGroup)) var showUpdateSheet: Bool = true
 
     var body: some View {
         GeometryReader { proxy in
@@ -50,9 +43,6 @@ struct ContentView: View {
                 .preferredColorScheme(colourScheme == 1 ? .light : colourScheme == 2 ? .dark : nil)
                 .fullScreenCover(isPresented: $showIntro) {
                     WelcomeSheetView()
-                }
-                .fullScreenCover(isPresented: $showUpdate) {
-                    UpdateAlert()
                 }
                 .onAppear {
                     savedTopEdge = topEdge
@@ -78,7 +68,6 @@ struct ContentView: View {
             if firstLaunch {
                 showIntro = true
                 firstLaunch = false
-                showUpdateSheet = false
 
                 defaults.set(1, forKey: "firstWeekday")
                 defaults.set(1, forKey: "haptics")
@@ -135,11 +124,6 @@ struct ContentView: View {
                 dataController.save()
 
                 dataMigration2 = false
-            }
-
-            if showUpdateSheet {
-                showUpdate = true
-                showUpdateSheet = false
             }
 
             center.getNotificationSettings { settings in
