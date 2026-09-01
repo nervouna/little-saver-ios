@@ -214,16 +214,6 @@ class DataController: ObservableObject {
 
     // internal variables
 
-    var tipCounter: Int {
-        get {
-            UserDefaults.standard.integer(forKey: "tipCounter")
-        }
-
-        set {
-            UserDefaults.standard.set(newValue, forKey: "tipCounter")
-        }
-    }
-
     var addedTransaction: Bool {
         get {
             UserDefaults(suiteName: AppIdentifiers.appGroup)?.bool(forKey: "newTransactionAdded") ?? false

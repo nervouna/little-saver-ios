@@ -1,5 +1,5 @@
 name: 💡 Feature Request
-description: Suggest an idea for Dime
+description: Suggest an idea for LittleSaver (小小存钱罐)
 title: 'feat: '
 body:
   - type: checkboxes
@@ -12,7 +12,7 @@ body:
         #   required: true
         # - label: I agree to follow the [Code of Conduct]().
         #   required: true
-        - label: I have searched for [existing issues](https://github.com/rarfell/dimeApp/issues) that already include this feature request, without success.
+        - label: I have searched for [existing issues](https://github.com/nervouna/little-saver-ios/issues) that already include this feature request, without success.
           required: true
 
   - type: textarea

@@ -1,5 +1,5 @@
 name: 🐛 Bug Report
-description: Create a report to help us improve Dime
+description: Create a report to help us improve LittleSaver (小小存钱罐)
 title: 'bug: '
 
 body:
@@ -13,14 +13,14 @@ body:
         #   required: true
         # - label: I agree to follow the [Code of Conduct]().
         #   required: true
-        - label: I have searched for [existing issues](https://github.com/rarfell/dimeApp/issues) that already report this problem, without success.
+        - label: I have searched for [existing issues](https://github.com/nervouna/little-saver-ios/issues) that already report this problem, without success.
           required: true
 
   - type: textarea
     id: affected-versions
     attributes:
-      label: Dime Version
-      description: Which version(s) of Dime does this issue occur on?
+      label: LittleSaver Version
+      description: Which version(s) of LittleSaver (小小存钱罐) does this issue occur on?
 
   - type: textarea
     id: current-behavior
