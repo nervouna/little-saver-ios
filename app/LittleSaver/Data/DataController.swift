@@ -66,9 +66,9 @@ class DataController: ObservableObject {
         var errorDescription: String? {
             switch self {
             case .loading:
-                return "The persistent store is still loading."
+                return String(localized: "The persistent store is still loading.")
             case let .failed(message):
-                return "The persistent store is unavailable: \(message)"
+                return String(localized: "The persistent store is unavailable: \(message)")
             }
         }
     }
@@ -187,7 +187,7 @@ class DataController: ObservableObject {
                     try self.container.initializeCloudKitSchema(options: [])
                 } catch {
                     NSLog("CloudKit schema initialization failed: %@", error.localizedDescription)
-                    self.publishPersistentStoreState(.failed("CloudKit schema initialization failed."))
+                    self.publishPersistentStoreState(.failed(String(localized: "CloudKit schema initialization failed.")))
                     return
                 }
             }
@@ -1920,7 +1920,7 @@ struct LineGraphDataPoint: Equatable {
     var dateString: String {
         let dateFormatter = DateFormatter()
 
-        dateFormatter.dateFormat = "d MMM"
+        dateFormatter.setLocalizedDateFormatFromTemplate("dMMM")
 
         return dateFormatter.string(from: date)
     }
@@ -1928,7 +1928,7 @@ struct LineGraphDataPoint: Equatable {
     var monthString: String {
         let dateFormatter = DateFormatter()
 
-        dateFormatter.dateFormat = "MMM yy"
+        dateFormatter.setLocalizedDateFormatFromTemplate("MMMyy")
 
         return dateFormatter.string(from: date)
     }

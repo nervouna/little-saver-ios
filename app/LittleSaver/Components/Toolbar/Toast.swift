@@ -14,7 +14,7 @@ struct Toast: View {
                     .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
                     .foregroundColor(toastColor)
 
-                Text(toastTitle)
+                Text(LocalizedStringKey(toastTitle))
                     .font(.system(.body, design: .rounded).weight(.semibold))
                     .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
                     .lineLimit(1)

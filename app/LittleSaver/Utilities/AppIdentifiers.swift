@@ -62,11 +62,20 @@ enum AppConfigurationError: LocalizedError, Equatable {
     var errorDescription: String? {
         switch self {
         case let .unknownBundleIdentifier(identifier):
-            return "Unsupported bundle identifier: \(identifier ?? "nil")"
+            return String.localizedStringWithFormat(
+                NSLocalizedString("Unsupported bundle identifier: %@", comment: "Unknown process configuration"),
+                identifier ?? "nil"
+            )
         case let .unavailableAppGroup(identifier):
-            return "The App Group container is unavailable: \(identifier)"
+            return String.localizedStringWithFormat(
+                NSLocalizedString("The App Group container is unavailable: %@", comment: "Missing App Group container"),
+                identifier
+            )
         case let .unavailableManagedObjectModel(name):
-            return "The managed object model is unavailable: \(name)"
+            return String.localizedStringWithFormat(
+                NSLocalizedString("The managed object model is unavailable: %@", comment: "Missing Core Data model"),
+                name
+            )
         }
     }
 }

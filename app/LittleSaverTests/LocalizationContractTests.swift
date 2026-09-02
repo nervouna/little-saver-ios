@@ -1,5 +1,6 @@
 import Foundation
 import XCTest
+@testable import LittleSaver
 
 final class LocalizationContractTests: XCTestCase {
     private let supportedLocalizations = ["en", "zh-Hans", "ja"]
@@ -12,7 +13,7 @@ final class LocalizationContractTests: XCTestCase {
         }
         let referenceKeys = Set(tables[0].1.keys)
 
-        XCTAssertEqual(referenceKeys.count, 263, "Unexpected Localizable.strings baseline key count")
+        XCTAssertEqual(referenceKeys.count, 430, "Unexpected Localizable.strings baseline key count")
         for (locale, table) in tables {
             XCTAssertEqual(Set(table.keys), referenceKeys, "Localizable.strings keys differ for \(locale)")
             for key in referenceKeys {
@@ -100,6 +101,76 @@ final class LocalizationContractTests: XCTestCase {
         XCTAssertEqual(preferredLocalization(for: ["ja-JP"]), "ja")
         XCTAssertEqual(preferredLocalization(for: ["en-GB"]), "en")
         XCTAssertEqual(preferredLocalization(for: ["fr-FR"]), "en")
+    }
+
+    func testSuggestedCategoriesUseStableLocalizationKeys() throws {
+        let expectedExpenseKeys = [
+            "Food", "Transport", "Rent", "Subscriptions", "Groceries", "Family",
+            "Utilities", "Fashion", "Healthcare", "Pets", "Sneakers", "Gifts",
+        ]
+        let expectedIncomeKeys = ["Paycheck", "Allowance", "Part-Time", "Investments", "Gifts", "Tips"]
+
+        XCTAssertEqual(SuggestedCategory.expenses.map(\.localizationKey), expectedExpenseKeys)
+        XCTAssertEqual(SuggestedCategory.incomes.map(\.localizationKey), expectedIncomeKeys)
+        XCTAssertTrue((SuggestedCategory.expenses + SuggestedCategory.incomes).allSatisfy {
+            !$0.localizedName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        })
+
+        for locale in supportedLocalizations {
+            let table = try strings(at: appRoot
+                .appendingPathComponent("Localizations")
+                .appendingPathComponent("\(locale).lproj/Localizable.strings"))
+            for key in Set(expectedExpenseKeys + expectedIncomeKeys) {
+                XCTAssertNotNil(table[key], "Missing suggested-category key \(key) in \(locale)")
+            }
+        }
+    }
+
+    func testConfigurationErrorsHaveCatalogEntries() throws {
+        let keys = [
+            "Unsupported bundle identifier: %@",
+            "The App Group container is unavailable: %@",
+            "The managed object model is unavailable: %@",
+        ]
+
+        for locale in supportedLocalizations {
+            let table = try strings(at: appRoot
+                .appendingPathComponent("Localizations")
+                .appendingPathComponent("\(locale).lproj/Localizable.strings"))
+            for key in keys {
+                XCTAssertNotNil(table[key], "Missing configuration-error key \(key) in \(locale)")
+            }
+        }
+    }
+
+    func testAccessibleCurrencyAmountsUseLocaleFormattingWithoutDuplicateSymbols() {
+        let dollars = localizedCurrencyAmount(
+            1234.56,
+            currencyCode: "USD",
+            showCents: true,
+            locale: Locale(identifier: "en_US")
+        )
+        XCTAssertEqual(dollars.filter { $0 == "$" }.count, 1)
+        XCTAssertTrue(dollars.contains("1,234.56"))
+
+        let negativeEuros = localizedCurrencyAmount(
+            -1234.56,
+            currencyCode: "EUR",
+            showCents: true,
+            locale: Locale(identifier: "de_DE")
+        )
+        XCTAssertTrue(negativeEuros.contains("€"))
+        XCTAssertTrue(negativeEuros.contains("-"))
+        XCTAssertTrue(negativeEuros.contains("1.234,56"))
+
+        let yen = localizedCurrencyAmount(
+            1234.56,
+            currencyCode: "JPY",
+            showCents: false,
+            locale: Locale(identifier: "ja_JP")
+        )
+        XCTAssertTrue(yen.contains("￥") || yen.contains("¥"))
+        XCTAssertFalse(yen.contains(".56"))
     }
 
     func testCompiledApplicationAndWidgetContainTrilingualResources() throws {

@@ -31,9 +31,9 @@ struct TemplateTransactionView: View {
 
     var transactionTypeString: String {
         if income {
-            return "Income"
+            return String(localized: "Income")
         } else {
-            return "Expense"
+            return String(localized: "Expense")
         }
     }
 
@@ -132,13 +132,13 @@ struct TemplateTransactionView: View {
 
     var repeatButtonAccessibility: String {
         if repeatType == 1 {
-            return "transaction recurs daily, button to edit recurring duration"
+            return String(localized: "Transaction recurs daily. Edit recurring interval.")
         } else if repeatType == 2 {
-            return "transaction recurs weekly, button to edit recurring duration"
+            return String(localized: "Transaction recurs weekly. Edit recurring interval.")
         } else if repeatType == 3 {
-            return "transaction recurs monthly, button to edit recurring duration"
+            return String(localized: "Transaction recurs monthly. Edit recurring interval.")
         } else {
-            return "button to make transaction recurring"
+            return String(localized: "Make transaction recurring")
         }
     }
 
@@ -177,7 +177,7 @@ struct TemplateTransactionView: View {
                                 .font(.system(size: 15, weight: .semibold))
                                 .foregroundColor(Color.AlertRed)
 
-                            Text(toastTitle)
+                            Text(LocalizedStringKey(toastTitle))
                                 .font(.system(size: 16, weight: .semibold, design: .rounded))
                                 .foregroundColor(Color.AlertRed)
                         }
@@ -275,7 +275,7 @@ struct TemplateTransactionView: View {
                                 Image(systemName: "repeat")
                                     .font(.system(size: 16, weight: .semibold))
                                     .overlay(alignment: .topTrailing) {
-                                        Text(repeatOverlays[repeatType - 1])
+                                        Text(LocalizedStringKey(repeatOverlays[repeatType - 1]))
                                             .font(.system(size: 6, weight: .black, design: .rounded))
                                             .foregroundColor(Color.IncomeGreen)
                                             .frame(width: 10, alignment: .leading)

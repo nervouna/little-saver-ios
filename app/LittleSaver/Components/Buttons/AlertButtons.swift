@@ -13,7 +13,7 @@ struct DeleteButton: View {
     let red: Bool
 
     var body: some View {
-        Text(text)
+        Text(LocalizedStringKey(text))
             .font(.system(.title3, design: .rounded).weight(.semibold))
             .foregroundColor(red ? Color.white : Color.PrimaryText.opacity(0.9))
             .frame(height: 45)

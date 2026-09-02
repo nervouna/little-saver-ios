@@ -114,7 +114,7 @@ struct CategoryView: View {
                     if disabled {
                         showToast = true
                         toastImage = "exclamationmark.triangle.fill"
-                        toastTitle = "Limit Exceeded"
+                        toastTitle = String(localized: "Limit Exceeded")
                         positive = false
                     } else {
                         newCategory = true
@@ -492,7 +492,7 @@ struct CategoryListView: View {
                     .environment(\.editMode, .constant(self.isEditing ? EditMode.active : EditMode.inactive))
                 } else {
                     List {
-                        Section(header: Text("\(income ? "INCOME" : "EXPENSE") CATEGORIES").foregroundColor(Color.SubtitleText)) {
+                        Section(header: Text(LocalizedStringKey(income ? "INCOME CATEGORIES" : "EXPENSE CATEGORIES")).foregroundColor(Color.SubtitleText)) {
                             if categories.isEmpty {
                                 VStack(spacing: 10) {
                                     Image(systemName: "tray")
@@ -501,7 +501,7 @@ struct CategoryListView: View {
 //                                        .font(.system(size: 37, weight: .light))
                                         .foregroundColor(Color.SubtitleText)
 
-                                    Text("No \(income ? "income" : "expense") categories found,\nclick the 'New' button to add some.")
+                                    Text(LocalizedStringKey(income ? "no_income_categories" : "no_expense_categories"))
                                         .font(.system(.body, design: .rounded).weight(.medium))
                                         .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
 //                                        .font(.system(size: 17, weight: .medium, design: .rounded))
@@ -688,7 +688,7 @@ struct CategoryListView: View {
         }
         .onChange(of: showSuggestions) { newValue in
             if !newValue {
-                toastTitle = "Suggestions Hidden"
+                toastTitle = String(localized: "Suggestions Hidden")
                 toastImage = "eye.slash"
                 showToast = true
                 positive = true
@@ -1061,28 +1061,28 @@ struct NewCategoryAlert: View {
 
             switch outcome {
             case .incomplete:
-                toastTitle = "Incomplete Entry"
+                toastTitle = String(localized: "Incomplete Entry")
                 toastImage = "questionmark.app"
             case .missingEmoji:
-                toastTitle = "Missing Emoji"
+                toastTitle = String(localized: "Missing Emoji")
                 toastImage = "person.fill"
 
                 focusedField = .emoji
             case .missingName:
-                toastTitle = "Missing Name"
+                toastTitle = String(localized: "Missing Name")
                 toastImage = "character.cursor.ibeam"
 
                 focusedField = .name
             case .duplicate:
-                toastTitle = "Duplicate Found"
+                toastTitle = String(localized: "Duplicate Found")
                 toastImage = "externaldrive"
             case .duplicateEmoji:
-                toastTitle = "Duplicate Emoji"
+                toastTitle = String(localized: "Duplicate Emoji")
                 toastImage = "person.fill"
 
                 focusedField = .emoji
             case .duplicateName:
-                toastTitle = "Duplicate Name"
+                toastTitle = String(localized: "Duplicate Name")
                 toastImage = "character.cursor.ibeam"
 
                 focusedField = .name
@@ -1094,7 +1094,7 @@ struct NewCategoryAlert: View {
             showToast = true
 
         } else {
-            toastTitle = "Added \(newName)"
+            toastTitle = String(localized: "Added \(newName)")
 
             let generator = UINotificationFeedbackGenerator()
             generator.notificationOccurred(.success)
@@ -1292,7 +1292,7 @@ struct EditCategoryAlert: View {
                         .transition(AnyTransition.opacity.combined(with: .move(edge: .top)))
                         .frame(maxWidth: 200)
                     } else {
-                        Text(toEdit.income ? "Income" : "Expense")
+                        Text(LocalizedStringKey(toEdit.income ? "Income" : "Expense"))
                             .font(.system(.body, design: .rounded).weight(.semibold))
                             .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
 //                            .font(.system(size: 18, weight: .semibold, design: .rounded))
@@ -1456,28 +1456,28 @@ struct EditCategoryAlert: View {
 
             switch outcome {
             case .incomplete:
-                toastTitle = "Incomplete Entry"
+                toastTitle = String(localized: "Incomplete Entry")
                 toastImage = "questionmark.app"
             case .missingEmoji:
-                toastTitle = "Missing Emoji"
+                toastTitle = String(localized: "Missing Emoji")
                 toastImage = "person.fill"
 
                 focusedField = .emoji
             case .missingName:
-                toastTitle = "Missing Name"
+                toastTitle = String(localized: "Missing Name")
                 toastImage = "character.cursor.ibeam"
 
                 focusedField = .name
             case .duplicate:
-                toastTitle = "Duplicate Found"
+                toastTitle = String(localized: "Duplicate Found")
                 toastImage = "externaldrive"
             case .duplicateEmoji:
-                toastTitle = "Duplicate Emoji"
+                toastTitle = String(localized: "Duplicate Emoji")
                 toastImage = "person.fill"
 
                 focusedField = .emoji
             case .duplicateName:
-                toastTitle = "Duplicate Name"
+                toastTitle = String(localized: "Duplicate Name")
                 toastImage = "character.cursor.ibeam"
 
                 focusedField = .name
@@ -1659,13 +1659,13 @@ struct SuggestedCategoriesView: View {
 
         if income {
             SuggestedCategory.incomes.forEach { category in
-                if !nameArray.contains(category.name) && !emojiArray.contains(category.emoji) {
+                if !nameArray.contains(category.localizedName) && !emojiArray.contains(category.emoji) {
                     holding.append(category)
                 }
             }
         } else {
             SuggestedCategory.expenses.forEach { category in
-                if !nameArray.contains(category.name) && !emojiArray.contains(category.emoji) {
+                if !nameArray.contains(category.localizedName) && !emojiArray.contains(category.emoji) {
                     holding.append(category)
                 }
             }
@@ -1686,7 +1686,7 @@ struct SuggestedCategoriesView: View {
 //                            .font(.system(size: 15))
                             .font(.system(.subheadline, design: .rounded))
                             .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
-                        Text(LocalizedStringKey(category.name))
+                        Text(category.localizedName)
                             .font(.system(.body, design: .rounded))
                             .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
 //                            .font(.system(size: 18.5, weight: .regular, design: .rounded))
@@ -1711,7 +1711,7 @@ struct SuggestedCategoriesView: View {
                     .onTapGesture {
                         // double check
 
-                        let (outcome, _) = dataController.categoryCheck(name: category.name, emoji: category.emoji, income: income)
+                        let (outcome, _) = dataController.categoryCheck(name: category.localizedName, emoji: category.emoji, income: income)
 
                         if outcome != .none {
                             return
@@ -1722,7 +1722,7 @@ struct SuggestedCategoriesView: View {
 
                         if !income {
                             let suggestedCategory = Category(context: moc)
-                            suggestedCategory.name = NSLocalizedString(category.name, comment: "category name")
+                            suggestedCategory.name = category.localizedName
                             suggestedCategory.emoji = category.emoji
                             suggestedCategory.dateCreated = Date.now
                             suggestedCategory.id = UUID()
@@ -1745,7 +1745,7 @@ struct SuggestedCategoriesView: View {
                             }
                         } else {
                             let suggestedCategory = Category(context: moc)
-                            suggestedCategory.name = NSLocalizedString(category.name, comment: "category name")
+                            suggestedCategory.name = category.localizedName
                             suggestedCategory.emoji = category.emoji
                             suggestedCategory.dateCreated = Date.now
                             suggestedCategory.id = UUID()
@@ -1842,7 +1842,7 @@ struct NormalTextField: UIViewRepresentable {
     func makeUIView(context: Context) -> UITextField {
         let textField = UITextField(frame: .zero)
         textField.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
-        textField.placeholder = placeholder
+        textField.placeholder = String(localized: String.LocalizationValue(placeholder))
         textField.autocapitalizationType = .words
         textField.text = text
         textField.delegate = context.coordinator
@@ -1855,6 +1855,7 @@ struct NormalTextField: UIViewRepresentable {
 
     func updateUIView(_ uiView: UITextField, context _: Context) {
         uiView.text = text
+        uiView.placeholder = String(localized: String.LocalizationValue(placeholder))
     }
 
     func makeCoordinator() -> Coordinator {

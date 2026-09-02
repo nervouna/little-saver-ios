@@ -112,7 +112,7 @@ struct SettingsGoofyView: View {
   @ViewBuilder
   func ToggleRow(text: String, bool: Binding<Bool>, id: Int) -> some View {
     HStack {
-      Text(text)
+      Text(LocalizedStringKey(text))
         .font(.system(.body, design: .rounded))
         .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
         //                .font(.system(size: 17, weight: .regular, design: .rounded))

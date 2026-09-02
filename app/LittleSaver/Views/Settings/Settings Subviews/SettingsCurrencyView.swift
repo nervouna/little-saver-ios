@@ -44,7 +44,7 @@ struct SettingsCurrencyView: View {
                   .lineLimit(1)
                   //                                    .layoutPriority(1)
                   .frame(width: dynamicTypeSize > .xLarge ? 55 : 45, alignment: .leading)
-                Text(currency.name)
+                Text(Locale.current.localizedString(forCurrencyCode: currency.code) ?? currency.name)
                   .font(.system(.body, design: .rounded))
                   .foregroundColor(Color.PrimaryText)
                   .lineLimit(1)

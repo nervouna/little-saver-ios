@@ -391,7 +391,7 @@ struct SettingsView: View {
               .font(.system(.footnote, design: .rounded).weight(.medium))
               .foregroundColor(Color.SubtitleText)
 
-            Text("基于 Dime 开源项目")
+            Text("Based on the open-source Dime project")
               .font(.system(.footnote, design: .rounded).weight(.medium))
 
               .foregroundColor(Color.SubtitleText)
@@ -425,7 +425,7 @@ struct SettingsView: View {
         )
         .background(Color(color), in: RoundedRectangle(cornerRadius: 6))
 
-      Text(text)
+      Text(LocalizedStringKey(text))
         .font(.system(.body, design: .rounded).weight(.medium))
         .lineLimit(1)
         .foregroundColor(Color.PrimaryText)
@@ -562,12 +562,12 @@ struct SettingsCategoryView: View {
 private struct PrivacyPolicyView: View {
   var body: some View {
     LegalTextView(
-      title: "隐私说明",
+      title: String(localized: "Privacy Policy"),
       sections: [
-        ("数据存储", "小小存钱罐将交易、分类、预算与应用设置保存在你的设备上。启用 iCloud 的设备会通过你的私人 CloudKit 数据库同步这些数据。开发者无法查看你的私人数据库内容。"),
-        ("通知与生物识别", "提醒由系统在本地安排。应用锁仅使用系统提供的生物识别验证结果，不读取或保存你的生物识别数据。"),
-        ("数据传输", "应用不包含广告、分析 SDK 或开发者运营的服务器。你主动使用导入、导出、源代码或问题反馈入口时，数据会按你选择的系统功能或外部网站处理。"),
-        ("你的控制", "你可以在设置中导出或清除数据，也可以在系统设置中管理通知、iCloud 和生物识别权限。")
+        (String(localized: "Data Storage"), String(localized: "LittleSaver stores transactions, categories, budgets, and app settings on your device. Devices with iCloud enabled sync this data through your private CloudKit database. The developer cannot access the contents of your private database.")),
+        (String(localized: "Notifications and Biometrics"), String(localized: "Reminders are scheduled locally by the system. App Lock only uses the authentication result provided by the system and does not read or store your biometric data.")),
+        (String(localized: "Data Transfer"), String(localized: "The app contains no advertising, analytics SDKs, or developer-operated servers. When you choose to import or export data, view source code, or report an issue, data is handled by the system feature or external website you select.")),
+        (String(localized: "Your Control"), String(localized: "You can export or erase data in Settings, and manage notifications, iCloud, and biometric permissions in the system Settings app."))
       ])
   }
 }
@@ -618,7 +618,7 @@ enum BundledThirdPartyLicenseError: LocalizedError {
   var errorDescription: String? {
     switch self {
     case .missingResource(let name):
-      return "无法读取 \(name) 的许可文本。"
+      return String(localized: "Unable to read the license text for \(name).")
     }
   }
 }
@@ -628,16 +628,16 @@ private struct OpenSourceLicensesView: View {
     List {
       Section {
         VStack(alignment: .leading, spacing: 6) {
-          Text("小小存钱罐")
+          Text("app_name")
             .font(.headline)
-          Text("本项目基于 Rafael Soh 创建的 Dime 二次开发，并在 GNU General Public License v3.0 下发布。完整许可与原作者署名见源代码仓库。")
+          Text("This project is based on Dime by Rafael Soh and is released under the GNU General Public License v3.0. See the source repository for the complete license and original attribution.")
             .font(.body)
             .foregroundColor(.SubtitleText)
         }
         .padding(.vertical, 4)
       }
 
-      Section("第三方许可") {
+      Section("Third-Party Licenses") {
         ForEach(BundledThirdPartyLicense.all) { license in
           NavigationLink(destination: ThirdPartyLicenseDetailView(license: license)) {
             VStack(alignment: .leading, spacing: 4) {
@@ -650,13 +650,13 @@ private struct OpenSourceLicensesView: View {
         }
       }
     }
-    .navigationTitle("开源许可")
+    .navigationTitle("Open Source Licenses")
   }
 }
 
 private struct ThirdPartyLicenseDetailView: View {
   let license: BundledThirdPartyLicense
-  @State private var contents = "正在读取许可文本…"
+  @State private var contents = String(localized: "Loading license text…")
 
   var body: some View {
     ScrollView {

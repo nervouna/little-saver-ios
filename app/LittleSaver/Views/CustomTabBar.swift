@@ -69,7 +69,7 @@ struct CustomTabBar: View {
                     }
                 }
             }
-            .accessibilityLabel("Add New Transaction")
+            .accessibilityLabel(Text("Add New Transaction"))
 
             TabButton(image: "Budget", zoomed: isZoomed, currentTab: $currentTab)
 
@@ -153,7 +153,7 @@ struct TabButton: View {
                 .foregroundColor(currentTab == image ? Color.DarkIcon : Color.GreyIcon)
         }
         .buttonStyle(BouncyButton(duration: 0.3, scale: 0.6))
-        .accessibilityLabel("\(image) tab")
+        .accessibilityLabel(Text("\(String(localized: String.LocalizationValue(image))) tab"))
         .accessibilityAddTraits(
             currentTab == image
                 ? [.isButton, .isSelected]

@@ -81,7 +81,7 @@ struct ImportDataView: View {
     @State var uniqueCategories: [MatchedCategory] = .init()
 
     @State var processingState = ProcessingState.loading
-    @State var errorMessage = "Invalid dates in date column."
+    @State var errorMessage = String(localized: "Invalid dates in date column.")
     @State var confettiNumber = 0
 
     var numberOfLinkedCategories: Int {
@@ -89,7 +89,7 @@ struct ImportDataView: View {
     }
 
     @State var showToast = false
-    @State var toastMessage: String = "Invalid File"
+    @State var toastMessage: String = String(localized: "Invalid File")
 
     @State var showingCategoryView = false
     @State var pageIndex = 0
@@ -107,16 +107,16 @@ struct ImportDataView: View {
         }
     }
 
-    let instructions: [InstructionHeadings] = [
-        InstructionHeadings(title: "Import transactions", subtitle: "Begin by adding a CSV file with 4 columns: amount, note, date, and category."),
-        InstructionHeadings(title: "Assign category column", subtitle: "Select a column from your import that corresponds to the categories of your transactions."),
-        InstructionHeadings(title: "Assign note column", subtitle: "Select a column from your import that corresponds to the notes/subtitles of your transactions."),
-        InstructionHeadings(title: "Assign date column", subtitle: "Select a column from your import that corresponds to the dates of your transactions."),
-        InstructionHeadings(title: "Assign amount column", subtitle: "Select a column from your import that corresponds to the values of your transactions."),
-        InstructionHeadings(title: "Indicate date format", subtitle: "Referencing this article, state the format of the dates in the assigned column."),
-        InstructionHeadings(title: "Link categories", subtitle: "Match values found in the 'Category' column to the corresponding categories in LittleSaver."),
-        InstructionHeadings(title: "Processing import", subtitle: "Please wait while we process your new transactions.")
-    ]
+    var instructions: [InstructionHeadings] { [
+        InstructionHeadings(title: String(localized: "Import transactions"), subtitle: String(localized: "Begin by adding a CSV file with 4 columns: amount, note, date, and category.")),
+        InstructionHeadings(title: String(localized: "Assign category column"), subtitle: String(localized: "Select a column from your import that corresponds to the categories of your transactions.")),
+        InstructionHeadings(title: String(localized: "Assign note column"), subtitle: String(localized: "Select a column from your import that corresponds to the notes/subtitles of your transactions.")),
+        InstructionHeadings(title: String(localized: "Assign date column"), subtitle: String(localized: "Select a column from your import that corresponds to the dates of your transactions.")),
+        InstructionHeadings(title: String(localized: "Assign amount column"), subtitle: String(localized: "Select a column from your import that corresponds to the values of your transactions.")),
+        InstructionHeadings(title: String(localized: "Indicate date format"), subtitle: String(localized: "Referencing this article, state the format of the dates in the assigned column.")),
+        InstructionHeadings(title: String(localized: "Link categories"), subtitle: String(localized: "Match values found in the 'Category' column to the corresponding categories in LittleSaver.")),
+        InstructionHeadings(title: String(localized: "Processing import"), subtitle: String(localized: "Please wait while we process your new transactions."))
+    ] }
 
     let labels: [ColumnLabel] = [
         ColumnLabel(image: "square.grid.2x2.fill", label: "Category"),
@@ -393,7 +393,7 @@ struct ImportDataView: View {
 
 //                                                            .font(.system(size: 12, weight: .semibold, design: .rounded))
 
-                                                        Text(labels[index].label)
+                                                Text(LocalizedStringKey(labels[index].label))
                                                             .font(.system(.subheadline, design: .rounded).weight(.semibold))
 
 //                                                            .font(.system(size: 14, weight: .semibold, design: .rounded))
@@ -444,7 +444,7 @@ struct ImportDataView: View {
 
 //                                                    .font(.system(size: 12, weight: .semibold, design: .rounded))
 
-                                                Text(labels[progress - 2].label)
+                                                Text(LocalizedStringKey(labels[progress - 2].label))
                                                     .font(.system(.subheadline, design: .rounded).weight(.semibold))
 
 //                                                    .font(.system(size: 14, weight: .semibold, design: .rounded))
@@ -531,7 +531,11 @@ struct ImportDataView: View {
                     }
                 } else if progress == 7 {
                     VStack(spacing: 10) {
-                        Text("\(numberOfLinkedCategories)/^[\(uniqueCategories.count) category](inflect: true) linked")
+                        Text(String.localizedStringWithFormat(
+                            NSLocalizedString("%lld of %lld categories linked", comment: "CSV category-linking progress"),
+                            Int64(numberOfLinkedCategories),
+                            Int64(uniqueCategories.count)
+                        ))
                             .font(.system(.subheadline, design: .rounded).weight(.semibold))
 
 //                            .font(.system(size: 15, weight: .semibold, design: .rounded))
@@ -675,7 +679,7 @@ struct ImportDataView: View {
                                 importData()
                             } else {
                                 showToast = true
-                                toastMessage = "Unlinked Categories"
+                                toastMessage = String(localized: "Unlinked Categories")
                             }
 
                         } else if progress > 5 {
@@ -691,7 +695,7 @@ struct ImportDataView: View {
 
                                     guard sample.containsDigits else {
                                         showToast = true
-                                        toastMessage = "Invalid Column"
+                                        toastMessage = String(localized: "Invalid Column")
                                         return
                                     }
                                 }
@@ -701,7 +705,7 @@ struct ImportDataView: View {
 
                                     guard validateDoubles(strings: stringColumn) else {
                                         showToast = true
-                                        toastMessage = "Invalid Column"
+                                        toastMessage = String(localized: "Invalid Column")
                                         return
                                     }
                                 }
@@ -716,7 +720,7 @@ struct ImportDataView: View {
                                 if progress < 5 {
                                     guard !remainingColumns.isEmpty else {
                                         showToast = true
-                                        toastMessage = "Insufficient Columns"
+                                        toastMessage = String(localized: "Insufficient Columns")
                                         return
                                     }
                                     selectedColumn = remainingColumns[0]
@@ -778,7 +782,7 @@ struct ImportDataView: View {
                     if file.startAccessingSecurityScopedResource() {
                         guard let message = try String(data: Data(contentsOf: file), encoding: .utf8) else {
                             showToast = true
-                            toastMessage = "Invalid File"
+                            toastMessage = String(localized: "Invalid File")
                             return
                         }
 
@@ -840,7 +844,7 @@ struct ImportDataView: View {
     func processCSV() {
         guard data.containsDigits else {
             showToast = true
-            toastMessage = "Invalid File"
+            toastMessage = String(localized: "Invalid File")
             return
         }
 
@@ -859,7 +863,7 @@ struct ImportDataView: View {
 
         guard !values.isEmpty else {
             showToast = true
-            toastMessage = "Invalid File"
+            toastMessage = String(localized: "Invalid File")
             return
         }
 
@@ -870,7 +874,7 @@ struct ImportDataView: View {
 //
         guard maxColumnCount > 3 else {
             showToast = true
-            toastMessage = "Invalid File"
+            toastMessage = String(localized: "Invalid File")
             return
         }
 
@@ -948,7 +952,7 @@ struct ImportDataView: View {
     }
 
     func makeAttributedString() -> AttributedString {
-        var string = AttributedString("this article")
+        var string = AttributedString(String(localized: "this article"))
         string.foregroundColor = Color.PrimaryText
         string.link = URL(string: "https://pro.arcgis.com/en/pro-app/latest/help/mapping/time/convert-string-or-numeric-time-values-into-data-format.htm")
         string.underlineColor = UIColor(Color.PrimaryText)
@@ -972,7 +976,7 @@ struct ImportDataView: View {
             }
             .frame(width: 25, height: 25)
 
-            Text(text)
+            Text(LocalizedStringKey(text))
                 .font(.system(.body, design: .rounded).weight(.medium))
 
 //                .font(.system(size: 17, weight: .medium, design: .rounded))

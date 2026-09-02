@@ -38,9 +38,9 @@ struct TransactionView: View {
 
     var transactionTypeString: String {
         if income {
-            return "Income"
+            return String(localized: "Income")
         } else {
-            return "Expense"
+            return String(localized: "Expense")
         }
     }
 
@@ -90,19 +90,19 @@ struct TransactionView: View {
 
     var repeatButtonAccessibility: String {
         if repeatType == 1 {
-            return "transaction recurs daily, button to edit recurring duration"
+            return String(localized: "Transaction recurs daily. Edit recurring interval.")
         } else if repeatType == 2 {
-            return "transaction recurs weekly, button to edit recurring duration"
+            return String(localized: "Transaction recurs weekly. Edit recurring interval.")
         } else if repeatType == 3 {
-            return "transaction recurs monthly, button to edit recurring duration"
+            return String(localized: "Transaction recurs monthly. Edit recurring interval.")
         } else {
-            return "button to make transaction recurring"
+            return String(localized: "Make transaction recurring")
         }
     }
 
     var dateString: String {
         let dateFormatter = DateFormatter()
-        dateFormatter.dateFormat = "d MMM yyyy"
+        dateFormatter.dateStyle = .medium
         return dateFormatter.string(from: date)
     }
 
@@ -235,7 +235,7 @@ struct TransactionView: View {
                                 .font(.system(.subheadline, design: .rounded).weight(.semibold))
                                 .foregroundColor(Color.AlertRed)
 
-                            Text(toastTitle)
+                            Text(LocalizedStringKey(toastTitle))
                                 .font(.system(.body, design: .rounded).weight(.semibold))
                                 .lineLimit(1)
                                 .foregroundColor(Color.AlertRed)
@@ -342,7 +342,7 @@ struct TransactionView: View {
                                     .dynamicTypeSize(...DynamicTypeSize.xxLarge)
                                 //                                    .font(.system(size: 16, weight: .semibold))
                                     .overlay(alignment: .topTrailing) {
-                                        Text(repeatOverlays[repeatType - 1])
+                                        Text(LocalizedStringKey(repeatOverlays[repeatType - 1]))
                                             .font(.system(size: 6, weight: .black, design: .rounded))
                                             .foregroundColor(Color.IncomeGreen)
                                             .frame(width: 10, alignment: .leading)
@@ -937,11 +937,11 @@ struct TransactionView: View {
         let formatter = DateFormatter()
 
         if isDateToday(date: date) {
-            formatter.dateFormat = "d MMM"
+            formatter.setLocalizedDateFormatFromTemplate("dMMM")
 
             return formatter.string(from: date)
         } else {
-            formatter.dateFormat = "E, d MMM"
+            formatter.setLocalizedDateFormatFromTemplate("EdMMM")
 
             return formatter.string(from: date)
         }
@@ -950,7 +950,7 @@ struct TransactionView: View {
     func getTimeString(date: Date) -> String {
         let formatter = DateFormatter()
 
-        formatter.dateFormat = "HH:mm"
+        formatter.timeStyle = .short
 
         return formatter.string(from: date)
     }
@@ -1539,11 +1539,11 @@ struct RecurringPickerView: View {
                     Text("custom")
                 } else {
                     if repeatType == 1 {
-                        Text(String(repeatCoefficient) + " " + String(localized: "\(repeatCoefficient) days"))
+                        Text(String(localized: "\(repeatCoefficient) days"))
                     } else if repeatType == 2 {
-                        Text(String(repeatCoefficient) + " " + String(localized: "\(repeatCoefficient) weeks"))
+                        Text(String(localized: "\(repeatCoefficient) weeks"))
                     } else if repeatType == 3 {
-                        Text(String(repeatCoefficient) + " " + String(localized: "\(repeatCoefficient) months"))
+                        Text(String(localized: "\(repeatCoefficient) months"))
                     }
                 }
 

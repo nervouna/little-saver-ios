@@ -9,7 +9,7 @@ struct Toolbar<Content>: View where Content: View {
 //            BackButton(presentationMode: <#T##Binding<PresentationMode>#>)
             Spacer()
             if let title = title {
-                Text(title)
+                Text(LocalizedStringKey(title))
                     .font(.system(.title3, design: .rounded).weight(.medium))
                     .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
             }

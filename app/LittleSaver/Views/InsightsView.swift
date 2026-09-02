@@ -21,11 +21,11 @@ struct InsightsView: View {
 
     var chartTypeString: String {
         if chartType == 1 {
-            return "week"
+            return String(localized: "week")
         } else if chartType == 2 {
-            return "month"
+            return String(localized: "month")
         } else if chartType == 3 {
-            return "year"
+            return String(localized: "year")
         } else {
             return ""
         }
@@ -581,9 +581,9 @@ struct SingleGraphView: View {
             let dateFormatter = DateFormatter()
 
             if type == 3 {
-                dateFormatter.dateFormat = "MMM yyyy"
+                dateFormatter.setLocalizedDateFormatFromTemplate("MMMyyyy")
             } else {
-                dateFormatter.dateFormat = "d MMM yyyy"
+                dateFormatter.dateStyle = .medium
             }
 
             if language == "ru" {
@@ -609,7 +609,7 @@ struct SingleGraphView: View {
 
         if type == 1 {
             let calendar = Calendar.current
-            dateFormatter.dateFormat = "d MMM"
+            dateFormatter.setLocalizedDateFormatFromTemplate("dMMM")
             let endComponents = DateComponents(day: 7, second: -1)
             let endWeekDate = calendar.date(byAdding: endComponents, to: date) ?? Date.now
 
@@ -618,7 +618,7 @@ struct SingleGraphView: View {
 
             if startMonth == endMonth {
                 let anotherDateFormatter = DateFormatter()
-                anotherDateFormatter.dateFormat = "d"
+                anotherDateFormatter.setLocalizedDateFormatFromTemplate("d")
 
                 return anotherDateFormatter.string(from: date) + " - " + dateFormatter.string(from: endWeekDate)
             } else {
@@ -626,9 +626,9 @@ struct SingleGraphView: View {
             }
         } else if type == 2 {
             if firstDayOfMonth == 1 {
-                dateFormatter.dateFormat = "MMM yyyy"
+                dateFormatter.setLocalizedDateFormatFromTemplate("MMMyyyy")
             } else {
-                dateFormatter.dateFormat = "d MMM"
+                dateFormatter.setLocalizedDateFormatFromTemplate("dMMM")
                 let endComponents = DateComponents(month: 1, second: -1)
                 let endMonthDate = Calendar.current.date(byAdding: endComponents, to: date) ?? Date.now
                 if language == "ru" {
@@ -638,7 +638,7 @@ struct SingleGraphView: View {
                 }
             }
         } else if type == 3 {
-            dateFormatter.dateFormat = "yyyy"
+            dateFormatter.setLocalizedDateFormatFromTemplate("yyyy")
         }
 
         if language == "ru" {
@@ -779,7 +779,7 @@ struct SingleGraphView: View {
                     }
                 } else if incomeFiltering {
                     VStack(alignment: .trailing, spacing: 1.3) {
-                        Text(type == 3 ? (income ? "Income/Mth" : "Spent/Mth") : (income ? "Income/Day" : "Spent/Day"))
+                        Text(LocalizedStringKey(type == 3 ? (income ? "Income/Mth" : "Spent/Mth") : (income ? "Income/Day" : "Spent/Day")))
                             .lineLimit(1)
                             .font(.system(.callout, design: .rounded).weight(.semibold))
                             .foregroundColor(Color.SubtitleText)
@@ -788,7 +788,7 @@ struct SingleGraphView: View {
                     }
                 } else {
                     VStack(alignment: .trailing, spacing: 1.3) {
-                        Text(type == 3 ? "AVG/MTH" : "AVG/DAY")
+                        Text(LocalizedStringKey(type == 3 ? "AVG/MTH" : "AVG/DAY"))
                             .lineLimit(1)
                             .font(.system(.callout, design: .rounded).weight(.semibold))
                             .foregroundColor(Color.SubtitleText)
@@ -965,7 +965,7 @@ struct WeekGraphView: View {
 
     var swipeStrings: (backward: String, forward: String) {
         let dateFormatter = DateFormatter()
-        dateFormatter.dateFormat = "d MMM"
+        dateFormatter.setLocalizedDateFormatFromTemplate("dMMM")
 
         let calendar = Calendar.current
 
@@ -1316,7 +1316,7 @@ struct SingleWeekBarGraphView: View {
     func getWeekday(day: Date) -> String {
         let dateFormatter = DateFormatter()
 
-        dateFormatter.dateFormat = "EEE"
+        dateFormatter.setLocalizedDateFormatFromTemplate("EEE")
 
         return dateFormatter.string(from: day)
     }
@@ -1386,7 +1386,7 @@ struct MonthGraphView: View {
 
     var swipeStrings: (backward: String, forward: String) {
         let dateFormatter = DateFormatter()
-        dateFormatter.dateFormat = "MMM yy"
+        dateFormatter.setLocalizedDateFormatFromTemplate("MMMyy")
 
         let calendar = Calendar.current
 
@@ -1765,7 +1765,7 @@ struct YearGraphView: View {
 
     var swipeStrings: (backward: String, forward: String) {
         let dateFormatter = DateFormatter()
-        dateFormatter.dateFormat = "yyyy"
+        dateFormatter.setLocalizedDateFormatFromTemplate("yyyy")
 
         let calendar = Calendar.current
 
@@ -2061,7 +2061,7 @@ struct SingleYearBarGraphView: View {
     func getMonth(month: Date) -> String {
         let dateFormatter = DateFormatter()
 
-        dateFormatter.dateFormat = "M"
+        dateFormatter.setLocalizedDateFormatFromTemplate("M")
 
         return dateFormatter.string(from: month)
     }
@@ -2358,7 +2358,7 @@ struct SwipeEndView: View {
 //                                        .font(.system(size: 22, weight: .medium))
                 .foregroundColor(Color.SubtitleText)
 
-            Text(left ? "That's all, buddy." : "Into the unknown.")
+            Text(LocalizedStringKey(left ? "That's all, buddy." : "Into the unknown."))
                 .font(.system(.subheadline, design: .rounded).weight(.semibold))
 //                                        .font(.system(size: 14, weight: .semibold, design: .rounded))
                 .frame(width: 90)

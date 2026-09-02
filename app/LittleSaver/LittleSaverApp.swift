@@ -22,7 +22,7 @@ struct LittleSaverApp: App {
             } else {
                 switch dataController.persistentStoreState {
                 case .loading:
-                    ProgressView("正在准备数据…")
+                    ProgressView("Preparing data…")
                 case .loaded:
                     ContentView()
                         .environment(\.managedObjectContext, dataController.container.viewContext)
@@ -53,7 +53,7 @@ private struct StorageUnavailableView: View {
         VStack(spacing: 12) {
             Image(systemName: "externaldrive.badge.exclamationmark")
                 .font(.largeTitle)
-            Text("无法打开数据")
+            Text("Unable to Open Data")
                 .font(.headline)
             Text(message)
                 .font(.footnote)

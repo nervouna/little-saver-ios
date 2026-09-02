@@ -420,7 +420,9 @@ struct MainBudgetView: View {
                     BudgetDollarView(amount: difference, red: totalSpent >= budgetAmount, scale: 3, size: internalWidth)
                         .frame(width: internalWidth)
 
-                    Text("\(budgetAmount >= totalSpent ? "left" : "over") \(budgetType)")
+                    Text(budgetAmount >= totalSpent
+                         ? String(localized: "left \(budgetType)")
+                         : String(localized: "over \(budgetType)"))
                         .font(.system(.subheadline, design: .rounded).weight(.medium))
 //                        .font(.system(size: 15, weight: .medium, design: .rounded))
                         .foregroundColor(Color.SubtitleText)
@@ -709,7 +711,9 @@ struct SingleBudgetView: View {
                         VStack(alignment: .trailing, spacing: -4) {
                             BudgetDollarView(amount: difference, red: totalSpent >= budgetAmount, scale: 1, size: 80)
 
-                            Text("\(budgetAmount >= totalSpent ? "left" : "over") \(budgetType)")
+                            Text(budgetAmount >= totalSpent
+                                 ? String(localized: "left \(budgetType)")
+                                 : String(localized: "over \(budgetType)"))
                                 .font(.system(.caption2, design: .rounded).weight(.medium))
                                 .foregroundColor(Color.SubtitleText)
                         }
@@ -829,7 +833,9 @@ struct SingleBudgetView: View {
 
                             BudgetDollarView(amount: difference, red: totalSpent >= budgetAmount, scale: 2, size: width - 40)
 
-                            Text("\(budgetAmount >= totalSpent ? "left" : "over") \(budgetType)")
+                            Text(budgetAmount >= totalSpent
+                                 ? String(localized: "left \(budgetType)")
+                                 : String(localized: "over \(budgetType)"))
                                 .font(.system(.footnote, design: .rounded).weight(.medium))
                                 .foregroundColor(Color.SubtitleText)
                                 .minimumScaleFactor(0.7)
@@ -1384,21 +1390,21 @@ struct TimeBudgetView: View {
         let dateFormatter = DateFormatter()
 
         if budgetType == 1 {
-            dateFormatter.dateFormat = "d MMM yyyy"
+            dateFormatter.dateStyle = .medium
             return dateFormatter.string(from: startDate)
         } else if budgetType == 2 {
             let endDate = Calendar.current.date(byAdding: .day, value: 6, to: startDate) ?? Date.now
-            dateFormatter.dateFormat = "d MMM"
+            dateFormatter.setLocalizedDateFormatFromTemplate("dMMM")
             return dateFormatter.string(from: startDate) + " - " + dateFormatter.string(from: endDate)
         } else if budgetType == 3 {
             var endDate = Calendar.current.date(byAdding: .month, value: 1, to: startDate)!
             endDate = Calendar.current.date(byAdding: .day, value: -1, to: endDate)!
-            dateFormatter.dateFormat = "d MMM"
+            dateFormatter.setLocalizedDateFormatFromTemplate("dMMM")
             return dateFormatter.string(from: startDate) + " - " + dateFormatter.string(from: endDate)
         } else if budgetType == 4 {
             var endDate = Calendar.current.date(byAdding: .year, value: 1, to: startDate)!
             endDate = Calendar.current.date(byAdding: .day, value: -1, to: endDate)!
-            dateFormatter.dateFormat = "d MMM yy"
+            dateFormatter.dateStyle = .medium
             return dateFormatter.string(from: startDate) + " - " + dateFormatter.string(from: endDate)
         } else {
             return ""
@@ -1452,7 +1458,7 @@ struct TimeBudgetView: View {
             } else {
                 if budgetType == 1 {
                     let dateFormatter = DateFormatter()
-                    dateFormatter.dateFormat = "d MMM"
+                    dateFormatter.setLocalizedDateFormatFromTemplate("dMMM")
                     return String(localized: "left on \(dateFormatter.string(from: startDate))")
                 } else if budgetType == 2 {
                     let components = Calendar.current.dateComponents([.day], from: startDate, to: budget.wrappedDate)
@@ -1464,7 +1470,7 @@ struct TimeBudgetView: View {
                     return String(localized: "left \(monthString)")
                 } else if budgetType == 4 {
                     let components = Calendar.current.dateComponents([.year], from: startDate, to: budget.wrappedDate)
-                    let yearString = String(localized: "\(components.year!) months ago")
+                    let yearString = String(localized: "\(components.year!) years ago")
                     return String(localized: "left \(yearString)")
                 } else {
                     return ""
@@ -1486,7 +1492,7 @@ struct TimeBudgetView: View {
             } else {
                 if budgetType == 1 {
                     let dateFormatter = DateFormatter()
-                    dateFormatter.dateFormat = "d MMM"
+                    dateFormatter.setLocalizedDateFormatFromTemplate("dMMM")
                     return String(localized: "over on \(dateFormatter.string(from: startDate))")
                 } else if budgetType == 2 {
                     let components = Calendar.current.dateComponents([.day], from: startDate, to: budget.wrappedDate)
@@ -1498,7 +1504,7 @@ struct TimeBudgetView: View {
                     return String(localized: "over \(monthString)")
                 } else if budgetType == 4 {
                     let components = Calendar.current.dateComponents([.year], from: startDate, to: budget.wrappedDate)
-                    let yearString = String(localized: "\(components.year!) months ago")
+                    let yearString = String(localized: "\(components.year!) years ago")
                     return String(localized: "over \(yearString)")
                 } else {
                     return ""
@@ -1878,21 +1884,21 @@ struct TimeMainBudgetView: View {
         let dateFormatter = DateFormatter()
 
         if budgetType == 1 {
-            dateFormatter.dateFormat = "d MMM yyyy"
+            dateFormatter.dateStyle = .medium
             return dateFormatter.string(from: startDate)
         } else if budgetType == 2 {
             let endDate = Calendar.current.date(byAdding: .day, value: 6, to: startDate) ?? Date.now
-            dateFormatter.dateFormat = "d MMM"
+            dateFormatter.setLocalizedDateFormatFromTemplate("dMMM")
             return dateFormatter.string(from: startDate) + " - " + dateFormatter.string(from: endDate)
         } else if budgetType == 3 {
             var endDate = Calendar.current.date(byAdding: .month, value: 1, to: startDate)!
             endDate = Calendar.current.date(byAdding: .day, value: -1, to: endDate)!
-            dateFormatter.dateFormat = "d MMM"
+            dateFormatter.setLocalizedDateFormatFromTemplate("dMMM")
             return dateFormatter.string(from: startDate) + " - " + dateFormatter.string(from: endDate)
         } else if budgetType == 4 {
             var endDate = Calendar.current.date(byAdding: .year, value: 1, to: startDate)!
             endDate = Calendar.current.date(byAdding: .day, value: -1, to: endDate)!
-            dateFormatter.dateFormat = "d MMM yy"
+            dateFormatter.dateStyle = .medium
             return dateFormatter.string(from: startDate) + " - " + dateFormatter.string(from: endDate)
         } else {
             return ""
@@ -1946,7 +1952,7 @@ struct TimeMainBudgetView: View {
             } else {
                 if budgetType == 1 {
                     let dateFormatter = DateFormatter()
-                    dateFormatter.dateFormat = "d MMM"
+                    dateFormatter.setLocalizedDateFormatFromTemplate("dMMM")
                     return String(localized: "left on \(dateFormatter.string(from: startDate))")
                 } else if budgetType == 2 {
                     let components = Calendar.current.dateComponents([.day], from: startDate, to: budget.wrappedDate)
@@ -1958,7 +1964,7 @@ struct TimeMainBudgetView: View {
                     return String(localized: "left \(monthString)")
                 } else if budgetType == 4 {
                     let components = Calendar.current.dateComponents([.year], from: startDate, to: budget.wrappedDate)
-                    let yearString = String(localized: "\(components.year!) months ago")
+                    let yearString = String(localized: "\(components.year!) years ago")
                     return String(localized: "left \(yearString)")
                 } else {
                     return ""
@@ -1980,7 +1986,7 @@ struct TimeMainBudgetView: View {
             } else {
                 if budgetType == 1 {
                     let dateFormatter = DateFormatter()
-                    dateFormatter.dateFormat = "d MMM"
+                    dateFormatter.setLocalizedDateFormatFromTemplate("dMMM")
                     return String(localized: "over on \(dateFormatter.string(from: startDate))")
                 } else if budgetType == 2 {
                     let components = Calendar.current.dateComponents([.day], from: startDate, to: budget.wrappedDate)
@@ -1992,7 +1998,7 @@ struct TimeMainBudgetView: View {
                     return String(localized: "over \(monthString)")
                 } else if budgetType == 4 {
                     let components = Calendar.current.dateComponents([.year], from: startDate, to: budget.wrappedDate)
-                    let yearString = String(localized: "\(components.year!) months ago")
+                    let yearString = String(localized: "\(components.year!) years ago")
                     return String(localized: "over \(yearString)")
                 } else {
                     return ""
@@ -2310,13 +2316,13 @@ struct BudgetStepperView: View {
         let dateFormatter = DateFormatter()
 
         if type == 1 {
-            dateFormatter.dateFormat = "d MMM yyyy"
+            dateFormatter.dateStyle = .medium
             return dateFormatter.string(from: date)
         } else if type == 4 {
-            dateFormatter.dateFormat = "d MMM yy"
+            dateFormatter.dateStyle = .medium
             return dateFormatter.string(from: date) + " - " + dateFormatter.string(from: endDate)
         } else {
-            dateFormatter.dateFormat = "d MMM"
+            dateFormatter.setLocalizedDateFormatFromTemplate("dMMM")
             return dateFormatter.string(from: date) + " - " + dateFormatter.string(from: endDate)
         }
     }

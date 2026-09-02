@@ -11,6 +11,20 @@ import SwiftUIIntrospect
 import Popovers
 import SwiftUI
 
+func localizedCurrencyAmount(
+    _ amount: Double,
+    currencyCode: String,
+    showCents: Bool,
+    locale: Locale = .current
+) -> String {
+    let formatter = NumberFormatter()
+    formatter.locale = locale
+    formatter.numberStyle = .currency
+    formatter.currencyCode = currencyCode
+    formatter.maximumFractionDigits = showCents ? 2 : 0
+    return formatter.string(from: NSNumber(value: amount)) ?? "\(currencyCode) \(amount)"
+}
+
 struct LogView: View {
     @State var updatedRecurring = false
 
@@ -79,7 +93,7 @@ struct LogView: View {
                     .multilineTextAlignment(.center)
                     .foregroundColor(Color.PrimaryText.opacity(0.8))
 
-                Text("Press the plus button\nto add your first entry")
+                Text("Press the plus button to add your first entry")
                     .font(.system(.body, design: .rounded).weight(.medium))
 //                    .font(.system(size: 18, weight: .medium, design: .rounded))
                     .multilineTextAlignment(.center)
@@ -968,7 +982,7 @@ struct ListView: View {
 //                        .font(.system(size: 14, weight: .semibold, design: .rounded))
                         .foregroundColor(Color.SubtitleText)
                         .accessibilityElement(children: .ignore)
-                        .accessibilityLabel("\(currencySymbol)\(String(format: "%.2f", filtered.string)) was spent \(dateConverterAccessibilityLabel(date: day.id ?? Date.now))")
+                        .accessibilityLabel(String(localized: "\(filtered.string) spent \(dateConverterAccessibilityLabel(date: day.id ?? Date.now))"))
 
                         Line()
                             .stroke(Color.Outline, style: StrokeStyle(lineWidth: 1.3, lineCap: .round))
@@ -1203,17 +1217,7 @@ struct SingleTransactionView: View {
     }
 
     var transactionAmountString: String {
-        let numberFormatter = NumberFormatter()
-        numberFormatter.numberStyle = .currency
-        numberFormatter.currencyCode = currency
-
-        if showCents {
-            numberFormatter.maximumFractionDigits = 2
-        } else {
-            numberFormatter.maximumFractionDigits = 0
-        }
-
-        return numberFormatter.string(from: NSNumber(value: transaction.amount)) ?? "$0"
+        localizedCurrencyAmount(transaction.amount, currencyCode: currency, showCents: showCents)
     }
 
     var body: some View {
@@ -1320,7 +1324,7 @@ struct SingleTransactionView: View {
             }
             .offset(x: offset)
             .accessibilityElement(children: .ignore)
-            .accessibilityLabel("\(transaction.wrappedNote), \(currencySymbol)\(String(format: "%.2f", transaction.wrappedAmount)), Transaction Category: \(transaction.category?.wrappedName ?? "Unknown"), Transaction made at \(timeConverterAccessibilityLabel(date: transaction.wrappedDate))")
+            .accessibilityLabel(String(localized: "\(transaction.wrappedNote), \(transactionAmountString), Category: \(transaction.category?.wrappedName ?? String(localized: "Unknown")), Time: \(timeConverterAccessibilityLabel(date: transaction.wrappedDate))"))
         }
         .onChange(of: deletePopup) { _ in
             if deletePopup {
@@ -1420,7 +1424,7 @@ struct SingleTransactionView: View {
                 return transaction.wrappedCategoryName
             } else {
                 let formatter = DateFormatter()
-                formatter.dateFormat = "h:mm a"
+                formatter.timeStyle = .short
 
                 return formatter.string(from: transaction.wrappedDate)
             }
@@ -1431,7 +1435,7 @@ struct SingleTransactionView: View {
 func dateFormatter(date: Date) -> String {
     let dateFormatter = DateFormatter()
 
-    dateFormatter.dateFormat = "d MMM"
+    dateFormatter.setLocalizedDateFormatFromTemplate("dMMM")
     return dateFormatter.string(from: date).uppercased()
 }
 
@@ -1498,14 +1502,18 @@ struct DeleteTransactionAlert: View {
     var body: some View {
         if let unwrappedToDelete = transactionManager.toDelete {
             VStack(alignment: .leading, spacing: 1.5) {
-                Text(stopRecurring ? "Stop Recurring?" : "Delete '\(unwrappedToDelete.wrappedNote)'?")
+                Text(stopRecurring
+                     ? String(localized: "Stop Recurring?")
+                     : String(localized: "Delete '\(unwrappedToDelete.wrappedNote)'?"))
                     .font(.system(.title2, design: .rounded).weight(.medium))
                     .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
 //                    .font(.system(size: 25, weight: .medium, design: .rounded))
                     .foregroundColor(.PrimaryText)
-                    .accessibilityLabel("Delete \(unwrappedToDelete.wrappedNote) transaction confirmation. This action cannot be undone.")
+                    .accessibilityLabel(String(localized: "Delete \(unwrappedToDelete.wrappedNote) transaction confirmation. This action cannot be undone."))
 
-                Text(stopRecurring ? "The transaction will no longer be automatically logged." : "This action cannot be undone.")
+                Text(stopRecurring
+                     ? String(localized: "The transaction will no longer be automatically logged.")
+                     : String(localized: "This action cannot be undone."))
                     .font(.system(.title3, design: .rounded).weight(.medium))
                     .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
 //                    .font(.system(size: 20, weight: .medium, design: .rounded))
@@ -1984,7 +1992,7 @@ struct DateStepperView: View {
     var dateString: String {
         let dateFormatter = DateFormatter()
 
-        dateFormatter.dateFormat = "d MMM yyyy"
+        dateFormatter.dateStyle = .medium
 
         return dateFormatter.string(from: date)
     }
@@ -2053,7 +2061,7 @@ struct WeekStepperView: View {
     var dateString: String {
         let dateFormatter = DateFormatter()
 
-        dateFormatter.dateFormat = "d MMM"
+        dateFormatter.setLocalizedDateFormatFromTemplate("dMMM")
 
         let endComponents = DateComponents(day: 7, second: -1)
         let endWeekDate = Calendar.current.date(byAdding: endComponents, to: showingDate) ?? Date.now
@@ -2064,12 +2072,12 @@ struct WeekStepperView: View {
     var accessibilityDateString: String {
         let dateFormatter = DateFormatter()
 
-        dateFormatter.dateFormat = "d MMM"
+        dateFormatter.setLocalizedDateFormatFromTemplate("dMMM")
 
         let endComponents = DateComponents(day: 7, second: -1)
         let endWeekDate = Calendar.current.date(byAdding: endComponents, to: showingDate) ?? Date.now
 
-        return "showing transactions from " + dateFormatter.string(from: showingDate) + " to " + dateFormatter.string(from: endWeekDate)
+        return String(localized: "Showing transactions from \(dateFormatter.string(from: showingDate)) to \(dateFormatter.string(from: endWeekDate))")
     }
 
     var body: some View {
@@ -2143,7 +2151,7 @@ struct MonthStepperView: View {
     var dateString: String {
         let dateFormatter = DateFormatter()
 
-        dateFormatter.dateFormat = "MMM yyyy"
+        dateFormatter.setLocalizedDateFormatFromTemplate("MMMyyyy")
 
         return dateFormatter.string(from: showingDate)
     }
@@ -2201,16 +2209,13 @@ func dateConverter(date: Date) -> String {
     } else if startOfCurrentYear > date {
         let dateFormatter = DateFormatter()
 
-        dateFormatter.dateFormat = "EEE, d MMM yy"
+        dateFormatter.setLocalizedDateFormatFromTemplate("EEEdMMMyy")
 
-        var string = dateFormatter.string(from: date)
-        string.insert("'", at: string.index(string.endIndex, offsetBy: -2))
-
-        return string
+        return dateFormatter.string(from: date)
     } else {
         let dateFormatter = DateFormatter()
 
-        dateFormatter.dateFormat = "EEE, d MMM"
+        dateFormatter.setLocalizedDateFormatFromTemplate("EEEdMMM")
 
         return dateFormatter.string(from: date)
     }
@@ -2220,22 +2225,22 @@ func dateConverterAccessibilityLabel(date: Date) -> String {
     let calendar = Calendar.current
 
     if calendar.isDateInToday(date) {
-        return "today"
+        return String(localized: "today")
     } else if calendar.isDateInYesterday(date) {
-        return "yesterday"
+        return String(localized: "yesterday")
     } else {
         let dateFormatter = DateFormatter()
 
-        dateFormatter.dateFormat = "EEE, d MMM yyyy"
+        dateFormatter.setLocalizedDateFormatFromTemplate("EEEdMMMyyyy")
 
-        return "on " + dateFormatter.string(from: date)
+        return String(localized: "on \(dateFormatter.string(from: date))")
     }
 }
 
 func timeConverterAccessibilityLabel(date: Date) -> String {
     let dateFormatter = DateFormatter()
 
-    dateFormatter.dateFormat = "h:mm a"
+    dateFormatter.timeStyle = .short
 
     return dateFormatter.string(from: date)
 }

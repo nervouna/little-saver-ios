@@ -16,45 +16,49 @@ struct PowerCategory: Hashable, Identifiable {
 }
 
 struct SuggestedCategory: Hashable {
-    let name: String
+    let localizationKey: String
     let emoji: String
+
+    var localizedName: String {
+        String(localized: String.LocalizationValue(localizationKey))
+    }
 
     static var expenses: [SuggestedCategory] {
         var holding = [SuggestedCategory]()
-        let food = SuggestedCategory(name: "Food", emoji: "🍔")
+        let food = SuggestedCategory(localizationKey: "Food", emoji: "🍔")
         holding.append(food)
 
-        let transport = SuggestedCategory(name: "Transport", emoji: "🚆")
+        let transport = SuggestedCategory(localizationKey: "Transport", emoji: "🚆")
         holding.append(transport)
 
-        let housing = SuggestedCategory(name: "Rent", emoji: "🏠")
+        let housing = SuggestedCategory(localizationKey: "Rent", emoji: "🏠")
         holding.append(housing)
 
-        let subscriptions = SuggestedCategory(name: "Subscriptions", emoji: "🔄")
+        let subscriptions = SuggestedCategory(localizationKey: "Subscriptions", emoji: "🔄")
         holding.append(subscriptions)
 
-        let groceries = SuggestedCategory(name: "Groceries", emoji: "🛒")
+        let groceries = SuggestedCategory(localizationKey: "Groceries", emoji: "🛒")
         holding.append(groceries)
 
-        let family = SuggestedCategory(name: "Family", emoji: "👨‍👩‍👦")
+        let family = SuggestedCategory(localizationKey: "Family", emoji: "👨‍👩‍👦")
         holding.append(family)
 
-        let utilities = SuggestedCategory(name: "Utilities", emoji: "💡")
+        let utilities = SuggestedCategory(localizationKey: "Utilities", emoji: "💡")
         holding.append(utilities)
 
-        let fashion = SuggestedCategory(name: "Fashion", emoji: "👔")
+        let fashion = SuggestedCategory(localizationKey: "Fashion", emoji: "👔")
         holding.append(fashion)
 
-        let healthcare = SuggestedCategory(name: "Healthcare", emoji: "🚑")
+        let healthcare = SuggestedCategory(localizationKey: "Healthcare", emoji: "🚑")
         holding.append(healthcare)
 
-        let pets = SuggestedCategory(name: "Pets", emoji: "🐕")
+        let pets = SuggestedCategory(localizationKey: "Pets", emoji: "🐕")
         holding.append(pets)
 
-        let sneakers = SuggestedCategory(name: "Sneakers", emoji: "👟")
+        let sneakers = SuggestedCategory(localizationKey: "Sneakers", emoji: "👟")
         holding.append(sneakers)
 
-        let gifts = SuggestedCategory(name: "Gifts", emoji: "🎁")
+        let gifts = SuggestedCategory(localizationKey: "Gifts", emoji: "🎁")
         holding.append(gifts)
 
         return holding
@@ -62,22 +66,22 @@ struct SuggestedCategory: Hashable {
 
     static var incomes: [SuggestedCategory] {
         var holding = [SuggestedCategory]()
-        let paycheck = SuggestedCategory(name: "Paycheck", emoji: "💰")
+        let paycheck = SuggestedCategory(localizationKey: "Paycheck", emoji: "💰")
         holding.append(paycheck)
 
-        let allowance = SuggestedCategory(name: "Allowance", emoji: "🤑")
+        let allowance = SuggestedCategory(localizationKey: "Allowance", emoji: "🤑")
         holding.append(allowance)
 
-        let parttime = SuggestedCategory(name: "Part-Time", emoji: "💼")
+        let parttime = SuggestedCategory(localizationKey: "Part-Time", emoji: "💼")
         holding.append(parttime)
 
-        let investments = SuggestedCategory(name: "Investments", emoji: "💹")
+        let investments = SuggestedCategory(localizationKey: "Investments", emoji: "💹")
         holding.append(investments)
 
-        let gifts = SuggestedCategory(name: "Gifts", emoji: "🧧")
+        let gifts = SuggestedCategory(localizationKey: "Gifts", emoji: "🧧")
         holding.append(gifts)
 
-        let tips = SuggestedCategory(name: "Tips", emoji: "🪙")
+        let tips = SuggestedCategory(localizationKey: "Tips", emoji: "🪙")
         holding.append(tips)
 
         return holding

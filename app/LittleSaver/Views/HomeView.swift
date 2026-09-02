@@ -189,7 +189,7 @@ struct AppLockView: View {
             }
 
             if appLockVM.enrollmentError {
-                Text("Please re-enable Face ID access in the Settings app to unlock application.")
+            Text("Please re-enable Face ID access in Settings to unlock LittleSaver.")
                     .font(.system(size: 15, weight: .regular, design: .rounded))
                     .foregroundColor(Color.SubtitleText)
                     .multilineTextAlignment(.center)

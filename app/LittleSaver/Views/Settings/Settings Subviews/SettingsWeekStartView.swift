@@ -120,7 +120,10 @@ struct SettingsWeekStartView: View {
             ForEach(1..<29) { day in
 
               HStack {
-                Text("\(getOrdinal(day)) of month")
+                Text(String.localizedStringWithFormat(
+                  NSLocalizedString("%lld of month", comment: "Configured start day within month"),
+                  Int64(day)
+                ))
                   .font(.system(.body, design: .rounded))
                   .foregroundColor(Color.PrimaryText)
 

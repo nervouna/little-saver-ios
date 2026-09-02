@@ -12,13 +12,13 @@ enum CSVImportError: LocalizedError, Equatable {
 
     var errorDescription: String? {
         switch self {
-        case let .malformedCSV(line): return "Malformed CSV near line \(line)."
-        case .emptyDocument: return "The CSV document is empty."
-        case let .missingColumn(row): return "Row \(row) is missing a selected column."
-        case let .invalidAmount(row, value): return "Row \(row) has an invalid amount: \(value)."
-        case let .invalidDate(row, value): return "Row \(row) has an invalid date: \(value)."
-        case let .unmatchedCategory(row, value): return "Row \(row) has an unmatched category: \(value)."
-        case let .invalidCategoryReference(row): return "Row \(row) references an invalid category."
+        case let .malformedCSV(line): return String(localized: "Malformed CSV near line \(line).")
+        case .emptyDocument: return String(localized: "The CSV document is empty.")
+        case let .missingColumn(row): return String(localized: "Row \(row) is missing a selected column.")
+        case let .invalidAmount(row, value): return String(localized: "Row \(row) has an invalid amount: \(value).")
+        case let .invalidDate(row, value): return String(localized: "Row \(row) has an invalid date: \(value).")
+        case let .unmatchedCategory(row, value): return String(localized: "Row \(row) has an unmatched category: \(value).")
+        case let .invalidCategoryReference(row): return String(localized: "Row \(row) references an invalid category.")
         }
     }
 }

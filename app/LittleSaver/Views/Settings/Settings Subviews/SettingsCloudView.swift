@@ -11,7 +11,7 @@ import Combine
 
 @MainActor
 private final class CloudSyncStatusModel: ObservableObject {
-  @Published private(set) var status = "Checking…"
+  @Published private(set) var status = String(localized: "Checking…")
   private var monitor: SyncMonitor?
   private var monitorChange: AnyCancellable?
 
@@ -19,7 +19,7 @@ private final class CloudSyncStatusModel: ObservableObject {
     guard monitor == nil,
           !ProcessInfo.processInfo.isRunningUnitTests,
           Bundle.main.bundleIdentifier == AppIdentifiers.appBundle else {
-      status = "Unavailable"
+      status = String(localized: "Unavailable")
       return
     }
 
@@ -36,14 +36,14 @@ private final class CloudSyncStatusModel: ObservableObject {
 
   private func update(from monitor: SyncMonitor) {
     switch monitor.syncStateSummary {
-    case .noNetwork: status = "Waiting for network"
-    case .accountNotAvailable: status = "iCloud unavailable"
-    case .error: status = "Sync error"
-    case .notSyncing: status = "Not syncing"
-    case .notStarted: status = "Ready"
-    case .inProgress: status = "Syncing…"
-    case .succeeded: status = "Up to date"
-    case .unknown: status = "Status unavailable"
+    case .noNetwork: status = String(localized: "Waiting for network")
+    case .accountNotAvailable: status = String(localized: "iCloud unavailable")
+    case .error: status = String(localized: "Sync error")
+    case .notSyncing: status = String(localized: "Not syncing")
+    case .notStarted: status = String(localized: "Ready")
+    case .inProgress: status = String(localized: "Syncing…")
+    case .succeeded: status = String(localized: "Up to date")
+    case .unknown: status = String(localized: "Status unavailable")
     }
   }
 }
@@ -101,7 +101,7 @@ struct SettingsCloudView: View {
 
   private var statusText: String {
     #if targetEnvironment(simulator)
-    return "Unavailable in Simulator"
+    return String(localized: "Unavailable in Simulator")
     #else
     return statusModel.status
     #endif
