@@ -5,6 +5,7 @@
 //  Created by Rafael Soh on 5/8/23.
 //
 
+import LittleSaverCore
 import AppIntents
 import Foundation
 import SwiftUI
@@ -30,7 +31,7 @@ struct GetInsightsIntent: AppIntent {
 
     @MainActor
     func perform() async throws -> some ReturnsValue<Double> & ShowsSnippetView & ProvidesDialog {
-        let dataController = DataController.shared
+        let dataController = DataController.platformShared
 //        let dataController = DataController()
 
         let categories: [Category]

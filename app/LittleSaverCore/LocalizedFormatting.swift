@@ -1,6 +1,6 @@
 import Foundation
 
-func localizedCurrencyAmount(
+public func localizedCurrencyAmount(
     _ amount: Double,
     currencyCode: String,
     showCents: Bool,
@@ -20,7 +20,7 @@ func localizedCurrencyAmount(
     return formatter.string(from: NSNumber(value: amount)) ?? "\(currencyCode) \(amount)"
 }
 
-func localizedDateInterval(
+public func localizedDateInterval(
     from startDate: Date,
     to endDate: Date,
     locale: Locale = .current,
@@ -34,7 +34,7 @@ func localizedDateInterval(
     return formatter.string(from: startDate, to: endDate)
 }
 
-func localizedDate(
+public func localizedDate(
     _ date: Date,
     template: String,
     locale: Locale = .current,
@@ -47,7 +47,7 @@ func localizedDate(
     return formatter.string(from: date)
 }
 
-func localizedFormat(
+public func localizedFormat(
     _ key: String,
     bundle: Bundle = .main,
     locale: Locale = .current,

@@ -5,6 +5,7 @@
 //  Created by Rafael Soh on 22/8/22.
 //
 
+import LittleSaverCore
 import Foundation
 import SwiftUI
 

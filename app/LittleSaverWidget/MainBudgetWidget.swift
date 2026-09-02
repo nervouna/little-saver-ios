@@ -5,6 +5,7 @@
 //  Created by Rafael Soh on 12/1/23.
 //
 
+import LittleSaverCore
 import SwiftUI
 import WidgetKit
 
@@ -61,7 +62,7 @@ struct MainBudgetWidgetProvider: TimelineProvider {
 
     func loadData() -> (found: Bool, totalSpent: Double, budgetAmount: Double, percentage: Double, type: Int, startDate: Date) {
 //        let dataController = DataController()
-        let dataController = DataController.shared
+        let dataController = DataController.platformShared
 
         return dataController.fetchRequestForMainBudgetWidget()
     }

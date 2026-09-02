@@ -3,6 +3,7 @@
 //  LittleSaver
 //
 
+import LittleSaverCore
 import SwiftUI
 
 #if !targetEnvironment(simulator)

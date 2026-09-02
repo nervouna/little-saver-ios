@@ -5,6 +5,7 @@
 //  Created by Rafael Soh on 4/9/23.
 //
 
+import LittleSaverCore
 import Combine
 import Foundation
 import Popovers
@@ -722,7 +723,7 @@ struct TemplateTransactionView: View {
 
     init(order: Int) {
 
-        let dataController = DataController.shared
+        let dataController = DataController.platformShared
 
         let toEdit = dataController.getTemplateTransaction(order: order)
 
@@ -1133,7 +1134,7 @@ struct Grid: Identifiable {
     init(index: Int) {
         id = UUID()
 
-        let dataController = DataController.shared
+        let dataController = DataController.platformShared
 
         transaction = dataController.getTemplateTransaction(order: index)
         self.index = index
@@ -1164,7 +1165,7 @@ class GridViewModel: ObservableObject {
 
     func updateIndices() {
 //        let dataController = DataController()
-        let dataController = DataController.shared
+        let dataController = DataController.platformShared
         for (index, element) in gridItems.enumerated() {
             if let transaction = element.transaction {
                 transaction.order = Int16(index)

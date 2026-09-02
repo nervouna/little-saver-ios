@@ -5,6 +5,7 @@
 //  Created by Rafael Soh on 24/8/22.
 //
 
+import LittleSaverCore
 import SwiftUI
 
 class SceneDelegate: NSObject, UIWindowSceneDelegate {

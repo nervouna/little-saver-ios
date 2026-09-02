@@ -5,6 +5,7 @@
 //  Created by Rafael Soh on 14/8/22.
 //
 
+import LittleSaverCore
 import Foundation
 import SwiftUI
 import WidgetKit
@@ -52,10 +53,10 @@ struct InsightsProvider: IntentTimelineProvider {
     }
 
     func loadData(type: InsightsTimePeriod, income: Bool) -> LoadedData {
-        let dataController = DataController.shared
+        let dataController = DataController.platformShared
         do {
             let loaded: LoadedData = try dataController.performViewContextRead { context in
-                let itemRequest = dataController.fetchRequestForWidgetInsights(type: type, income: income)
+                let itemRequest = dataController.fetchRequestForWidgetInsights(type: type.ledgerPeriod, income: income)
                 let categoryRequest = dataController.fetchRequestForCategories(income: income)
                 let categories = try context.fetch(categoryRequest)
                 let transactions = try context.fetch(itemRequest.fetchRequest)

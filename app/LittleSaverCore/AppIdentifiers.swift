@@ -5,26 +5,26 @@
 
 import Foundation
 
-enum AppIdentifiers {
-    static let appBundle = "io.damao.littlesaver"
-    static let widgetBundle = "io.damao.littlesaver.widget"
-    static let intentBundle = "io.damao.littlesaver.intent"
-    static let intentUIBundle = "io.damao.littlesaver.intentui"
+public enum AppIdentifiers {
+    public static let appBundle = "io.damao.littlesaver"
+    public static let widgetBundle = "io.damao.littlesaver.widget"
+    public static let intentBundle = "io.damao.littlesaver.intent"
+    public static let intentUIBundle = "io.damao.littlesaver.intentui"
 
-    static let appGroup = "group.io.damao.littlesaver"
-    static let cloudKitContainer = "iCloud.io.damao.littlesaver"
-    static let urlScheme = "io.damao.littlesaver"
-    static let persistentModel = "LittleSaverModel"
-    static let persistentStore = "LittleSaver.sqlite"
+    public static let appGroup = "group.io.damao.littlesaver"
+    public static let cloudKitContainer = "iCloud.io.damao.littlesaver"
+    public static let urlScheme = "io.damao.littlesaver"
+    public static let persistentModel = "LittleSaverModel"
+    public static let persistentStore = "LittleSaver.sqlite"
 }
 
-enum AppRuntimeRole: Equatable {
+public enum AppRuntimeRole: Equatable {
     case mainApplication
     case widget
     case intentService
     case intentUI
 
-    init(bundleIdentifier: String?) throws {
+    public init(bundleIdentifier: String?) throws {
         switch bundleIdentifier {
         case AppIdentifiers.appBundle:
             self = .mainApplication
@@ -39,7 +39,7 @@ enum AppRuntimeRole: Equatable {
         }
     }
 
-    var persistentStoreMode: PersistentStoreMode? {
+    public var persistentStoreMode: PersistentStoreMode? {
         switch self {
         case .mainApplication: return .cloudSync
         case .widget, .intentService: return .sharedLocal
@@ -48,18 +48,18 @@ enum AppRuntimeRole: Equatable {
     }
 }
 
-enum PersistentStoreMode: Equatable {
+public enum PersistentStoreMode: Equatable {
     case cloudSync
     case sharedLocal
     case inMemory
 }
 
-enum AppConfigurationError: LocalizedError, Equatable {
+public enum AppConfigurationError: LocalizedError, Equatable {
     case unknownBundleIdentifier(String?)
     case unavailableAppGroup(String)
     case unavailableManagedObjectModel(String)
 
-    var errorDescription: String? {
+    public var errorDescription: String? {
         switch self {
         case let .unknownBundleIdentifier(identifier):
             return String.localizedStringWithFormat(

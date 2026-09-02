@@ -1,12 +1,12 @@
 import Foundation
 
-enum DeepLink: Equatable {
+public enum DeepLink: Equatable {
     case search
     case newExpense
     case insights
     case budget(name: String?)
 
-    init?(url: URL) {
+    public init?(url: URL) {
         guard let components = URLComponents(url: url, resolvingAgainstBaseURL: false),
               components.scheme == AppIdentifiers.urlScheme,
               components.user == nil,
@@ -41,7 +41,7 @@ enum DeepLink: Equatable {
         }
     }
 
-    var url: URL {
+    public var url: URL {
         var components = URLComponents()
         components.scheme = AppIdentifiers.urlScheme
         switch self {
@@ -61,10 +61,12 @@ enum DeepLink: Equatable {
     }
 }
 
-struct DeepLinkRouter: Equatable {
-    private(set) var pendingLink: DeepLink?
+public struct DeepLinkRouter: Equatable {
+    public init() {}
 
-    mutating func receive(_ link: DeepLink, isLocked: Bool) -> DeepLink? {
+    public private(set) var pendingLink: DeepLink?
+
+    public mutating func receive(_ link: DeepLink, isLocked: Bool) -> DeepLink? {
         guard isLocked else {
             pendingLink = nil
             return link
@@ -73,7 +75,7 @@ struct DeepLinkRouter: Equatable {
         return nil
     }
 
-    mutating func unlock() -> DeepLink? {
+    public mutating func unlock() -> DeepLink? {
         defer { pendingLink = nil }
         return pendingLink
     }

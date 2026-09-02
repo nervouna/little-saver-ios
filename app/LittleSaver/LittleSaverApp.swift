@@ -5,6 +5,7 @@
 //  Created by Rafael Soh on 11/7/22.
 //
 
+import LittleSaverCore
 import SwiftUI
 
 @main
@@ -37,7 +38,7 @@ struct LittleSaverApp: App {
     }
 
     init() {
-        let dataController = DataController.shared
+        let dataController = DataController.platformShared
 //        let dataController = DataController()
 
         _dataController = StateObject(wrappedValue: dataController)

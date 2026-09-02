@@ -5,6 +5,7 @@
 //  Created by Rafael Soh on 10/5/22.
 //
 
+import LittleSaverCore
 import Combine
 import CoreHaptics
 import Popovers
@@ -1985,7 +1986,7 @@ struct ColourPickerView: View {
 
         var selectedColours = [String]()
 
-        let dataController = DataController.shared
+        let dataController = DataController.platformShared
 
         let categories = dataController.getAllCategories(income: false)
 

@@ -5,6 +5,7 @@
 //  Created by Rafael Soh on 1/8/23.
 //
 
+import LittleSaverCore
 import AppIntents
 import CoreData
 import Foundation
@@ -153,7 +154,7 @@ struct IncomeCategoryEntity: AppEntity, Identifiable {
 @available(iOS 16, *)
 struct IncomeCategoryQuery: EntityStringQuery {
     func entities(matching query: String) async throws -> [IncomeCategoryEntity] {
-        let dataController = DataController.shared
+        let dataController = DataController.platformShared
 
         let categories = dataController.getAllCategories(income: true).filter {
             $0.wrappedName.localizedCaseInsensitiveContains(query) || $0.wrappedEmoji.localizedCaseInsensitiveContains(query)
@@ -170,7 +171,7 @@ struct IncomeCategoryQuery: EntityStringQuery {
 
     func entities(for identifiers: [IncomeCategoryEntity.ID]) async throws -> [IncomeCategoryEntity] {
         return identifiers.compactMap { identifier in
-            let dataController = DataController.shared
+            let dataController = DataController.platformShared
 
             if let match = try? dataController.findCategory(withId: identifier) {
                 if let id = match.id {
@@ -185,7 +186,7 @@ struct IncomeCategoryQuery: EntityStringQuery {
     }
 
     func suggestedEntities() async throws -> [IncomeCategoryEntity] {
-        let dataController = DataController.shared
+        let dataController = DataController.platformShared
 
         return dataController.getAllCategories(income: true).compactMap { category in
             if let id = category.id {
@@ -229,7 +230,7 @@ struct ExpenseCategoryEntity: AppEntity, Identifiable {
 @available(iOS 16, *)
 struct ExpenseCategoryQuery: EntityStringQuery {
     func entities(matching query: String) async throws -> [ExpenseCategoryEntity] {
-        let dataController = DataController.shared
+        let dataController = DataController.platformShared
 
         let categories = dataController.getAllCategories(income: false).filter {
             $0.wrappedName.localizedCaseInsensitiveContains(query) || $0.wrappedEmoji.localizedCaseInsensitiveContains(query)
@@ -246,7 +247,7 @@ struct ExpenseCategoryQuery: EntityStringQuery {
 
     func entities(for identifiers: [ExpenseCategoryEntity.ID]) async throws -> [ExpenseCategoryEntity] {
         return identifiers.compactMap { identifier in
-            let dataController = DataController.shared
+            let dataController = DataController.platformShared
             if let match = try? dataController.findCategory(withId: identifier) {
                 if let id = match.id {
                     return ExpenseCategoryEntity(id: id, name: match.wrappedName, emoji: match.wrappedEmoji, income: match.income)
@@ -260,7 +261,7 @@ struct ExpenseCategoryQuery: EntityStringQuery {
     }
 
     func suggestedEntities() async throws -> [ExpenseCategoryEntity] {
-        let dataController = DataController.shared
+        let dataController = DataController.platformShared
 
         return dataController.getAllCategories(income: false).compactMap { category in
             if let id = category.id {
@@ -300,7 +301,7 @@ struct BudgetEntity: AppEntity, Identifiable {
 @available(iOS 16, *)
 struct BudgetQuery: EntityStringQuery {
     func entities(matching query: String) async throws -> [BudgetEntity] {
-        let dataController = DataController.shared
+        let dataController = DataController.platformShared
 
         let budgets = dataController.getAllBudgets().filter {
             $0.wrappedName.localizedCaseInsensitiveContains(query) || $0.wrappedEmoji.localizedCaseInsensitiveContains(query)
@@ -317,7 +318,7 @@ struct BudgetQuery: EntityStringQuery {
 
     func entities(for identifiers: [BudgetEntity.ID]) async throws -> [BudgetEntity] {
         return identifiers.compactMap { identifier in
-            let dataController = DataController.shared
+            let dataController = DataController.platformShared
 
             if let match = try? dataController.findBudget(withId: identifier) {
                 if let id = match.id {
@@ -332,7 +333,7 @@ struct BudgetQuery: EntityStringQuery {
     }
 
     func suggestedEntities() async throws -> [BudgetEntity] {
-        let dataController = DataController.shared
+        let dataController = DataController.platformShared
 
         return dataController.getAllBudgets().compactMap { budget in
             if let id = budget.id {

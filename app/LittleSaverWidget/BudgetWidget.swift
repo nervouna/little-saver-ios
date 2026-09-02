@@ -5,6 +5,7 @@
 //  Created by Rafael Soh on 17/8/22.
 //
 
+import LittleSaverCore
 import SwiftUI
 import WidgetKit
 
@@ -50,7 +51,7 @@ struct BudgetWidgetProvider: IntentTimelineProvider {
     }
 
     func loadData(budgetId: String) -> (total: Double, percentage: Double, budget: HoldingBudget) {
-        let dataController = DataController.shared
+        let dataController = DataController.platformShared
         do {
             return try dataController.performViewContextRead { context in
                 guard let objectIDURL = URL(string: budgetId),

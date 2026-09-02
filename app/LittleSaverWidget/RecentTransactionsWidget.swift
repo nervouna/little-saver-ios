@@ -5,6 +5,7 @@
 //  Created by Rafael Soh on 12/8/22.
 //
 
+import LittleSaverCore
 import SwiftUI
 import WidgetKit
 
@@ -63,7 +64,7 @@ struct Provider: IntentTimelineProvider {
     }
 
     func loadAmount(type: TimePeriod, insightsType: InsightsType) -> Double {
-        let dataController = DataController.shared
+        let dataController = DataController.platformShared
 
         let timeframe: Int
 
@@ -111,10 +112,10 @@ struct Provider: IntentTimelineProvider {
     }
 
     func loadTransactions(type: TimePeriod, count: Int) -> [HoldingTransaction] {
-        let dataController = DataController.shared
+        let dataController = DataController.platformShared
         do {
             return try dataController.performViewContextRead { context in
-                let request = dataController.fetchRequestForRecentTransactionsWithCount(type: type, count: count)
+                let request = dataController.fetchRequestForRecentTransactionsWithCount(type: type.ledgerPeriod, count: count)
                 return try context.fetch(request).map { transaction in
                     HoldingTransaction(
                         colour: transaction.category?.wrappedColour ?? "",

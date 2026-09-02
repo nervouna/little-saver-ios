@@ -5,11 +5,12 @@
 //  Created by Rafael Soh on 17/8/22.
 //
 
+import LittleSaverCore
 import Intents
 
 class IntentHandler: INExtension, BudgetWidgetConfigurationIntentHandling {
 //    let dataController = DataController()
-    let dataController = DataController.shared
+    let dataController = DataController.platformShared
 
     func provideBudgetOptionsCollection(for _: BudgetWidgetConfigurationIntent, with completion: @escaping (INObjectCollection<WidgetBudget>?, Error?) -> Void) {
         do {

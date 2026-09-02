@@ -7,14 +7,14 @@
 
 import Foundation
 
-enum RecurringScheduleError: Error, Equatable {
+public enum RecurringScheduleError: Error, Equatable {
     case invalidType(Int16)
     case invalidCoefficient(Int16)
     case dateCalculationFailed
 }
 
-enum RecurringSchedule {
-    static func nextDate(
+public enum RecurringSchedule {
+    public static func nextDate(
         after date: Date,
         type: Int16,
         coefficient: Int16,
@@ -47,7 +47,7 @@ enum RecurringSchedule {
     }
 }
 
-extension Transaction {
+public extension Transaction {
     var wrappedAmount: Double {
         amount
     }
@@ -78,7 +78,7 @@ extension Transaction {
     }
 }
 
-extension TemplateTransaction {
+public extension TemplateTransaction {
     var wrappedAmount: Double {
         amount
     }
@@ -96,7 +96,7 @@ extension TemplateTransaction {
     }
 }
 
-extension Category {
+public extension Category {
     var wrappedColour: String {
         colour ?? "#FFFFFF"
     }

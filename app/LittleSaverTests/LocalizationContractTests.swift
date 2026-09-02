@@ -1,3 +1,4 @@
+import LittleSaverCore
 import Foundation
 import XCTest
 @testable import LittleSaver

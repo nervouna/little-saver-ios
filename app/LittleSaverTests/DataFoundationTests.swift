@@ -1,8 +1,89 @@
+import LittleSaverCore
 import CoreData
 import XCTest
 @testable import LittleSaver
 
 final class DataFoundationTests: XCTestCase {
+    func testPlatformAdapterInstallsWidgetCallbackOnlyOnce() {
+        let shared = DataController.platformShared
+        let original = shared.reloadWidgets
+        defer { shared.reloadWidgets = original }
+        var reloadCount = 0
+        shared.reloadWidgets = { reloadCount += 1 }
+        XCTAssertTrue(DataController.platformShared === shared)
+        DataController.platformShared.reloadWidgets()
+        XCTAssertEqual(reloadCount, 1)
+    }
+
+    func testPersistenceModelHasOneFrameworkOwnerAndEquivalentBaselineVersions() throws {
+        let bundle = Bundle(for: DataController.self)
+        XCTAssertEqual(bundle.bundleIdentifier, "io.damao.littlesaver.core")
+        let modelURL = try XCTUnwrap(bundle.url(forResource: AppIdentifiers.persistentModel, withExtension: "momd"))
+        let legacy = try XCTUnwrap(NSManagedObjectModel(contentsOf: modelURL.appendingPathComponent("LittleSaverDevelopmentV0.mom")))
+        let current = try XCTUnwrap(NSManagedObjectModel(contentsOf: modelURL.appendingPathComponent("LittleSaverV1.mom")))
+        XCTAssertEqual(legacy.entityVersionHashesByName, current.entityVersionHashesByName)
+        XCTAssertEqual(current.entityVersionHashesByName, controller.container.managedObjectModel.entityVersionHashesByName)
+    }
+
+    func testLegacyDiskStoreReopensWithFrameworkModelAndPreservesRelationships() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let storeURL = directory.appendingPathComponent("ledger.sqlite")
+        let modelURL = try XCTUnwrap(Bundle(for: DataController.self).url(forResource: AppIdentifiers.persistentModel, withExtension: "momd"))
+        let categoryID = UUID()
+        let transactionID = UUID()
+
+        // Write the exact development model, then close its coordinator before opening V1.
+        do {
+            let model = try XCTUnwrap(NSManagedObjectModel(contentsOf: modelURL.appendingPathComponent("LittleSaverDevelopmentV0.mom")))
+            let coordinator = NSPersistentStoreCoordinator(managedObjectModel: model)
+            let store = try coordinator.addPersistentStore(type: .sqlite, at: storeURL)
+            let context = NSManagedObjectContext(concurrencyType: .mainQueueConcurrencyType)
+            context.persistentStoreCoordinator = coordinator
+            let category = NSEntityDescription.insertNewObject(forEntityName: "Category", into: context)
+            category.setValue(categoryID, forKey: "id")
+            category.setValue("Legacy food", forKey: "name")
+            let transaction = NSEntityDescription.insertNewObject(forEntityName: "Transaction", into: context)
+            transaction.setValue(transactionID, forKey: "id")
+            transaction.setValue("Preserve me", forKey: "note")
+            transaction.setValue(12.5, forKey: "amount")
+            transaction.setValue(category, forKey: "category")
+            let budget = NSEntityDescription.insertNewObject(forEntityName: "Budget", into: context)
+            budget.setValue(category, forKey: "category")
+            budget.setValue(100, forKey: "amount")
+            let template = NSEntityDescription.insertNewObject(forEntityName: "TemplateTransaction", into: context)
+            template.setValue(category, forKey: "category")
+            template.setValue(7.5, forKey: "amount")
+            let mainBudget = NSEntityDescription.insertNewObject(forEntityName: "MainBudget", into: context)
+            mainBudget.setValue(500, forKey: "amount")
+            try context.save()
+            context.reset()
+            try coordinator.remove(store)
+        }
+
+        let diskController = try DataController(configuration: .init(
+            mode: .sharedLocal,
+            modelName: AppIdentifiers.persistentModel,
+            storeURL: storeURL,
+            reloadWidgetsAfterSave: false
+        ))
+        XCTAssertEqual(diskController.persistentStoreState, .loaded)
+        let transaction = try XCTUnwrap(diskController.results(for: Transaction.fetchRequest()).first)
+        XCTAssertEqual(transaction.id, transactionID)
+        XCTAssertEqual(transaction.note, "Preserve me")
+        XCTAssertEqual(transaction.amount, 12.5)
+        XCTAssertEqual(transaction.category?.id, categoryID)
+        XCTAssertEqual(transaction.category?.name, "Legacy food")
+        XCTAssertEqual(transaction.category?.budget?.amount, 100)
+        XCTAssertEqual(transaction.category?.templates?.count, 1)
+        XCTAssertEqual(diskController.results(for: TemplateTransaction.fetchRequest()).first?.amount, 7.5)
+        XCTAssertEqual(diskController.results(for: MainBudget.fetchRequest()).first?.amount, 500)
+        let coordinator = diskController.container.persistentStoreCoordinator
+        diskController.container.viewContext.reset()
+        for store in coordinator.persistentStores { try coordinator.remove(store) }
+    }
+
     private var controller: DataController!
     private var calendar: Calendar!
 
@@ -306,8 +387,8 @@ final class DataFoundationTests: XCTestCase {
         )
     }
 
-    private func makeCategory(name: String, income: Bool = false) -> LittleSaver.Category {
-        let category = LittleSaver.Category(context: controller.container.viewContext)
+    private func makeCategory(name: String, income: Bool = false) -> LittleSaverCore.Category {
+        let category = LittleSaverCore.Category(context: controller.container.viewContext)
         category.id = UUID()
         category.name = name
         category.emoji = "🍽"

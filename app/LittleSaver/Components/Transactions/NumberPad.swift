@@ -5,6 +5,7 @@
 //  Created by Yumi on 2023-10-29.
 //
 
+import LittleSaverCore
 import SwiftUI
 import CoreHaptics
 

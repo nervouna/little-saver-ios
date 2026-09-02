@@ -5,6 +5,7 @@
 //  Created by Yumi on 2023-10-28.
 //
 
+import LittleSaverCore
 import SwiftUI
 
 struct SuggestedTransactions: View {

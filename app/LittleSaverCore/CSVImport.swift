@@ -1,7 +1,7 @@
 import CoreData
 import Foundation
 
-enum CSVImportError: LocalizedError, Equatable {
+public enum CSVImportError: LocalizedError, Equatable {
     case malformedCSV(line: Int)
     case emptyDocument
     case missingColumn(row: Int)
@@ -10,7 +10,7 @@ enum CSVImportError: LocalizedError, Equatable {
     case unmatchedCategory(row: Int, value: String)
     case invalidCategoryReference(row: Int)
 
-    var errorDescription: String? {
+    public var errorDescription: String? {
         switch self {
         case let .malformedCSV(line): return String(localized: "Malformed CSV near line \(line).")
         case .emptyDocument: return String(localized: "The CSV document is empty.")
@@ -23,8 +23,8 @@ enum CSVImportError: LocalizedError, Equatable {
     }
 }
 
-enum CSVDocumentParser {
-    static func parse(_ text: String) throws -> [[String]] {
+public enum CSVDocumentParser {
+    public static func parse(_ text: String) throws -> [[String]] {
         // Swift treats CRLF as a single extended grapheme cluster. Normalize line
         // endings first so record boundaries are parsed consistently.
         let source = text
@@ -94,18 +94,25 @@ enum CSVDocumentParser {
     }
 }
 
-struct CSVImportMapping: Equatable {
-    let categoryColumn: Int
-    let noteColumn: Int
-    let dateColumn: Int
-    let amountColumn: Int
+public struct CSVImportMapping: Equatable {
+    public init(categoryColumn: Int, noteColumn: Int, dateColumn: Int, amountColumn: Int) {
+        self.categoryColumn = categoryColumn
+        self.noteColumn = noteColumn
+        self.dateColumn = dateColumn
+        self.amountColumn = amountColumn
+    }
 
-    var highestColumn: Int {
+    public let categoryColumn: Int
+    public let noteColumn: Int
+    public let dateColumn: Int
+    public let amountColumn: Int
+
+    public var highestColumn: Int {
         max(categoryColumn, noteColumn, dateColumn, amountColumn)
     }
 }
 
-enum CSVTransactionImporter {
+public enum CSVTransactionImporter {
     private struct ValidatedRow {
         let rowNumber: Int
         let note: String
@@ -115,7 +122,7 @@ enum CSVTransactionImporter {
         let date: Date
     }
 
-    static func importRows(
+    public static func importRows(
         _ rows: [[String]],
         mapping: CSVImportMapping,
         dateFormat: String,

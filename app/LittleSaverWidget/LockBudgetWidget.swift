@@ -5,6 +5,7 @@
 //  Created by Rafael Soh on 9/9/22.
 //
 
+import LittleSaverCore
 import SwiftUI
 import WidgetKit
 
@@ -62,7 +63,7 @@ struct LockBudgetWidgetProvider: IntentTimelineProvider {
     }
 
     func loadData(budgetId: String) -> (total: Double, timeLeft: String, budget: HoldingBudget) {
-        let dataController = DataController.shared
+        let dataController = DataController.platformShared
         do {
             return try dataController.performViewContextRead { context in
                 guard let objectIDURL = URL(string: budgetId),

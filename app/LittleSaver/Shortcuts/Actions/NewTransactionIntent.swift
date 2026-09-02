@@ -5,6 +5,7 @@
 //  Created by Rafael Soh on 23/7/23.
 //
 
+import LittleSaverCore
 import AppIntents
 import Foundation
 import SwiftUI
@@ -79,7 +80,7 @@ struct NewTransactionIntent: AppIntent {
                 throw $amount.needsValueError()
             }
 
-            let dataController = DataController.shared
+            let dataController = DataController.platformShared
             let repeatType: Int
 
             if !recurringTransaction {

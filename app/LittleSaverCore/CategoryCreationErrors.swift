@@ -7,6 +7,6 @@
 
 import Foundation
 
-enum CategoryError {
+public enum CategoryError {
     case none, incomplete, missingEmoji, missingName, duplicate, duplicateEmoji, duplicateName
 }

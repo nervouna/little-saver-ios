@@ -7,17 +7,16 @@
 
 import CoreData
 import Foundation
-import SwiftUI
-import WidgetKit
+import Combine
 
 @available(iOS 16, *)
-enum CustomError: Swift.Error, CustomLocalizedStringResourceConvertible {
+public enum CustomError: Swift.Error, CustomLocalizedStringResourceConvertible {
     case notFound,
          coreDataSave,
          unknownId(id: String),
          unknownError(message: String)
 
-    var localizedStringResource: LocalizedStringResource {
+    public var localizedStringResource: LocalizedStringResource {
         switch self {
         case let .unknownError(message): return "An unknown error occurred: \(message)"
         case let .unknownId(id): return "No category with an ID matching: \(id)"
@@ -27,9 +26,9 @@ enum CustomError: Swift.Error, CustomLocalizedStringResourceConvertible {
     }
 }
 
-class DataController: ObservableObject {
-    enum CloudKitSchemaInitializationPolicy {
-        static func shouldInitialize(
+public final class DataController: ObservableObject {
+    public enum CloudKitSchemaInitializationPolicy {
+        public static func shouldInitialize(
             mode: PersistentStoreMode,
             arguments: [String],
             isDebugBuild: Bool
@@ -41,10 +40,7 @@ class DataController: ObservableObject {
     }
 
     private static let managedObjectModel: NSManagedObjectModel? = {
-        guard let modelURL = Bundle.main.url(
-            forResource: AppIdentifiers.persistentModel,
-            withExtension: "momd"
-        ) ?? Bundle(for: DataController.self).url(
+        guard let modelURL = Bundle(for: DataController.self).url(
             forResource: AppIdentifiers.persistentModel,
             withExtension: "momd"
         ) else {
@@ -53,17 +49,17 @@ class DataController: ObservableObject {
         return NSManagedObjectModel(contentsOf: modelURL)
     }()
 
-    enum PersistentStoreState: Equatable {
+    public enum PersistentStoreState: Equatable {
         case loading
         case loaded
         case failed(String)
     }
 
-    enum PersistentStoreAccessError: LocalizedError {
+    public enum PersistentStoreAccessError: LocalizedError {
         case loading
         case failed(String)
 
-        var errorDescription: String? {
+        public var errorDescription: String? {
             switch self {
             case .loading:
                 return String(localized: "The persistent store is still loading.")
@@ -73,13 +69,20 @@ class DataController: ObservableObject {
         }
     }
 
-    struct Configuration {
-        let mode: PersistentStoreMode
-        let modelName: String
-        let storeURL: URL?
-        let reloadWidgetsAfterSave: Bool
+    public struct Configuration {
+        public let mode: PersistentStoreMode
+        public let modelName: String
+        public let storeURL: URL?
+        public let reloadWidgetsAfterSave: Bool
 
-        static func currentProcess(
+        public init(mode: PersistentStoreMode, modelName: String, storeURL: URL?, reloadWidgetsAfterSave: Bool) {
+            self.mode = mode
+            self.modelName = modelName
+            self.storeURL = storeURL
+            self.reloadWidgetsAfterSave = reloadWidgetsAfterSave
+        }
+
+        public static func currentProcess(
             bundleIdentifier: String? = Bundle.main.bundleIdentifier,
             fileManager: FileManager = .default
         ) throws -> Configuration {
@@ -100,7 +103,7 @@ class DataController: ObservableObject {
             )
         }
 
-        static var inMemory: Configuration {
+        public static var inMemory: Configuration {
             Configuration(
                 mode: .inMemory,
                 modelName: AppIdentifiers.persistentModel,
@@ -110,7 +113,7 @@ class DataController: ObservableObject {
         }
     }
 
-    static let shared: DataController = {
+    public static let shared: DataController = {
         do {
             if ProcessInfo.processInfo.isRunningUnitTests {
                 return try DataController(configuration: .inMemory)
@@ -121,9 +124,12 @@ class DataController: ObservableObject {
         }
     }()
 
-    let container: NSPersistentCloudKitContainer
-    let configuration: Configuration?
-    @Published private(set) var persistentStoreState: PersistentStoreState = .loading
+    /// Installed by the executable's WidgetKit adapter; Core has no platform dependency.
+    public var reloadWidgets: () -> Void = {}
+
+    public let container: NSPersistentCloudKitContainer
+    public let configuration: Configuration?
+    @Published public private(set) var persistentStoreState: PersistentStoreState = .loading
 
     private init(configurationError error: Error) {
         configuration = nil
@@ -134,7 +140,7 @@ class DataController: ObservableObject {
         persistentStoreState = .failed(error.localizedDescription)
     }
 
-    init(configuration: Configuration) throws {
+    public init(configuration: Configuration) throws {
         self.configuration = configuration
 
         guard configuration.modelName == AppIdentifiers.persistentModel,
@@ -214,7 +220,7 @@ class DataController: ObservableObject {
 
     // internal variables
 
-    var addedTransaction: Bool {
+    public var addedTransaction: Bool {
         get {
             UserDefaults(suiteName: AppIdentifiers.appGroup)?.bool(forKey: "newTransactionAdded") ?? false
         }
@@ -226,7 +232,7 @@ class DataController: ObservableObject {
 
     // adding or deleting
 
-    func deleteAll() {
+    public func deleteAll() {
         guard persistentStoreState == .loaded else { return }
         let fetchRequest1: NSFetchRequest<NSFetchRequestResult> = Transaction.fetchRequest()
         let batchDeleteRequest1 = NSBatchDeleteRequest(fetchRequest: fetchRequest1)
@@ -245,17 +251,17 @@ class DataController: ObservableObject {
         _ = try? container.viewContext.executeAndMergeChanges(using: batchDeleteRequest4)
     }
 
-    func save() {
+    public func save() {
         guard persistentStoreState == .loaded else { return }
         if container.viewContext.hasChanges {
             try? container.viewContext.save()
             if configuration?.reloadWidgetsAfterSave == true {
-                WidgetCenter.shared.reloadAllTimelines()
+                reloadWidgets()
             }
         }
     }
 
-    func updateRecurringTransaction(transaction: Transaction) {
+    public func updateRecurringTransaction(transaction: Transaction) {
         if transaction.nextTransactionDate < Calendar.current.startOfDay(for: Date.now) {
             var holdingDate = transaction.nextTransactionDate
 
@@ -327,7 +333,7 @@ class DataController: ObservableObject {
         }
     }
 
-    func updateRecurringTransactions() {
+    public func updateRecurringTransactions() {
         let recurringTransactions = results(for: fetchRequestForRecurringTransactions())
 
         recurringTransactions.forEach { transaction in
@@ -335,7 +341,7 @@ class DataController: ObservableObject {
         }
     }
 
-    func updateBudgetDates() {
+    public func updateBudgetDates() {
         let budgets = results(for: fetchRequestForBudgets())
         let mainBudget = results(for: fetchRequestForMainBudget())
 
@@ -354,7 +360,7 @@ class DataController: ObservableObject {
         save()
     }
 
-    func newTransaction(note: String, category: Category?, income: Bool, amount: Double, date: Date, repeatType: Int, repeatCoefficient: Int, delay _: Bool) -> Transaction {
+    public func newTransaction(note: String, category: Category?, income: Bool, amount: Double, date: Date, repeatType: Int, repeatCoefficient: Int, delay _: Bool) -> Transaction {
         let transaction = Transaction(context: container.viewContext)
 
         if note.trimmingCharacters(in: .whitespacesAndNewlines) == "" {
@@ -393,7 +399,7 @@ class DataController: ObservableObject {
         return transaction
     }
 
-    func newTemplateTransaction(order: Int) {
+    public func newTemplateTransaction(order: Int) {
         if let match = getTemplateTransaction(order: order) {
             if let unwrappedCategory = match.category {
                 _ = newTransaction(note: match.note ?? "", category: unwrappedCategory, income: match.income, amount: match.amount, date: Date.now, repeatType: Int(match.recurringType), repeatCoefficient: Int(match.recurringCoefficient), delay: false)
@@ -405,13 +411,13 @@ class DataController: ObservableObject {
 
     // fetching
 
-    func fetchRequestForRecurringTransactions() -> NSFetchRequest<Transaction> {
+    public func fetchRequestForRecurringTransactions() -> NSFetchRequest<Transaction> {
         let itemRequest: NSFetchRequest<Transaction> = Transaction.fetchRequest()
         itemRequest.predicate = NSPredicate(format: "%K > %i", #keyPath(Transaction.recurringType), 0)
         return itemRequest
     }
 
-    func getTemplateTransaction(order: Int) -> TemplateTransaction? {
+    public func getTemplateTransaction(order: Int) -> TemplateTransaction? {
         let itemRequest: NSFetchRequest<TemplateTransaction> = TemplateTransaction.fetchRequest()
 
         itemRequest.predicate = NSPredicate(format: "order == %d", order)
@@ -433,13 +439,13 @@ class DataController: ObservableObject {
         }
     }
 
-    func getAllTemplateTransactions() -> [TemplateTransaction] {
+    public func getAllTemplateTransactions() -> [TemplateTransaction] {
         let itemRequest: NSFetchRequest<TemplateTransaction> = TemplateTransaction.fetchRequest()
 
         return results(for: itemRequest)
     }
 
-    func fetchRequestForRecentTransactions(type: TimePeriod) -> NSFetchRequest<Transaction> {
+    public func fetchRequestForRecentTransactions(type: LedgerTimePeriod) -> NSFetchRequest<Transaction> {
         let itemRequest: NSFetchRequest<Transaction> = Transaction.fetchRequest()
 
         var calendar = Calendar(identifier: .gregorian)
@@ -519,13 +525,13 @@ class DataController: ObservableObject {
         }
     }
 
-    func fetchRequestForExport() -> NSFetchRequest<Transaction> {
+    public func fetchRequestForExport() -> NSFetchRequest<Transaction> {
         let itemRequest: NSFetchRequest<Transaction> = Transaction.fetchRequest()
         itemRequest.sortDescriptors = [NSSortDescriptor(key: "date", ascending: false)]
         return itemRequest
     }
 
-    func fetchRequestForCategoriesMigration(income: Bool? = nil) -> NSFetchRequest<Category> {
+    public func fetchRequestForCategoriesMigration(income: Bool? = nil) -> NSFetchRequest<Category> {
         let itemRequest: NSFetchRequest<Category> = Category.fetchRequest()
         itemRequest.sortDescriptors = [NSSortDescriptor(key: "dateCreated", ascending: true)]
 
@@ -537,14 +543,14 @@ class DataController: ObservableObject {
         }
     }
 
-    func fetchRequestForCategories(income: Bool) -> NSFetchRequest<Category> {
+    public func fetchRequestForCategories(income: Bool) -> NSFetchRequest<Category> {
         let itemRequest: NSFetchRequest<Category> = Category.fetchRequest()
         itemRequest.sortDescriptors = [NSSortDescriptor(key: "order", ascending: true)]
         itemRequest.predicate = NSPredicate(format: "income = %d", income)
         return itemRequest
     }
 
-    func getAllCategories(income: Bool) -> [Category] {
+    public func getAllCategories(income: Bool) -> [Category] {
         let request: NSFetchRequest<Category> = Category.fetchRequest()
         request.sortDescriptors = [NSSortDescriptor(key: "order", ascending: true)]
         request.predicate = NSPredicate(format: "income = %d", income)
@@ -552,7 +558,7 @@ class DataController: ObservableObject {
         return results(for: request)
     }
 
-    func getSuggestedNotes(searchQuery: String, category: Category?, income: Bool) -> [Transaction] {
+    public func getSuggestedNotes(searchQuery: String, category: Category?, income: Bool) -> [Transaction] {
         let itemRequest: NSFetchRequest<Transaction> = Transaction.fetchRequest()
         itemRequest.sortDescriptors = [NSSortDescriptor(keyPath: \Transaction.date, ascending: false)]
 
@@ -593,7 +599,7 @@ class DataController: ObservableObject {
     }
 
     @available(iOS 16, *)
-    func findCategory(withId id: UUID) throws -> Category {
+    public func findCategory(withId id: UUID) throws -> Category {
         let request: NSFetchRequest<Category> = Category.fetchRequest()
         request.fetchLimit = 1
         request.predicate = NSPredicate(format: "id = %@", id as CVarArg)
@@ -608,14 +614,14 @@ class DataController: ObservableObject {
         }
     }
 
-    func getAllBudgets() -> [Budget] {
+    public func getAllBudgets() -> [Budget] {
         let request: NSFetchRequest<Budget> = Budget.fetchRequest()
         request.sortDescriptors = [NSSortDescriptor(key: "dateCreated", ascending: true)]
         return results(for: request)
     }
 
     @available(iOS 16, *)
-    func findBudget(withId id: UUID) throws -> Budget {
+    public func findBudget(withId id: UUID) throws -> Budget {
         let request: NSFetchRequest<Budget> = Budget.fetchRequest()
         request.fetchLimit = 1
         request.predicate = NSPredicate(format: "id = %@", id as CVarArg)
@@ -630,7 +636,7 @@ class DataController: ObservableObject {
         }
     }
 
-    func categoryCheck(name: String, emoji: String, income: Bool) -> (error: CategoryError, order: Int64) {
+    public func categoryCheck(name: String, emoji: String, income: Bool) -> (error: CategoryError, order: Int64) {
         if name.trimmingCharacters(in: .whitespacesAndNewlines) == "" && emoji == "" {
             return (CategoryError.incomplete, 0)
         } else if name.trimmingCharacters(in: .whitespacesAndNewlines) == "" {
@@ -686,7 +692,7 @@ class DataController: ObservableObject {
         }
     }
 
-    func categoryCheckEdit(name: String, emoji: String, toEdit: Category) -> (error: CategoryError, order: Int64) {
+    public func categoryCheckEdit(name: String, emoji: String, toEdit: Category) -> (error: CategoryError, order: Int64) {
         if name.trimmingCharacters(in: .whitespacesAndNewlines) == "" && emoji == "" {
             return (CategoryError.incomplete, 0)
         } else if name.trimmingCharacters(in: .whitespacesAndNewlines) == "" {
@@ -750,19 +756,19 @@ class DataController: ObservableObject {
         }
     }
 
-    func fetchRequestForBudgets() -> NSFetchRequest<Budget> {
+    public func fetchRequestForBudgets() -> NSFetchRequest<Budget> {
         let itemRequest: NSFetchRequest<Budget> = Budget.fetchRequest()
 
         return itemRequest
     }
 
-    func fetchRequestForMainBudget() -> NSFetchRequest<MainBudget> {
+    public func fetchRequestForMainBudget() -> NSFetchRequest<MainBudget> {
         let itemRequest: NSFetchRequest<MainBudget> = MainBudget.fetchRequest()
 
         return itemRequest
     }
 
-    func fetchRequestForLogView(
+    public func fetchRequestForLogView(
         type: Int,
         optionalIncome: Bool?,
         categoryFilters: [Category] = [],
@@ -870,7 +876,7 @@ class DataController: ObservableObject {
 
     }
 
-    func getShortcutInsights(type: Int, timeframe: Int, optionalIncome: Bool?, categories: [Category]) -> Double {
+    public func getShortcutInsights(type: Int, timeframe: Int, optionalIncome: Bool?, categories: [Category]) -> Double {
         let fetchRequest = fetchRequestForLogView(type: timeframe, optionalIncome: optionalIncome, categoryFilters: categories)
         let allTransactions = results(for: fetchRequest)
 
@@ -897,7 +903,7 @@ class DataController: ObservableObject {
         }
     }
 
-    func getLogViewTotalSpent(type: Int) -> Double {
+    public func getLogViewTotalSpent(type: Int) -> Double {
         let fetchRequest = fetchRequestForLogView(type: type, optionalIncome: false)
         let allTransactions = results(for: fetchRequest)
 
@@ -910,7 +916,7 @@ class DataController: ObservableObject {
         return total
     }
 
-    func getLogViewTotalIncome(type: Int) -> Double {
+    public func getLogViewTotalIncome(type: Int) -> Double {
         let fetchRequest = fetchRequestForLogView(type: type, optionalIncome: true)
         let allTransactions = results(for: fetchRequest)
 
@@ -923,7 +929,7 @@ class DataController: ObservableObject {
         return total
     }
 
-    func getLogViewTotalNet(type: Int) -> (value: Double, positive: Bool) {
+    public func getLogViewTotalNet(type: Int) -> (value: Double, positive: Bool) {
         let fetchRequest = fetchRequestForLogView(type: type, optionalIncome: nil)
         let allTransactions = results(for: fetchRequest)
 
@@ -944,7 +950,7 @@ class DataController: ObservableObject {
         }
     }
 
-    func getLineGraphDataNet(type: Int) -> [LineGraphDataPoint] {
+    public func getLineGraphDataNet(type: Int) -> [LineGraphDataPoint] {
         let calendar = Calendar.current
         let today = calendar.startOfDay(for: Date.now)
 
@@ -1100,7 +1106,7 @@ class DataController: ObservableObject {
         return holdingDataPoints
     }
 
-    func getLineGraphData(income: Bool, type: Int) -> [LineGraphDataPoint] {
+    public func getLineGraphData(income: Bool, type: Int) -> [LineGraphDataPoint] {
         let calendar = Calendar.current
         let today = calendar.startOfDay(for: Date.now)
 
@@ -1243,7 +1249,7 @@ class DataController: ObservableObject {
         return holdingDataPoints
     }
 
-    func getBudgetLeftover(budget: Budget? = nil, overallBudget: MainBudget? = nil) -> Double {
+    public func getBudgetLeftover(budget: Budget? = nil, overallBudget: MainBudget? = nil) -> Double {
         let itemRequest: NSFetchRequest<Transaction>
         let budgetAmount: Double
 
@@ -1269,7 +1275,7 @@ class DataController: ObservableObject {
         return budgetAmount - totalSpent
     }
 
-    func fetchRequestForMainBudgetTransactions(budget: MainBudget) -> NSFetchRequest<Transaction> {
+    public func fetchRequestForMainBudgetTransactions(budget: MainBudget) -> NSFetchRequest<Transaction> {
         let itemRequest: NSFetchRequest<Transaction> = Transaction.fetchRequest()
 
         guard let startDate = budget.startDate else {
@@ -1288,7 +1294,7 @@ class DataController: ObservableObject {
         return itemRequest
     }
 
-    func fetchRequestForBudgetTransactions(budget: Budget) -> NSFetchRequest<Transaction> {
+    public func fetchRequestForBudgetTransactions(budget: Budget) -> NSFetchRequest<Transaction> {
         let itemRequest: NSFetchRequest<Transaction> = Transaction.fetchRequest()
 
         guard let startDate = budget.startDate, let category = budget.category else {
@@ -1308,7 +1314,7 @@ class DataController: ObservableObject {
         return itemRequest
     }
 
-    func fetchRequestForLineGraph(optionalIncome: Bool?) -> NSFetchRequest<Transaction> {
+    public func fetchRequestForLineGraph(optionalIncome: Bool?) -> NSFetchRequest<Transaction> {
         let itemRequest: NSFetchRequest<Transaction> = Transaction.fetchRequest()
         itemRequest.sortDescriptors = [NSSortDescriptor(keyPath: \Transaction.date, ascending: true)]
 
@@ -1320,13 +1326,13 @@ class DataController: ObservableObject {
         }
     }
 
-    func fetchRequestForLogViewCategoryFilter(income: Bool) -> NSFetchRequest<Transaction> {
+    public func fetchRequestForLogViewCategoryFilter(income: Bool) -> NSFetchRequest<Transaction> {
         let itemRequest: NSFetchRequest<Transaction> = Transaction.fetchRequest()
         itemRequest.predicate = NSPredicate(format: "income = %d", income)
         return itemRequest
     }
 
-    func getInsights(type: Int, date: Date, income: Bool) -> (amount: Double, maximum: Double, average: Double, numberOfDays: Int, dates: [Date], dateDictionary: [Date: Double]) {
+    public func getInsights(type: Int, date: Date, income: Bool) -> (amount: Double, maximum: Double, average: Double, numberOfDays: Int, dates: [Date], dateDictionary: [Date: Double]) {
         let currentItemRequest: NSFetchRequest<Transaction> = fetchRequestForInsights(type: type, date: date, income: income)
         let currentTransactions = results(for: currentItemRequest)
 
@@ -1509,7 +1515,7 @@ class DataController: ObservableObject {
         }
     }
 
-    func fetchRequestForInsights(type: Int, date: Date, income: Bool? = nil) -> NSFetchRequest<Transaction> {
+    public func fetchRequestForInsights(type: Int, date: Date, income: Bool? = nil) -> NSFetchRequest<Transaction> {
         let itemRequest: NSFetchRequest<Transaction> = Transaction.fetchRequest()
 
         var calendar = Calendar(identifier: .gregorian)
@@ -1569,7 +1575,7 @@ class DataController: ObservableObject {
         return itemRequest
     }
 
-    func getInsightsSummary(type: Int, date: Date) -> (spent: Double, income: Double, net: Double, positive: Bool, average: Double) {
+    public func getInsightsSummary(type: Int, date: Date) -> (spent: Double, income: Double, net: Double, positive: Bool, average: Double) {
         let itemRequest: NSFetchRequest<Transaction> = fetchRequestForInsights(type: type, date: date)
         let currentTransactions = results(for: itemRequest)
 
@@ -1640,7 +1646,7 @@ class DataController: ObservableObject {
         }
     }
 
-    func fetchRequestForWidgetInsights(type: InsightsTimePeriod, income: Bool) -> (fetchRequest: NSFetchRequest<Transaction>, date: Date) {
+    public func fetchRequestForWidgetInsights(type: LedgerInsightsPeriod, income: Bool) -> (fetchRequest: NSFetchRequest<Transaction>, date: Date) {
         let itemRequest: NSFetchRequest<Transaction> = Transaction.fetchRequest()
 
         var calendar = Calendar(identifier: .gregorian)
@@ -1689,7 +1695,7 @@ class DataController: ObservableObject {
         return (itemRequest, startDate)
     }
 
-    func fetchRequestForRecentTransactionsWithCount(type: TimePeriod, count: Int) -> NSFetchRequest<Transaction> {
+    public func fetchRequestForRecentTransactionsWithCount(type: LedgerTimePeriod, count: Int) -> NSFetchRequest<Transaction> {
         let itemRequest: NSFetchRequest<Transaction> = Transaction.fetchRequest()
 
         var calendar = Calendar(identifier: .gregorian)
@@ -1769,7 +1775,7 @@ class DataController: ObservableObject {
         }
     }
 
-    func fetchRequestForMainBudgetWidget() -> (found: Bool, totalSpent: Double, budgetAmount: Double, percentage: Double, type: Int, startDate: Date) {
+    public func fetchRequestForMainBudgetWidget() -> (found: Bool, totalSpent: Double, budgetAmount: Double, percentage: Double, type: Int, startDate: Date) {
         do {
             return try performViewContextRead { context in
                 guard let budget = try context.fetch(fetchRequestForMainBudget()).first,
@@ -1794,7 +1800,7 @@ class DataController: ObservableObject {
         }
     }
 
-    func performViewContextRead<T>(_ body: (NSManagedObjectContext) throws -> T) throws -> T {
+    public func performViewContextRead<T>(_ body: (NSManagedObjectContext) throws -> T) throws -> T {
         try container.viewContext.performAndWait {
             switch persistentStoreState {
             case .loading:
@@ -1807,27 +1813,27 @@ class DataController: ObservableObject {
         }
     }
 
-    func results<T: NSManagedObject>(for fetchRequest: NSFetchRequest<T>) -> [T] {
+    public func results<T: NSManagedObject>(for fetchRequest: NSFetchRequest<T>) -> [T] {
         (try? performViewContextRead { try $0.fetch(fetchRequest) }) ?? []
     }
 }
 
-extension ProcessInfo {
+public extension ProcessInfo {
     var isRunningUnitTests: Bool {
         environment.keys.contains { $0.hasPrefix("XCTest") }
     }
 }
 
-enum TransactionSummary {
-    static func net<S: Sequence>(_ transactions: S) -> Double where S.Element == Transaction {
+public enum TransactionSummary {
+    public static func net<S: Sequence>(_ transactions: S) -> Double where S.Element == Transaction {
         transactions.reduce(into: 0) { result, transaction in
             result += transaction.income ? transaction.amount : -transaction.amount
         }
     }
 }
 
-enum BudgetWindow {
-    static func progress(
+public enum BudgetWindow {
+    public static func progress(
         startDate: Date,
         endDate: Date,
         now: Date,
@@ -1840,66 +1846,66 @@ enum BudgetWindow {
     }
 }
 
-enum NumericSafety {
-    static func finiteOrZero(_ value: Double) -> Double {
+public enum NumericSafety {
+    public static func finiteOrZero(_ value: Double) -> Double {
         value.isFinite ? value : 0
     }
 
-    static func safeRatio(_ numerator: Double, _ denominator: Double) -> Double {
+    public static func safeRatio(_ numerator: Double, _ denominator: Double) -> Double {
         guard numerator.isFinite, denominator.isFinite, denominator != 0 else { return 0 }
         return finiteOrZero(numerator / denominator)
     }
 
-    static func clamped(_ value: Double, to range: ClosedRange<Double>) -> Double {
+    public static func clamped(_ value: Double, to range: ClosedRange<Double>) -> Double {
         min(max(finiteOrZero(value), range.lowerBound), range.upperBound)
     }
 
-    static func roundedInt(_ value: Double, fallback: Int = 0) -> Int {
+    public static func roundedInt(_ value: Double, fallback: Int = 0) -> Int {
         guard value.isFinite else { return fallback }
         return Int(exactly: value.rounded()) ?? fallback
     }
 
-    static func finiteSum<S: Sequence>(_ values: S) -> Double where S.Element == Double {
+    public static func finiteSum<S: Sequence>(_ values: S) -> Double where S.Element == Double {
         finiteOrZero(values.reduce(0, +))
     }
 }
 
-enum WidgetInsightMath {
-    static func total<S: Sequence>(_ amounts: S) -> Double where S.Element == Double {
+public enum WidgetInsightMath {
+    public static func total<S: Sequence>(_ amounts: S) -> Double where S.Element == Double {
         NumericSafety.finiteSum(amounts)
     }
 
-    static func average(total: Double, periodCount: Int) -> Double {
+    public static func average(total: Double, periodCount: Int) -> Double {
         NumericSafety.safeRatio(total, Double(periodCount))
     }
 
-    static func categoryShare(amount: Double, total: Double) -> Double {
+    public static func categoryShare(amount: Double, total: Double) -> Double {
         NumericSafety.clamped(NumericSafety.safeRatio(amount, total), to: 0 ... 1)
     }
 }
 
-enum BudgetValidation {
-    static func isUsable(startDate: Date?, hasCategory: Bool) -> Bool {
+public enum BudgetValidation {
+    public static func isUsable(startDate: Date?, hasCategory: Bool) -> Bool {
         startDate != nil && hasCategory
     }
 }
 
-enum BudgetMath {
-    static func spendingRatio(spent: Double, budgetAmount: Double) -> Double {
+public enum BudgetMath {
+    public static func spendingRatio(spent: Double, budgetAmount: Double) -> Double {
         guard spent.isFinite, budgetAmount.isFinite, budgetAmount > 0 else { return 0 }
         return NumericSafety.safeRatio(spent, budgetAmount)
     }
 
-    static func gaugeRatio(spent: Double, budgetAmount: Double) -> Double {
+    public static func gaugeRatio(spent: Double, budgetAmount: Double) -> Double {
         NumericSafety.clamped(spendingRatio(spent: spent, budgetAmount: budgetAmount), to: 0 ... 1)
     }
 
-    static func roundedPercentage(spent: Double, budgetAmount: Double) -> Int {
+    public static func roundedPercentage(spent: Double, budgetAmount: Double) -> Int {
         let percentage = spendingRatio(spent: spent, budgetAmount: budgetAmount) * 100
         return NumericSafety.roundedInt(percentage)
     }
 
-    static func roundedAmount(_ amount: Double) -> Int {
+    public static func roundedAmount(_ amount: Double) -> Int {
         NumericSafety.roundedInt(amount)
     }
 }
@@ -1913,11 +1919,16 @@ public extension NSManagedObjectContext {
     }
 }
 
-struct LineGraphDataPoint: Equatable {
-    let date: Date
-    let amount: Double
+public struct LineGraphDataPoint: Equatable {
+    public init(date: Date, amount: Double) {
+        self.date = date
+        self.amount = amount
+    }
 
-    var dateString: String {
+    public let date: Date
+    public let amount: Double
+
+    public var dateString: String {
         let dateFormatter = DateFormatter()
 
         dateFormatter.setLocalizedDateFormatFromTemplate("dMMM")
@@ -1925,7 +1936,7 @@ struct LineGraphDataPoint: Equatable {
         return dateFormatter.string(from: date)
     }
 
-    var monthString: String {
+    public var monthString: String {
         let dateFormatter = DateFormatter()
 
         dateFormatter.setLocalizedDateFormatFromTemplate("MMMyy")
@@ -1933,7 +1944,7 @@ struct LineGraphDataPoint: Equatable {
         return dateFormatter.string(from: date)
     }
 
-    var amountString: String {
+    public var amountString: String {
         if abs(amount) < 1000 {
             return String(format: "%.2f", amount)
         } else {
@@ -1942,7 +1953,7 @@ struct LineGraphDataPoint: Equatable {
     }
 }
 
-func getStartOfMonth(
+public func getStartOfMonth(
     startDay: Int,
     now: Date = .now,
     calendar: Calendar = .current
@@ -1964,7 +1975,7 @@ func getStartOfMonth(
     return calendar.date(byAdding: startComponents, to: today) ?? now
 }
 
-func calculateStartOfMonthPeriod(earliestDate: Date, startOfMonthDay: Int) -> Date {
+public func calculateStartOfMonthPeriod(earliestDate: Date, startOfMonthDay: Int) -> Date {
     var components = Calendar.current.dateComponents([.year, .month, .day], from: earliestDate)
     components.day = startOfMonthDay
 
