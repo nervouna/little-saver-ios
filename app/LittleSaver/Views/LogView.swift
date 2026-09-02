@@ -8,7 +8,6 @@
 import LittleSaverCore
 import CoreData
 import Foundation
-import SwiftUIIntrospect
 import Popovers
 import SwiftUI
 
@@ -635,6 +634,8 @@ struct SearchView: View {
     @Environment(\.dismiss) var dismiss
 
     @State var searchQuery = ""
+    @FocusState private var searchFocused: Bool
+    @State private var focusLifecycle = SearchFocusLifecycle()
 
     var body: some View {
         let _ = calendarRevision
@@ -648,9 +649,7 @@ struct SearchView: View {
                         .foregroundColor(Color.DarkIcon.opacity(0.8))
                         .accessibility(hidden: true)
                     TextField("Search entry by note", text: $searchQuery)
-                        .introspect(.textField, on: .iOS(.v13, .v14, .v15, .v16, .v17, .v18)) { textField in
-                            textField.becomeFirstResponder()
-                        }
+                        .focused($searchFocused)
                         .font(.system(.body, design: .rounded).weight(.regular))
                         .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
 //                        .font(.system(size: 17, weight: .regular, design: .rounded))
@@ -659,6 +658,7 @@ struct SearchView: View {
                     if searchQuery != "" {
                         Button {
                             searchQuery = ""
+                            if let focus = focusLifecycle.contentChanged() { searchFocused = focus }
                         } label: {
                             Image(systemName: "xmark.circle.fill")
                                 .font(.system(.subheadline, design: .rounded).weight(.regular))
@@ -674,6 +674,7 @@ struct SearchView: View {
                 .background(Color.SecondaryBackground, in: RoundedRectangle(cornerRadius: 8))
 
                 Button {
+                    searchFocused = focusLifecycle.end()
                     dismiss()
                 } label: {
                     Text("Cancel")
@@ -695,6 +696,11 @@ struct SearchView: View {
         }
         .padding(15)
         .background(Color.PrimaryBackground)
+        .onAppear { if let focus = focusLifecycle.appear() { searchFocused = focus } }
+        .onDisappear { searchFocused = focusLifecycle.end() }
+        .onChange(of: calendarRevision) { _ in
+            if let focus = focusLifecycle.contentChanged() { searchFocused = focus }
+        }
     }
 }
 

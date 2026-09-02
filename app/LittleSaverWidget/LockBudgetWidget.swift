@@ -69,7 +69,7 @@ struct LockBudgetWidgetProvider: IntentTimelineProvider {
             let component: Calendar.Component = snapshot.type == 1 ? .hour : .day
             let left = Calendar.current.dateComponents([component], from: .now, to: snapshot.endDate).value(for: component) ?? 0
             let timeLeft = snapshot.type == 1 ? String(localized: "\(left) hours left") : String(localized: "\(left) days left")
-            let budget = HoldingBudget(type: snapshot.type, emoji: snapshot.emoji, name: snapshot.name, colour: snapshot.colour, budgetAmount: snapshot.amount)
+            let budget = HoldingBudget(id: snapshot.id, type: snapshot.type, emoji: snapshot.emoji, name: snapshot.name, colour: snapshot.colour, budgetAmount: snapshot.amount)
             return Entry(date: Date(), totalSpent: snapshot.spent, timeLeft: timeLeft, budget: budget, configuration: configuration)
         } catch {
             return empty(configuration: configuration, status: ExtensionReadStatus(error: error))
@@ -147,7 +147,7 @@ struct LockBudgetWidgetEntryView: View {
                 Text("Select budget in widget options")
             } else {
                 Text(localizedFormat("widget.budget.inline.status", arguments: [entry.budget.emoji, currencyAmount(difference), statusText]))
-                    .widgetURL(DeepLink.budget(name: entry.budget.name).url)
+                    .widgetURL(entry.budget.deepLink.url)
             }
 
         case .accessoryCircular:
@@ -169,7 +169,7 @@ struct LockBudgetWidgetEntryView: View {
                         Text(BudgetMath.percentageText(spent: entry.totalSpent, budgetAmount: entry.budget.budgetAmount))
                     }
                     .gaugeStyle(AccessoryCircularGaugeStyle())
-                    .widgetURL(DeepLink.budget(name: entry.budget.name).url)
+                    .widgetURL(entry.budget.deepLink.url)
                     .containerBackground(for: .widget) { Color.clear }
                 }
             } else {
@@ -194,7 +194,7 @@ struct LockBudgetWidgetEntryView: View {
                             Text(BudgetMath.percentageText(spent: entry.totalSpent, budgetAmount: entry.budget.budgetAmount))
                         }
                         .gaugeStyle(AccessoryCircularGaugeStyle())
-                        .widgetURL(DeepLink.budget(name: entry.budget.name).url)
+                        .widgetURL(entry.budget.deepLink.url)
                     } else {
                         EmptyView()
                     }
@@ -243,7 +243,7 @@ struct LockBudgetWidgetEntryView: View {
                         .frame(width: proxy.size.width, height: proxy.size.height, alignment: .top)
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .widgetURL(DeepLink.budget(name: entry.budget.name).url)
+                    .widgetURL(entry.budget.deepLink.url)
                     .containerBackground(for: .widget) { Color.clear }
                 }
             } else {
@@ -288,7 +288,7 @@ struct LockBudgetWidgetEntryView: View {
                         .frame(width: proxy.size.width, height: proxy.size.height, alignment: .top)
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .widgetURL(DeepLink.budget(name: entry.budget.name).url)
+                    .widgetURL(entry.budget.deepLink.url)
                 }
             }
 

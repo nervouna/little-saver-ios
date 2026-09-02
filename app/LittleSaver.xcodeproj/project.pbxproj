@@ -7,6 +7,12 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		A80000000000000000000014 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = A80000000000000000000024; };
+		A80000000000000000000013 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = A80000000000000000000023; };
+		A80000000000000000000012 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = A80000000000000000000022; };
+		A80000000000000000000011 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = A80000000000000000000021; };
+		A80000000000000000000010 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = A80000000000000000000020; };
+        A80000000000000000000001 /* PlatformFoundationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A80000000000000000000002; };
         A70000000000000000000001 /* CSVTransferTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A70000000000000000000002; };
         A60000000000000000000005 /* AnalyticsPresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = A60000000000000000000006; };
         A60000000000000000000001 /* AnalyticsSnapshots.swift in Sources */ = {isa = PBXBuildFile; fileRef = A60000000000000000000002; };
@@ -254,6 +260,12 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		A80000000000000000000024 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = LittleSaverIntentUI/PrivacyInfo.xcprivacy; sourceTree = SOURCE_ROOT; };
+		A80000000000000000000023 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = LittleSaverIntent/PrivacyInfo.xcprivacy; sourceTree = SOURCE_ROOT; };
+		A80000000000000000000022 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = LittleSaverCore/PrivacyInfo.xcprivacy; sourceTree = SOURCE_ROOT; };
+		A80000000000000000000021 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = LittleSaverWidget/PrivacyInfo.xcprivacy; sourceTree = SOURCE_ROOT; };
+		A80000000000000000000020 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = LittleSaver/PrivacyInfo.xcprivacy; sourceTree = SOURCE_ROOT; };
+        A80000000000000000000002 /* PlatformFoundationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlatformFoundationTests.swift; sourceTree = "<group>"; };
         A70000000000000000000002 /* CSVTransferTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CSVTransferTests.swift; sourceTree = "<group>"; };
         A60000000000000000000006 /* AnalyticsPresentation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = AnalyticsPresentation.swift; path = LittleSaver/Utilities/AnalyticsPresentation.swift; sourceTree = "<group>"; };
         A60000000000000000000002 /* AnalyticsSnapshots.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnalyticsSnapshots.swift; sourceTree = "<group>"; };
@@ -489,6 +501,7 @@
 		5313EC5E28ACE941000EAB0C /* LittleSaverIntent */ = {
 			isa = PBXGroup;
 			children = (
+				A80000000000000000000023 /* PrivacyInfo.xcprivacy */,
 				A10000012F50000100000020 /* InfoPlist.strings */,
 				537152DD28AD0E6B00E93EC4 /* LittleSaverIntent.entitlements */,
 				5313EC5F28ACE941000EAB0C /* IntentHandler.swift */,
@@ -500,6 +513,7 @@
 		5313EC6928ACE941000EAB0C /* LittleSaverIntentUI */ = {
 			isa = PBXGroup;
 			children = (
+				A80000000000000000000024 /* PrivacyInfo.xcprivacy */,
 				A10000012F50000100000024 /* InfoPlist.strings */,
 				5313EC6A28ACE941000EAB0C /* IntentViewController.swift */,
 				5313EC6C28ACE941000EAB0C /* MainInterface.storyboard */,
@@ -546,6 +560,7 @@
 		5327D285287C697400F76ADF /* LittleSaver */ = {
 			isa = PBXGroup;
 			children = (
+				A80000000000000000000020 /* PrivacyInfo.xcprivacy */,
 				A10000012F50000100000018 /* InfoPlist.strings */,
 				DA7B00202F4B000100000001 /* Resources */,
 				5327D2E8287C6DF700F76ADF /* LittleSaver.entitlements */,
@@ -656,6 +671,7 @@
 		53B1D18F288ED7E500E28062 /* LittleSaverWidget */ = {
 			isa = PBXGroup;
 			children = (
+				A80000000000000000000021 /* PrivacyInfo.xcprivacy */,
 				A10000012F5000010000001C /* InfoPlist.strings */,
 				53B1D190288ED7E500E28062 /* LittleSaverWidget.swift */,
 				5324985428A64DA7007B34D1 /* RecentTransactionsWidget.swift */,
@@ -739,6 +755,7 @@
                 A50000000000000000000002 /* BudgetCalendarMoneyTests.swift */,
                 A60000000000000000000004 /* AnalyticsSnapshotTests.swift */,
                 A70000000000000000000002 /* CSVTransferTests.swift */,
+                A80000000000000000000002 /* PlatformFoundationTests.swift */,
 			);
 			name = LittleSaverTests;
 			path = LittleSaverTests;
@@ -778,6 +795,7 @@
 		B67ED84B06A00E61442714BB /* LittleSaverCore */ = {
 			isa = PBXGroup;
 			children = (
+				A80000000000000000000022 /* PrivacyInfo.xcprivacy */,
 				5327D2AC287C6AD200F76ADF /* DataController.swift */,
 				A20000000000000000000002 /* PersistenceReads.swift */,
 				A30000000000000000000002 /* LedgerMaintenance.swift */,
@@ -1010,6 +1028,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				A80000000000000000000013 /* PrivacyInfo.xcprivacy in Resources */,
 				A10000012F50000100000005 /* InfoPlist.strings in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -1018,6 +1037,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				A80000000000000000000014 /* PrivacyInfo.xcprivacy in Resources */,
 				A10000012F50000100000006 /* InfoPlist.strings in Resources */,
 				5313EC6E28ACE941000EAB0C /* MainInterface.storyboard in Resources */,
 			);
@@ -1027,6 +1047,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				A80000000000000000000010 /* PrivacyInfo.xcprivacy in Resources */,
 				B20000012F51000100000001 /* AppShortcuts.strings in Resources */,
 				A10000012F50000100000003 /* InfoPlist.strings in Resources */,
 				DA7B00012F4B000100000001 /* CloudKitSyncMonitor.txt in Resources */,
@@ -1045,6 +1066,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				A80000000000000000000011 /* PrivacyInfo.xcprivacy in Resources */,
 				A10000012F50000100000004 /* InfoPlist.strings in Resources */,
 				A10000012F50000100000001 /* Localizable.strings in Resources */,
 				A10000012F50000100000002 /* Localizable.stringsdict in Resources */,
@@ -1064,6 +1086,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				A80000000000000000000012 /* PrivacyInfo.xcprivacy in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -1230,6 +1253,7 @@
                 A50000000000000000000001 /* BudgetCalendarMoneyTests.swift in Sources */,
                 A60000000000000000000003 /* AnalyticsSnapshotTests.swift in Sources */,
                 A70000000000000000000001 /* CSVTransferTests.swift in Sources */,
+                A80000000000000000000001 /* PlatformFoundationTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

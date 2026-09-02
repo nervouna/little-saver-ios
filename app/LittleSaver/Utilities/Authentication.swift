@@ -1,126 +1,109 @@
-//
-//  Authentication.swift
-//  Bonsai
-//
-//  Created by Rafael Soh on 7/7/22.
-//
-
 import Foundation
 import LocalAuthentication
 import SwiftUI
-// All App Lock related methods will be handled here
 
-class AppLockViewModel: ObservableObject {
-    // Publishing the applock state from user defaults
-    @Published var isAppLockEnabled: Bool = false
-    // Publishing if the app is curretly unlocked or not
-    @Published var isAppUnLocked: Bool = false
+protocol OwnerAuthenticationContext: AnyObject {
+    func evaluatePolicy(_ policy: LAPolicy, localizedReason: String, reply: @escaping @Sendable (Bool, Error?) -> Void)
+    func invalidate()
+}
+extension LAContext: OwnerAuthenticationContext {}
 
-    @Published var enrollmentError: Bool = false
+/// A system prompt may make the scene inactive; only genuine backgrounding
+/// invalidates its token and any held success. This adapter belongs to the App.
+@MainActor
+final class AppLockViewModel: ObservableObject {
+    @Published private(set) var isAppLockEnabled: Bool
+    @Published private(set) var isAppUnLocked = false
+    @Published private(set) var isPending = false
+    @Published private(set) var errorMessage: String?
+    @Published private(set) var offersSettings = false
+    @Published private(set) var phase: ScenePhase = .active
 
-    init() {
-        getAppLockState()
+    private enum Action { case unlock, setEnabled(Bool) }
+    private let preferences: UserDefaults
+    private let contextFactory: () -> OwnerAuthenticationContext
+    private var context: OwnerAuthenticationContext?
+    private var token: UUID?
+    private var heldSuccess: Action?
+
+    init(preferences: UserDefaults = .standard, contextFactory: @escaping () -> OwnerAuthenticationContext = { LAContext() }) {
+        self.preferences = preferences
+        self.contextFactory = contextFactory
+        isAppLockEnabled = preferences.bool(forKey: "appLockEnabled")
     }
 
-    // To enable the AppLock in UserDefaults
-    func enableAppLock() {
-        UserDefaults.standard.set(true, forKey: "appLockEnabled")
-        isAppLockEnabled = true
-    }
+    var protectsContent: Bool { isAppLockEnabled && (!isAppUnLocked || phase != .active) }
+    var canHandleDeepLinks: Bool { !protectsContent }
 
-    // To disable the AppLock in UserDefaults
-    func disableAppLock() {
-        UserDefaults.standard.set(false, forKey: "appLockEnabled")
-        isAppLockEnabled = false
-    }
-
-    // To Publish the AppLock state
-    func getAppLockState() {
-        isAppLockEnabled = UserDefaults.standard.bool(forKey: "appLockEnabled")
-    }
-
-    // Checking if the device is having BioMetric hardware and enrolled
-    func checkIfBioMetricAvailable() -> Bool {
-        var error: NSError?
-        let laContext = LAContext()
-
-        let isBiometricAvailable = laContext.canEvaluatePolicy(.deviceOwnerAuthenticationWithBiometrics, error: &error)
-
-        if let error = error {
-            print(error.localizedDescription)
-        }
-
-        if isBiometricAvailable {
-            enrollmentError = false
-        } else {
-            enrollmentError = true
-        }
-
-        return isBiometricAvailable
-    }
-
-    // This method used to change the AppLock state.
-    // If user is going to enable the AppLock then 'appLockState' should be 'true' and vice versa
-    func appLockStateChange(appLockState: Bool) {
-        let laContext = LAContext()
-        if checkIfBioMetricAvailable() {
-            var reason = ""
-            if appLockState {
-                reason = String(localized: "Authenticate to enable App Lock")
-            } else {
-                reason = String(localized: "Authenticate to disable App Lock")
-            }
-
-            laContext.evaluatePolicy(.deviceOwnerAuthentication, localizedReason: reason) { success, error in
-                if success {
-                    if appLockState {
-                        DispatchQueue.main.async {
-                            self.enableAppLock()
-                            self.isAppUnLocked = true
-                        }
-                    } else {
-                        DispatchQueue.main.async {
-                            self.disableAppLock()
-                            self.isAppUnLocked = true
-                        }
-                    }
-                } else {
-                    if let error = error {
-                        DispatchQueue.main.async {
-                            print(error.localizedDescription)
-                        }
-                    }
-                }
-            }
-        } else {
-            if let settingsURL = URL(string: UIApplication.openSettingsURLString) {
-                UIApplication.shared.open(settingsURL)
-            }
-        }
-    }
-
-    // This method will call on every launch of the app if user has enabled AppLock
     func appLockValidation() {
-        let laContext = LAContext()
-        if checkIfBioMetricAvailable() {
-            let reason = String(localized: "Authenticate to unlock LittleSaver")
-            laContext.evaluatePolicy(.deviceOwnerAuthentication, localizedReason: reason) { success, error in
-                if success {
-                    DispatchQueue.main.async {
-                        self.isAppUnLocked = true
-                    }
-                } else {
-                    if let error = error {
-                        DispatchQueue.main.async {
-                            print(error.localizedDescription)
-                        }
-                    }
-                }
-            }
-        } else {
-            if let settingsURL = URL(string: UIApplication.openSettingsURLString) {
-                UIApplication.shared.open(settingsURL)
-            }
+        guard isAppLockEnabled, !isAppUnLocked else { return }
+        request(.unlock, reason: String(localized: "Authenticate to unlock LittleSaver"))
+    }
+
+    func appLockStateChange(appLockState: Bool) {
+        guard appLockState != isAppLockEnabled else { return }
+        request(.setEnabled(appLockState), reason: appLockState ? String(localized: "Authenticate to enable App Lock") : String(localized: "Authenticate to disable App Lock"))
+    }
+
+    func sceneChanged(_ phase: ScenePhase) {
+        self.phase = phase
+        switch phase {
+        case .inactive:
+            if isAppLockEnabled { isAppUnLocked = false }
+        case .background:
+            isAppUnLocked = false
+            let oldContext = context
+            token = nil; heldSuccess = nil; context = nil; isPending = false
+            // Clear identity first: invalidate may synchronously invoke the reply.
+            oldContext?.invalidate()
+        case .active:
+            if let action = heldSuccess { applySuccess(action) }
+        @unknown default: break
         }
     }
+
+    private func request(_ action: Action, reason: String) {
+        guard token == nil, phase == .active else { return }
+        let requestToken = UUID()
+        let fresh = contextFactory()
+        token = requestToken; context = fresh; isPending = true
+        heldSuccess = nil; errorMessage = nil; offersSettings = false
+        fresh.evaluatePolicy(.deviceOwnerAuthentication, localizedReason: reason) { [weak self] success, error in
+            Task { @MainActor in self?.complete(requestToken, action: action, success: success, error: error) }
+        }
+    }
+
+    private func complete(_ requestToken: UUID, action: Action, success: Bool, error: Error?) {
+        guard token == requestToken else { return }
+        context = nil
+        if success {
+            if phase == .active { applySuccess(action) }
+            else if phase == .inactive { heldSuccess = action }
+        } else {
+            token = nil; heldSuccess = nil; isPending = false
+            offersSettings = (error as? LAError)?.code == .passcodeNotSet
+            errorMessage = error?.localizedDescription ?? String(localized: "Authentication failed. Please try again.")
+        }
+    }
+
+    private func applySuccess(_ action: Action) {
+        token = nil; heldSuccess = nil; context = nil; isPending = false
+        if case let .setEnabled(enabled) = action {
+            preferences.set(enabled, forKey: "appLockEnabled")
+            isAppLockEnabled = enabled
+        }
+        errorMessage = nil; offersSettings = false; isAppUnLocked = true
+    }
+}
+
+/// Only presentation entry requests focus. Query/analytics changes have no focus event.
+struct SearchFocusLifecycle {
+    private(set) var appeared = false
+    mutating func appear() -> Bool? {
+        guard !appeared else { return nil }
+        appeared = true
+        return true
+    }
+    mutating func end() -> Bool { appeared = false; return false }
+    func contentChanged() -> Bool? { nil }
 }

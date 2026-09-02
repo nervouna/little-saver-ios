@@ -218,6 +218,8 @@ public struct LogSnapshot: Sendable {
 
 public struct BudgetSnapshot: Identifiable, Sendable {
     public let id: URL
+    public let businessID: UUID?
+    public let name: String
     public let read: BudgetReadSnapshot?
 }
 
@@ -511,7 +513,7 @@ public extension DataController {
                 if let window = definition.window, spent.isFinite {
                     read = BudgetReadSnapshot(id: definition.id, identifier: definition.id?.uuidString ?? (definition.category == nil ? "overall" : definition.url.absoluteString), name: definition.name, emoji: definition.emoji, colour: definition.colour, amount: definition.amount, spent: spent, type: definition.type, startDate: window.start, endDate: window.end, readDate: environment.now)
                 } else { read = nil }
-                return BudgetSnapshot(id: definition.url, read: read)
+                return BudgetSnapshot(id: definition.url, businessID: definition.id, name: definition.name, read: read)
             }
             return BudgetDashboardSnapshot(budgets: Array(snapshots.prefix(budgets.count)), main: main == nil ? nil : snapshots.last, byReference: Dictionary(uniqueKeysWithValues: snapshots.compactMap { row in row.read.map { (row.id, $0) } }))
         }

@@ -56,6 +56,7 @@ struct HomeView: View {
     var bottomEdge: CGFloat
 
     @State private var deepLinkRouter = DeepLinkRouter()
+    @State private var budgetRequest: BudgetNavigationRequest?
 
     @State var launchAdd: Bool = false
     @State var launchSearch: Bool = false
@@ -109,7 +110,7 @@ struct HomeView: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .tag("Insights")
 
-                BudgetView()
+                BudgetView(request: budgetRequest)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .tag("Budget")
 
@@ -138,7 +139,7 @@ struct HomeView: View {
                 .offset(y: showPopup ? 0 : 300)
                 .environmentObject(transactionManager)
 
-            if appLockVM.isAppLockEnabled && !appLockVM.isAppUnLocked {
+            if appLockVM.protectsContent {
                 AppLockView()
                     .ignoresSafeArea(.all)
             }
@@ -172,13 +173,13 @@ struct HomeView: View {
         .confettiCannon(counter: $counter, num: 50, openingAngle: Angle(degrees: 0), closingAngle: Angle(degrees: 360), radius: 200)
         .onOpenURL { url in
             guard let link = DeepLink(url: url) else { return }
-            let isLocked = appLockVM.isAppLockEnabled && !appLockVM.isAppUnLocked
+            let isLocked = !appLockVM.canHandleDeepLinks
             if let route = deepLinkRouter.receive(link, isLocked: isLocked) {
                 handle(route)
             }
         }
-        .onChange(of: appLockVM.isAppUnLocked) { isUnlocked in
-            guard isUnlocked, let route = deepLinkRouter.unlock() else { return }
+        .onChange(of: appLockVM.canHandleDeepLinks) { canHandle in
+            guard canHandle, let route = deepLinkRouter.unlock() else { return }
             handle(route)
         }
     }
@@ -192,7 +193,11 @@ struct HomeView: View {
             launchAdd.toggle()
         case .insights:
             currentTab = "Insights"
-        case .budget:
+        case let .budget(name):
+            budgetRequest = name.map { BudgetNavigationRequest(target: .legacyName($0)) }
+            currentTab = "Budget"
+        case let .budgetUUID(id):
+            budgetRequest = BudgetNavigationRequest(target: .uuid(id))
             currentTab = "Budget"
         }
     }
@@ -216,7 +221,7 @@ struct AppLockView: View {
                 appLockVM.appLockValidation()
             } label: {
                 HStack {
-                    Image(systemName: "faceid")
+                    Image(systemName: "lock.open")
 
                     Text("Unlock App")
                 }
@@ -230,11 +235,17 @@ struct AppLockView: View {
                 }
             }
 
-            if appLockVM.enrollmentError {
-            Text("Please re-enable Face ID access in Settings to unlock LittleSaver.")
+            if appLockVM.isPending { ProgressView() }
+            if let message = appLockVM.errorMessage {
+                Text(message)
                     .font(.system(size: 15, weight: .regular, design: .rounded))
                     .foregroundColor(Color.SubtitleText)
                     .multilineTextAlignment(.center)
+            }
+            if appLockVM.offersSettings {
+                Button("Open Settings") {
+                    if let url = URL(string: UIApplication.openSettingsURLString) { UIApplication.shared.open(url) }
+                }
             }
         }
         .padding(.horizontal, 30)

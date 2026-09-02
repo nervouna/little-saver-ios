@@ -545,3 +545,6 @@
 "Category names and Income or Expense must match existing categories. An empty category remains unclassified." = "Category names and Income or Expense must match existing categories. An empty category remains unclassified.";
 "%lld transactions" = "%lld transactions";
 "First row contains column names" = "First row contains column names";
+"Open Settings" = "Open Settings";
+"Authentication failed. Please try again." = "Authentication failed. Please try again.";
+"This budget is unavailable." = "This budget is unavailable.";

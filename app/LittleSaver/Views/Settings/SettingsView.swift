@@ -178,11 +178,19 @@ struct SettingsView: View {
               }
 
               ToggleRow(
-                icon: "faceid", color: "105", text: "Authentication",
+                icon: "lock.fill", color: "105", text: "Authentication",
                 bool: appLockVM.isAppLockEnabled,
                 onTap: {
                   appLockVM.appLockStateChange(appLockState: !appLockVM.isAppLockEnabled)
                 })
+                .disabled(appLockVM.isPending)
+              if appLockVM.isPending { ProgressView() }
+              if let message = appLockVM.errorMessage { Text(message).font(.callout).foregroundColor(Color.SubtitleText) }
+              if appLockVM.offersSettings {
+                Button("Open Settings") {
+                  if let url = URL(string: UIApplication.openSettingsURLString) { UIApplication.shared.open(url) }
+                }
+              }
 
               ToggleRow(
                 icon: "banknote.fill", color: "106", text: "Income Tracking", bool: incomeTracking,

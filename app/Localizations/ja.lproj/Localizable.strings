@@ -529,3 +529,6 @@
 "Category names and Income or Expense must match existing categories. An empty category remains unclassified." = "カテゴリー名と Income（収入）または Expense（支出）は既存のカテゴリーと一致する必要があります。空のカテゴリーは未分類のままになります。";
 "%lld transactions" = "%lld 件の取引";
 "First row contains column names" = "先頭行に列名が含まれている";
+"Open Settings" = "設定を開く";
+"Authentication failed. Please try again." = "認証に失敗しました。もう一度お試しください。";
+"This budget is unavailable." = "この予算は利用できません。";

@@ -31,11 +31,28 @@ jobs:
             -project app/LittleSaver.xcodeproj \
             -scheme LittleSaver \
             -configuration Debug \
+            -derivedDataPath "$RUNNER_TEMP/littlesaver-debug" \
             -destination 'platform=iOS Simulator,name=iPhone 17 Pro,OS=26.5' \
             -disableAutomaticPackageResolution \
             -onlyUsePackageVersionsFromResolvedFile \
             CODE_SIGNING_ALLOWED=NO \
             test
+
+      - name: Validate privacy source membership
+        run: swift scripts/validate-privacy.swift --source "$GITHUB_WORKSPACE"
+
+      - name: Analyze Debug
+        run: |
+          xcodebuild \
+            -project app/LittleSaver.xcodeproj \
+            -scheme LittleSaver \
+            -configuration Debug \
+            -derivedDataPath "$RUNNER_TEMP/littlesaver-debug" \
+            -destination 'generic/platform=iOS Simulator' \
+            -disableAutomaticPackageResolution \
+            -onlyUsePackageVersionsFromResolvedFile \
+            CODE_SIGNING_ALLOWED=NO \
+            analyze
 
       - name: Build unsigned Simulator release
         run: |
@@ -43,12 +60,32 @@ jobs:
             -project app/LittleSaver.xcodeproj \
             -scheme LittleSaver \
             -configuration Release \
+            -derivedDataPath "$RUNNER_TEMP/littlesaver-release-sim" \
             -sdk iphonesimulator \
             -destination 'generic/platform=iOS Simulator' \
             -disableAutomaticPackageResolution \
             -onlyUsePackageVersionsFromResolvedFile \
             CODE_SIGNING_ALLOWED=NO \
             build
+
+      - name: Validate Simulator bundle manifests
+        run: swift scripts/validate-privacy.swift --products "$RUNNER_TEMP/littlesaver-release-sim/Build/Products/Release-iphonesimulator/LittleSaver.app"
+
+      - name: Build unsigned device release
+        run: |
+          xcodebuild \
+            -project app/LittleSaver.xcodeproj \
+            -scheme LittleSaver \
+            -configuration Release \
+            -derivedDataPath "$RUNNER_TEMP/littlesaver-release-device" \
+            -destination 'generic/platform=iOS' \
+            -disableAutomaticPackageResolution \
+            -onlyUsePackageVersionsFromResolvedFile \
+            CODE_SIGNING_ALLOWED=NO \
+            build
+
+      - name: Validate device bundle manifests
+        run: swift scripts/validate-privacy.swift --products "$RUNNER_TEMP/littlesaver-release-device/Build/Products/Release-iphoneos/LittleSaver.app"
 
       - name: Verify build did not modify sources
         run: git diff --exit-code

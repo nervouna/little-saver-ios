@@ -107,11 +107,8 @@ struct ContentView: View {
             }
         }
         .onChange(of: scenePhase) { newPhase in
-            if newPhase == .background || newPhase == .inactive {
-                if appLockVM.isAppLockEnabled {
-                    appLockVM.isAppUnLocked = false
-                }
-            } else if newPhase == .active {
+            appLockVM.sceneChanged(newPhase)
+            if newPhase == .active {
                 Task { try? await dataController.refreshPersistentHistory() }
                 center.getNotificationSettings { settings in
                     if settings.authorizationStatus == .authorized {

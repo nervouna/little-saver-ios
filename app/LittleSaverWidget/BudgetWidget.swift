@@ -55,7 +55,7 @@ struct BudgetWidgetProvider: IntentTimelineProvider {
                 return empty(configuration: configuration, status: .empty)
             }
 
-            let budget = HoldingBudget(type: snapshot.type, emoji: snapshot.emoji, name: snapshot.name, colour: snapshot.colour, budgetAmount: snapshot.amount)
+            let budget = HoldingBudget(id: snapshot.id, type: snapshot.type, emoji: snapshot.emoji, name: snapshot.name, colour: snapshot.colour, budgetAmount: snapshot.amount)
             return Entry(date: Date(), totalSpent: snapshot.spent, percentageOfDays: snapshot.progress, budget: budget, configuration: configuration)
         } catch {
             return empty(configuration: configuration, status: ExtensionReadStatus(error: error))
@@ -73,6 +73,8 @@ struct BudgetWidgetEntry: TimelineEntry {
 }
 
 struct HoldingBudget: Sendable {
+    var id: UUID? = nil
+    var deepLink: DeepLink { id.map(DeepLink.budgetUUID) ?? .budget(name: name) }
     let type: Int
     let emoji: String
     let name: String
@@ -281,7 +283,7 @@ struct BudgetWidgetEntryView: View {
                 .containerBackground(for: .widget) {
                     Color.PrimaryBackground
                 }
-                .widgetURL(DeepLink.budget(name: entry.budget.name).url)
+                .widgetURL(entry.budget.deepLink.url)
             } else {
                 VStack(spacing: 12) {
                     HStack(alignment: .top) {
@@ -372,7 +374,7 @@ struct BudgetWidgetEntryView: View {
                 .padding(15)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .background(Color.PrimaryBackground)
-                .widgetURL(DeepLink.budget(name: entry.budget.name).url)
+                .widgetURL(entry.budget.deepLink.url)
             }
         }
     }

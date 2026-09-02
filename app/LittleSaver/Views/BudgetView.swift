@@ -11,16 +11,27 @@ import Popovers
 import SwiftUI
 
 struct BudgetView: View {
+    var request: BudgetNavigationRequest? = nil
+    @StateObject private var model = SnapshotModel<AnalyticsEnvironment, BudgetDashboardSnapshot>()
+    @State private var navigation = BudgetNavigationState()
     @Environment(\.ledgerCalendarRevision) private var calendarRevision
     @EnvironmentObject private var controller: DataController
     @Environment(\.ledgerMetadata) private var metadata
     @AnalyticsInput private var environment
 
     var body: some View {
-        AnalyticsReadView(key: environment, load: controller.budgetDashboardSnapshot) { snapshot in
+        AnalyticsResultView(model: model, key: environment, load: controller.budgetDashboardSnapshot) { snapshot in
             content(snapshot)
         }
+        .onAppear { resolveRequest() }
+        .onChange(of: request?.id) { _ in resolveRequest() }
+        .onChange(of: model.isLoading) { loading in if !loading { resolveRequest() } }
+        .overlay(alignment: .top) {
+            if navigation.unavailable { Text("This budget is unavailable.").padding().background(Color.PrimaryBackground) }
+        }
     }
+
+    private func resolveRequest() { navigation.resolve(request, snapshot: model.value(for: environment)) }
 
     @ViewBuilder private func content(_ snapshot: BudgetDashboardSnapshot) -> some View {
         if metadata?.categories.isEmpty != false && snapshot.budgets.isEmpty && snapshot.main == nil {
@@ -49,7 +60,7 @@ struct BudgetView: View {
             .background(Color.PrimaryBackground)
 
         } else {
-            ActualBudgetView(snapshot: snapshot)
+            ActualBudgetView(snapshot: snapshot, navigation: $navigation)
         }
     }
 }
@@ -60,6 +71,7 @@ struct ActualBudgetView: View {
     @State private var showInfo = false
 
     let snapshot: BudgetDashboardSnapshot
+    @Binding var navigation: BudgetNavigationState
     private var budgets: [Budget] { snapshot.budgets.compactMap { presentationObject($0.id, in: moc) } }
     private var mainBudget: [MainBudget] { snapshot.main.flatMap { presentationObject($0.id, in: moc, as: MainBudget.self) }.map { [$0] } ?? [] }
     @Environment(\.managedObjectContext) var moc
@@ -118,19 +130,7 @@ struct ActualBudgetView: View {
                     ScrollView(showsIndicators: false) {
                         VStack {
                             if let first = mainBudget.first {
-                                NavigationLink(destination: DetailedMainBudgetView(budget: first)
-                                    .onAppear {
-                                        withAnimation(.easeOut.speed(2)) {
-                                            tabBarManager.navigationHideTab()
-                                        }
-                                    }
-                                    .onDisappear {
-                                        withAnimation(.easeOut.speed(2)) {
-                                            tabBarManager.navigationShowTab()
-                                        }
-                                    }
-
-                                ) {
+                                Button { navigation.select(first.objectID.uriRepresentation(), isMainBudget: true) } label: {
                                     if budgets.count == 0 {
                                         MainBudgetView(budget: first, solo: true, snapshot: snapshot.byReference[first.objectID.uriRepresentation()])
                                             .padding(.horizontal, 25)
@@ -146,19 +146,7 @@ struct ActualBudgetView: View {
                             if budgetRows {
                                 VStack(spacing: 10) {
                                     ForEach(budgets, id: \.self) { budget in
-                                        NavigationLink(destination: DetailedBudgetView(budget: budget)
-                                            .onAppear {
-                                                withAnimation(.easeOut.speed(2)) {
-                                                    tabBarManager.navigationHideTab()
-                                                }
-                                            }
-                                            .onDisappear {
-                                                withAnimation(.easeOut.speed(2)) {
-                                                    tabBarManager.navigationShowTab()
-                                                }
-                                            }
-
-                                        ) {
+                                        Button { navigation.select(budget.objectID.uriRepresentation()) } label: {
                                             SingleBudgetView(budget: budget, toDelete: $toDelete, toEdit: $toEdit, budgetRows: budgetRows, snapshot: snapshot.byReference[budget.objectID.uriRepresentation()])
                                         }
                                     }
@@ -167,19 +155,7 @@ struct ActualBudgetView: View {
                             } else {
                                 LazyVGrid(columns: layout, spacing: 15) {
                                     ForEach(budgets, id: \.self) { budget in
-                                        NavigationLink(destination: DetailedBudgetView(budget: budget)
-                                            .onAppear {
-                                                withAnimation(.easeOut.speed(2)) {
-                                                    tabBarManager.navigationHideTab()
-                                                }
-                                            }
-                                            .onDisappear {
-                                                withAnimation(.easeOut.speed(2)) {
-                                                    tabBarManager.navigationShowTab()
-                                                }
-                                            }
-
-                                        ) {
+                                        Button { navigation.select(budget.objectID.uriRepresentation()) } label: {
                                             SingleBudgetView(budget: budget, toDelete: $toDelete, toEdit: $toEdit, budgetRows: budgetRows, snapshot: snapshot.byReference[budget.objectID.uriRepresentation()])
                                         }
                                     }
@@ -223,6 +199,23 @@ struct ActualBudgetView: View {
             .navigationBarTitle("")
             .navigationBarHidden(true)
             .background(Color.PrimaryBackground)
+            .background {
+                NavigationLink(isActive: Binding(get: { navigation.reference != nil }, set: { if !$0 { navigation.dismiss() } })) {
+                    if let reference = navigation.reference {
+                        Group {
+                            if navigation.isMainBudget, let budget = presentationObject(reference, in: moc, as: MainBudget.self) {
+                                DetailedMainBudgetView(budget: budget)
+                            } else if !navigation.isMainBudget, let budget = presentationObject(reference, in: moc, as: Budget.self) {
+                                DetailedBudgetView(budget: budget)
+                            } else { Text("This budget is unavailable.") }
+                        }
+                        .id(reference)
+                        .onAppear { tabBarManager.navigationHideTab() }
+                        .onDisappear { tabBarManager.navigationShowTab() }
+                    }
+                } label: { EmptyView() }
+                .hidden()
+            }
             .sheet(item: $toEdit, onDismiss: {
                 toEdit = nil
             }) { budget in

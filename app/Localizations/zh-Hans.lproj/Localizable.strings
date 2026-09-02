@@ -529,3 +529,6 @@
 "Category names and Income or Expense must match existing categories. An empty category remains unclassified." = "分类名称以及 Income（收入）或 Expense（支出）必须与现有分类一致。空分类将保持未分类状态。";
 "%lld transactions" = "%lld 笔交易";
 "First row contains column names" = "首行包含列名";
+"Open Settings" = "打开设置";
+"Authentication failed. Please try again." = "验证失败，请重试。";
+"This budget is unavailable." = "此预算不可用。";
