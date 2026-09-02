@@ -533,3 +533,4 @@
 "Amount unavailable" = "Amount unavailable";
 "Budget unavailable. Edit this budget to repair its settings." = "Budget unavailable. Edit this budget to repair its settings.";
 "widget.budget.percentage.spent" = "%@ spent";
+"Retry" = "Retry";

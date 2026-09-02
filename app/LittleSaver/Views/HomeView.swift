@@ -40,6 +40,8 @@ extension EnvironmentValues {
 }
 
 struct HomeView: View {
+    @AnalyticsInput private var analytics
+    @StateObject private var metadata = SnapshotModel<AnalyticsEnvironment, LedgerMetadataSnapshot>()
     @State private var calendarRevision = 0
     @EnvironmentObject var appLockVM: AppLockViewModel
 
@@ -74,10 +76,25 @@ struct HomeView: View {
     var body: some View {
         content.modifier(MutationPendingModifier())
             .environment(\.ledgerCalendarRevision, calendarRevision)
-            .onReceive(NotificationCenter.default.publisher(for: .NSSystemTimeZoneDidChange)) { _ in calendarRevision += 1 }
-            .onReceive(NotificationCenter.default.publisher(for: NSLocale.currentLocaleDidChangeNotification)) { _ in calendarRevision += 1 }
-            .onReceive(NotificationCenter.default.publisher(for: UIApplication.significantTimeChangeNotification)) { _ in calendarRevision += 1 }
-            .onReceive(NotificationCenter.default.publisher(for: UIApplication.didBecomeActiveNotification)) { _ in calendarRevision += 1 }
+            .environment(\.ledgerMetadata, metadata.value)
+            .task(id: analytics) { await metadata.load(key: analytics, using: dataController.ledgerMetadataSnapshot) }
+            .overlay(alignment: .top) {
+                if let error = metadata.error {
+                    VStack {
+                        Text(error).font(.callout)
+                        Button("Retry") { dataController.refreshAnalytics() }
+                    }.padding().background(Color.PrimaryBackground)
+                }
+            }
+            .onReceive(NotificationCenter.default.publisher(for: .NSSystemTimeZoneDidChange)) { _ in refreshCalendar() }
+            .onReceive(NotificationCenter.default.publisher(for: NSLocale.currentLocaleDidChangeNotification)) { _ in refreshCalendar() }
+            .onReceive(NotificationCenter.default.publisher(for: UIApplication.significantTimeChangeNotification)) { _ in refreshCalendar() }
+            .onReceive(NotificationCenter.default.publisher(for: UIApplication.didBecomeActiveNotification)) { _ in refreshCalendar() }
+    }
+
+    private func refreshCalendar() {
+        calendarRevision += 1
+        dataController.refreshAnalytics()
     }
 
     @ViewBuilder private var content: some View {

@@ -517,3 +517,4 @@
 "Amount unavailable" = "金额不可用";
 "Budget unavailable. Edit this budget to repair its settings." = "预算不可用，请编辑此预算以修复设置。";
 "widget.budget.percentage.spent" = "已用%@";
+"Retry" = "重试";

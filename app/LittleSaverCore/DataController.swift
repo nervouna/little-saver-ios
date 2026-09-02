@@ -145,10 +145,35 @@ public final class DataController: ObservableObject {
     public let container: NSPersistentCloudKitContainer
     public let configuration: Configuration?
     @Published public private(set) var persistentStoreState: PersistentStoreState = .loading
+    @Published public private(set) var analyticsStamp = AnalyticsStamp()
+
+    @MainActor
+    public func refreshAnalytics(now: Date = .now) {
+        analyticsStamp = AnalyticsStamp(revision: analyticsStamp.revision &+ 1, now: now)
+    }
     private let readiness = PersistenceReadiness()
     private let historyConsumer = PersistentHistoryConsumer()
+    /// Instrumentation at the real analytical fetch boundary, never a request-facade counter.
+    private let analyticalObserverLock = NSLock()
+    private var analyticalObserver: ((String, NSPredicate?, Bool) -> Void)?
+    public var analyticalFetchObserver: ((String, NSPredicate?, Bool) -> Void)? {
+        get { analyticalObserverLock.lock(); defer { analyticalObserverLock.unlock() }; return analyticalObserver }
+        set { analyticalObserverLock.lock(); defer { analyticalObserverLock.unlock() }; analyticalObserver = newValue }
+    }
+
+    func analyticalFetch<T: NSFetchRequestResult>(_ request: NSFetchRequest<T>, in context: NSManagedObjectContext) throws -> [T] {
+        analyticalFetchObserver?(request.entityName ?? "", request.predicate, Thread.isMainThread)
+        return try context.fetch(request)
+    }
     private var remoteChangeObserver: NSObjectProtocol?
     let maintenanceContext: NSManagedObjectContext
+    private let localWriterContextName = "LittleSaver.writer.\(UUID().uuidString)"
+    private let maintenanceSaveLock = NSLock()
+    private var maintenanceSaveCallback: (NSManagedObjectContext) throws -> Void = { try $0.save() }
+    public var maintenanceSave: (NSManagedObjectContext) throws -> Void {
+        get { maintenanceSaveLock.lock(); defer { maintenanceSaveLock.unlock() }; return maintenanceSaveCallback }
+        set { maintenanceSaveLock.lock(); defer { maintenanceSaveLock.unlock() }; maintenanceSaveCallback = newValue }
+    }
     /// Test seam at the actual commit boundary, after changes have been prepared.
     /// Installed before submitting commands; never used by production adapters.
     private let commandSaveLock = NSLock()
@@ -198,6 +223,7 @@ public final class DataController: ObservableObject {
         maintenanceContext = NSManagedObjectContext(concurrencyType: .privateQueueConcurrencyType)
         maintenanceContext.persistentStoreCoordinator = container.persistentStoreCoordinator
         maintenanceContext.transactionAuthor = configuration.transactionAuthor
+        maintenanceContext.name = localWriterContextName
         maintenanceContext.mergePolicy = NSMergeByPropertyStoreTrumpMergePolicy
 
         let description = NSPersistentStoreDescription()
@@ -312,9 +338,9 @@ public final class DataController: ObservableObject {
             try LedgerMaintenance.backfill(in: context)
             if context.hasChanges { try context.save() }
         }
-        try await historyConsumer.consume(container: container, configuration: configuration)
-        let more = try await maintenanceBatch(now: Date())
-        if more { continueMaintenance() }
+        _ = try await historyConsumer.consume(container: container, configuration: configuration, localWriterContextName: localWriterContextName)
+        let result = try await maintenanceBatch(now: Date())
+        if result.more { continueMaintenance() }
     }
 
     public func waitUntilReady(timeout: TimeInterval = 10) async throws {
@@ -323,13 +349,28 @@ public final class DataController: ObservableObject {
 
     public func refreshPersistentHistory() async throws {
         try await waitUntilReady()
-        try await historyConsumer.consume(container: container, configuration: configuration)
-        let more = try await maintenanceBatch(now: Date())
-        if more { continueMaintenance() }
+        let imported: Bool
+        do {
+            imported = try await historyConsumer.consume(container: container, configuration: configuration, localWriterContextName: localWriterContextName)
+        } catch let failure as HistoryTokenWriteError {
+            if failure.mergedChanges { await MainActor.run { self.refreshAnalytics() } }
+            throw failure.underlying
+        }
+        do {
+            let result = try await maintenanceBatch(now: Date())
+            if imported || result.changed { await MainActor.run { self.refreshAnalytics() } }
+            if result.more { continueMaintenance() }
+        } catch {
+            // The history token already advanced after its merge. Do not hide imported
+            // data merely because the subsequent, independent maintenance pass failed.
+            if imported { await MainActor.run { self.refreshAnalytics() } }
+            throw error
+        }
     }
 
-    private func maintenanceBatch(now: Date) async throws -> Bool {
+    private func maintenanceBatch(now: Date) async throws -> (more: Bool, changed: Bool) {
         let context = maintenanceContext
+        let save = maintenanceSave
         let result = try await context.perform {
             context.reset()
             do {
@@ -337,23 +378,35 @@ public final class DataController: ObservableObject {
                 try LedgerMaintenance.reconcile(in: context)
                 try LedgerMaintenance.materialize(in: context, now: now)
                 let changed = context.hasChanges
-                if changed { try context.save() }
-                return (try LedgerMaintenance.hasDueWork(in: context, now: now), changed)
+                try context.obtainPermanentIDs(for: Array(context.insertedObjects))
+                let changes = [NSInsertedObjectsKey: context.insertedObjects.map(\.objectID), NSUpdatedObjectsKey: context.updatedObjects.map(\.objectID), NSDeletedObjectsKey: context.deletedObjects.map(\.objectID)]
+                let more = try LedgerMaintenance.hasDueWork(in: context, now: now)
+                if changed { try save(context) }
+                return (more, changed, changes)
             } catch {
                 context.rollback()
                 throw error
             }
         }
+        if result.1 {
+            let viewContext = container.viewContext
+            await viewContext.perform {
+                NSManagedObjectContext.mergeChanges(fromRemoteContextSave: result.2, into: [viewContext])
+            }
+        }
         if result.1 && configuration?.reloadWidgetsAfterSave == true {
             DispatchQueue.main.async(execute: DispatchWorkItem(block: reloadWidgets))
         }
-        return result.0
+        return (result.0, result.1)
     }
 
     /// Serial queue-confined batches yield between passes. Callers may also await full catch-up.
     public func catchUpRecurringTransactions(now: Date = Date()) async throws {
         try await waitUntilReady()
-        while try await maintenanceBatch(now: now) {
+        while true {
+            let result = try await maintenanceBatch(now: now)
+            if result.changed { await MainActor.run { self.refreshAnalytics(now: now) } }
+            if !result.more { break }
             try Task.checkCancellation()
             await Task.yield()
         }
@@ -391,7 +444,12 @@ public final class DataController: ObservableObject {
         try await waitUntilReady()
         let context = container.newBackgroundContext()
         context.transactionAuthor = configuration?.transactionAuthor
-        return try await context.perform { try body(context) }
+        let supportsGeneration = configuration?.mode != .inMemory
+        return try await context.perform {
+            // One consistent SQLite generation for multi-fetch immutable snapshots.
+            if supportsGeneration { try context.setQueryGenerationFrom(.current) }
+            return try body(context)
+        }
     }
 
     // internal variables
@@ -1621,7 +1679,7 @@ public extension NSManagedObjectContext {
     }
 }
 
-public struct LineGraphDataPoint: Equatable {
+public struct LineGraphDataPoint: Equatable, Sendable {
     public init(date: Date, amount: Double) {
         self.date = date
         self.amount = amount

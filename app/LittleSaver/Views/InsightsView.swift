@@ -13,13 +13,11 @@ import SwiftUI
 
 struct InsightsView: View {
     @Environment(\.ledgerCalendarRevision) private var calendarRevision
-    @FetchRequest(sortDescriptors: []) private var transactions: FetchedResults<Transaction>
+    @Environment(\.ledgerMetadata) private var metadata
 
     @State private var showTimeMenu = false
     @AppStorage("chartTimeFrame", store: UserDefaults(suiteName: AppIdentifiers.appGroup)) var chartType = 1
 
-    private var didSave = NotificationCenter.default.publisher(for: .NSManagedObjectContextDidSave)
-    @State private var refreshID = UUID()
 
     var chartTypeString: String {
         if chartType == 1 {
@@ -38,7 +36,8 @@ struct InsightsView: View {
 
     var body: some View {
         let _ = calendarRevision
-        if transactions.isEmpty {
+        if metadata == nil { ProgressView() }
+        else if metadata?.hasTransactions != true {
             VStack(spacing: 5) {
                 Image("chart")
                     .resizable()
@@ -106,28 +105,22 @@ struct InsightsView: View {
 
                 if chartType == 1 {
                     WeekGraphView()
-                        .id(refreshID)
                 } else if chartType == 2 {
                     MonthGraphView()
-                        .id(refreshID)
                 } else if chartType == 3 {
                     YearGraphView()
-                        .id(refreshID)
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background(Color.PrimaryBackground)
             .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
-            .onReceive(self.didSave) { _ in
-                self.refreshID = UUID()
-            }
         }
     }
 }
 
 struct HorizontalPieChartView: View {
-    @FetchRequest private var allCategories: FetchedResults<Category>
-    @FetchRequest private var transactions: FetchedResults<Transaction>
+    @Environment(\.managedObjectContext) private var context
+    let snapshot: BucketSnapshot
 
     @AppStorage("currency", store: UserDefaults(suiteName: AppIdentifiers.appGroup)) var currency: String = (Locale.current.currencyCode ?? "USD")
     var currencySymbol: String {
@@ -138,15 +131,7 @@ struct HorizontalPieChartView: View {
 
     var income: Bool
     var date: Date
-    var total: Double {
-        var holdingTotal = 0.0
-
-        transactions.forEach { transaction in
-            holdingTotal += transaction.amount
-        }
-
-        return holdingTotal
-    }
+    var total: Double { snapshot.amount }
 
     @Binding var chosenAmount: Double
     @Binding var chosenName: String
@@ -183,31 +168,10 @@ struct HorizontalPieChartView: View {
     }
 
     var categories: [PowerCategory] {
-        var holding = [PowerCategory]()
-
-        for category in allCategories {
-            var holdingTotal = 0.0
-
-            transactions.forEach { transaction in
-                if transaction.category == category {
-                    holdingTotal += transaction.wrappedAmount
-                }
-            }
-
-            if holdingTotal == 0 {
-                continue
-            }
-
-            let newCategory = PowerCategory(id: category.id ?? UUID(), category: category, percent: WidgetInsightMath.categoryShare(amount: holdingTotal, total: total), amount: holdingTotal)
-
-            holding.append(newCategory)
+        snapshot.categories.compactMap { row in
+            guard let category: Category = presentationObject(row.id, in: context) else { return nil }
+            return PowerCategory(id: row.id, category: category, percent: row.percent, amount: row.amount)
         }
-
-        holding.sort(by: { lhs, rhs in
-            lhs.percent > rhs.percent
-        })
-
-        return holding
     }
 
     var body: some View {
@@ -236,7 +200,7 @@ struct HorizontalPieChartView: View {
                                                     selectedDate = nil
                                                     categoryFilterMode = true
                                                     categoryFilter = category.category
-                                                    chosenAmount = category.percent * total
+                                                    chosenAmount = category.amount
                                                     chosenName = category.category.wrappedName
                                                 }
                                             }
@@ -314,7 +278,7 @@ struct HorizontalPieChartView: View {
                                             selectedDate = nil
                                             categoryFilterMode = true
                                             categoryFilter = category.category
-                                            chosenAmount = category.percent * total
+                                            chosenAmount = category.amount
                                             chosenName = category.category.wrappedName
                                         }
                                     }
@@ -330,7 +294,7 @@ struct HorizontalPieChartView: View {
         }
     }
 
-    init(date: Date, categoryFilter: Binding<Category?>?, categoryFilterMode: Binding<Bool>, selectedDate: Binding<Date?>?, chosenAmount: Binding<Double>, chosenName: Binding<String>, type: ChartTimeFrame, income: Bool) {
+    init(date: Date, categoryFilter: Binding<Category?>?, categoryFilterMode: Binding<Bool>, selectedDate: Binding<Date?>?, chosenAmount: Binding<Double>, chosenName: Binding<String>, type: ChartTimeFrame, income: Bool, snapshot: BucketSnapshot) {
         self.date = date
         self.income = income
         _categoryFilter = categoryFilter ?? Binding.constant(nil)
@@ -339,98 +303,48 @@ struct HorizontalPieChartView: View {
         _chosenName = chosenName
         _chosenAmount = chosenAmount
 
-        // fetching categories
-
-        _allCategories = FetchRequest<Category>(sortDescriptors: [], predicate: NSPredicate(format: "income = %d", income))
-
-        let kind = type == .week ? 1 : type == .month ? 2 : 3
-        let preferredDay = UserDefaults(suiteName: AppIdentifiers.appGroup)?.integer(forKey: "firstDayOfMonth") ?? 1
-        let predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [LedgerCalendar.insightsPredicate(start: date, type: kind, firstDayOfMonth: preferredDay), NSPredicate(format: "income == %d", income)])
-        _transactions = FetchRequest<Transaction>(sortDescriptors: [], predicate: predicate)
+        self.snapshot = snapshot
     }
 }
 
 struct FilteredCategoryInsightsView: View {
-    @FetchRequest<Transaction> private var transactions: FetchedResults<Transaction>
-
+    @AnalyticsInput private var environment
+    let category: Category?
+    let date: Date
+    let type: ChartTimeFrame
     var body: some View {
-        VStack(spacing: 30) {
-            if transactions.count == 0 {
-                NoResultsView(fullscreen: false)
-            }
-
-            ListView(transactions: Array(transactions))
-        }
-        .frame(maxHeight: .infinity)
-    }
-
-    init(category: Category?, date: Date, type: ChartTimeFrame) {
         let kind = type == .week ? 1 : type == .month ? 2 : 3
-        let preferredDay = UserDefaults(suiteName: AppIdentifiers.appGroup)?.integer(forKey: "firstDayOfMonth") ?? 1
-        var predicates = [LedgerCalendar.insightsPredicate(start: date, type: kind, firstDayOfMonth: preferredDay)]
-        if let category { predicates.append(NSPredicate(format: "category == %@ AND income == %d", category, category.income)) }
-        else { predicates.append(NSPredicate(value: false)) }
-        _transactions = FetchRequest<Transaction>(sortDescriptors: [SortDescriptor(\.date, order: .reverse)], predicate: NSCompoundPredicate(andPredicateWithSubpredicates: predicates))
+        let end = LedgerCalendar.insightsEnd(start: date, type: kind, firstDayOfMonth: environment.firstDayOfMonth, calendar: environment.calendar) ?? date
+        if let category {
+            SnapshotTransactionsView(query: .interval(start: date, end: end, income: category.income, category: category.objectID.uriRepresentation()))
+        } else { NoResultsView(fullscreen: false) }
     }
 }
 
 struct FilteredDateInsightsView: View {
-    @FetchRequest private var transactions: FetchedResults<Transaction>
-
-    @AppStorage("currency", store: UserDefaults(suiteName: AppIdentifiers.appGroup)) var currency: String = (Locale.current.currencyCode ?? "USD")
-    var currencySymbol: String {
-        return (Locale.current.localizedCurrencySymbol(forCurrencyCode: currency) ?? currency)
-    }
-
-    @AppStorage("swapTimeLabel", store: UserDefaults(suiteName: AppIdentifiers.appGroup)) var swapTimeLabel: Bool = false
-    @AppStorage("showCents", store: UserDefaults(suiteName: AppIdentifiers.appGroup)) var showCents: Bool = true
-    
-    @AppStorage("showExpenseOrIncomeSign", store: UserDefaults(suiteName: AppIdentifiers.appGroup))
-    var showExpenseOrIncomeSign: Bool = true
-
-
+    @AnalyticsInput private var environment
+    let date: Date
+    let income: Bool
+    var chartType = 1
     var body: some View {
-        VStack(spacing: 0) {
-            if transactions.count == 0 {
-                NoResultsView(fullscreen: false)
-            }
-            ForEach(transactions) { transaction in
-                SingleTransactionView(transaction: transaction, showCents: showCents, currencySymbol: currencySymbol, currency: currency, swapTimeLabel: swapTimeLabel, future: false, showExpenseOrIncomeSign: showExpenseOrIncomeSign)
-            }
-        }
-        .frame(maxHeight: .infinity)
-    }
-
-    init(date: Date, income: Bool) {
-        let predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [LedgerCalendar.dayPredicate(date), NSPredicate(format: "income == %d", income)])
-        _transactions = FetchRequest<Transaction>(sortDescriptors: [SortDescriptor(\.date, order: .reverse)], predicate: predicate)
+        SnapshotTransactionsView(query: .insightsDrilldown(date: date, chartType: chartType, income: income, environment: environment), dayHeaders: chartType == 3)
     }
 }
 
 struct FilteredInsightsView: View {
-    @FetchRequest<Transaction> private var transactions: FetchedResults<Transaction>
-
+    @AnalyticsInput private var environment
+    let startDate: Date
+    var income: Bool? = nil
+    let type: Int
+    var naturalMonth = false
     var body: some View {
-        VStack(spacing: 30) {
-            if transactions.count == 0 {
-                NoResultsView(fullscreen: false)
-            }
-
-            ListView(transactions: Array(transactions))
-        }
-        .frame(maxHeight: .infinity)
-    }
-
-    init(startDate: Date, income: Bool? = nil, type: Int) {
-        let preferredDay = UserDefaults(suiteName: AppIdentifiers.appGroup)?.integer(forKey: "firstDayOfMonth") ?? 1
-        var predicates = [LedgerCalendar.insightsPredicate(start: startDate, type: type, firstDayOfMonth: preferredDay)]
-        if let income { predicates.append(NSPredicate(format: "income == %d", income)) }
-        _transactions = FetchRequest<Transaction>(sortDescriptors: [SortDescriptor(\.date, order: .reverse)], predicate: NSCompoundPredicate(andPredicateWithSubpredicates: predicates))
+        let end = naturalMonth ? environment.calendar.dateInterval(of: .month, for: startDate)?.end : LedgerCalendar.insightsEnd(start: startDate, type: type, firstDayOfMonth: environment.firstDayOfMonth, calendar: environment.calendar)
+        SnapshotTransactionsView(query: .interval(start: startDate, end: end ?? startDate, income: income, category: nil))
     }
 }
 
 struct SingleGraphView: View {
-    @EnvironmentObject var dataController: DataController
+    let snapshot: InsightsSnapshot
     var date: Date
     let type: Int
 
@@ -460,7 +374,10 @@ struct SingleGraphView: View {
         }
     }
 
-    @State var selectedDateAmount: Double = 0
+    var selectedDateAmount: Double {
+        guard let selectedDate else { return 0 }
+        return (income ? snapshot.income : snapshot.expenses).totals[selectedDate] ?? 0
+    }
 
     var currencySymbol: String
     @AppStorage("currency", store: UserDefaults(suiteName: AppIdentifiers.appGroup)) var currency: String = (Locale.current.currencyCode ?? "USD")
@@ -525,10 +442,7 @@ struct SingleGraphView: View {
     let lastNet: Double
     let average: Double
 
-    var incomeAverage: Double {
-        let loaded = dataController.getInsights(type: type, date: date, income: income)
-        return loaded.average
-    }
+    var incomeAverage: Double { (income ? snapshot.income : snapshot.expenses).average }
 
     var percentageDifference: String {
         guard currentNet.isFinite, lastNet.isFinite, lastNet != 0 else { return "—" }
@@ -688,11 +602,11 @@ struct SingleGraphView: View {
 
             if incomeFiltering {
                 if type == 1 {
-                    SingleWeekBarGraphView(week: date, date: $selectedDate, mode: $categoryFilterMode, amount: $selectedDateAmount, dataController: dataController, income: income)
+                    SingleWeekBarGraphView(week: date, date: $selectedDate, mode: $categoryFilterMode, snapshot: income ? snapshot.income : snapshot.expenses)
                 } else if type == 2 {
-                    SingleMonthBarGraphView(month: date, date: $selectedDate, mode: $categoryFilterMode, amount: $selectedDateAmount, dataController: dataController, income: income)
+                    SingleMonthBarGraphView(month: date, date: $selectedDate, mode: $categoryFilterMode, snapshot: income ? snapshot.income : snapshot.expenses)
                 } else if type == 3 {
-                    SingleYearBarGraphView(year: date, date: $selectedDate, mode: $categoryFilterMode, amount: $selectedDateAmount, dataController: dataController, income: income)
+                    SingleYearBarGraphView(year: date, date: $selectedDate, mode: $categoryFilterMode, snapshot: income ? snapshot.income : snapshot.expenses)
                 }
             }
         }
@@ -720,7 +634,7 @@ struct SingleGraphView: View {
         }
     }
 
-    init(showingDate: Date, date: Binding<Date?>?, mode: Binding<Bool>, categoryName: String, categoryAmount: Double, currencySymbol: String, showCents: Bool, dataController: DataController, income: Binding<Bool>, incomeFiltering: Binding<Bool>, type: Int) {
+    init(showingDate: Date, date: Binding<Date?>?, mode: Binding<Bool>, categoryName: String, categoryAmount: Double, currencySymbol: String, showCents: Bool, snapshot: InsightsSnapshot, income: Binding<Bool>, incomeFiltering: Binding<Bool>, type: Int) {
         _selectedDate = date ?? Binding.constant(nil)
         _categoryFilterMode = mode
         _income = income
@@ -732,50 +646,24 @@ struct SingleGraphView: View {
         self.showCents = showCents
         self.type = type
 
-        let loaded = dataController.getInsightsSummary(type: type, date: showingDate)
-
-        totalIncome = loaded.income
-        totalSpent = loaded.spent
-        netPositive = loaded.positive
-        totalNet = loaded.net
-        average = loaded.average
-
-        if loaded.positive {
-            currentNet = loaded.net
-        } else {
-            currentNet = -loaded.net
-        }
-
-        let lastDate: Date
-
-        if type == 1 {
-            lastDate = Calendar.current.date(byAdding: .day, value: -7, to: showingDate) ?? Date.now
-        } else if type == 2 {
-            lastDate = LedgerCalendar.monthStart(in: showingDate, day: UserDefaults(suiteName: AppIdentifiers.appGroup)?.integer(forKey: "firstDayOfMonth") ?? 1, offset: -1) ?? showingDate
-        } else {
-            lastDate = Calendar.current.date(byAdding: .year, value: -1, to: showingDate) ?? Date.now
-        }
-
-        let lastDateData = dataController.getInsightsSummary(type: type, date: lastDate)
-
-        if lastDateData.positive {
-            lastNet = lastDateData.net
-        } else {
-            lastNet = -lastDateData.net
-        }
+        self.snapshot = snapshot
+        totalIncome = snapshot.current.income
+        totalSpent = snapshot.current.spent
+        netPositive = snapshot.current.net >= 0
+        totalNet = abs(snapshot.current.net)
+        average = snapshot.current.average
+        currentNet = snapshot.current.net
+        lastNet = snapshot.previous.net
     }
 }
 
 struct WeekGraphView: View {
     @Environment(\.ledgerCalendarRevision) private var calendarRevision
     @EnvironmentObject var dataController: DataController
+    @AnalyticsInput private var environment
+    @Environment(\.ledgerMetadata) private var metadata
 
-    private var didSave = NotificationCenter.default.publisher(for: .NSManagedObjectContextDidSave)
-    @State private var refreshID = UUID()
 
-    @FetchRequest(sortDescriptors: [
-        SortDescriptor(\.date)
-    ]) private var transactions: FetchedResults<Transaction>
 
     @AppStorage("currency", store: UserDefaults(suiteName: AppIdentifiers.appGroup)) var currency: String = (Locale.current.currencyCode ?? "USD")
     var currencySymbol: String {
@@ -789,28 +677,27 @@ struct WeekGraphView: View {
 
     @State private var selectedDay: CalendarPeriodSelection?
     var selectedDate: Date? {
-        get { selectedDay?.start(period: .day) }
-        nonmutating set { selectedDay = newValue.map { CalendarPeriodSelection(start: $0) } }
+        get { selectedDay?.start(period: .day, now: environment.now, calendar: environment.calendar) }
+        nonmutating set { selectedDay = newValue.map { CalendarPeriodSelection(start: $0, calendar: environment.calendar) } }
     }
 
     var startOfCurrentWeek: Date {
-        CalendarPeriodSelection().start(period: .week, firstWeekday: UserDefaults(suiteName: AppIdentifiers.appGroup)?.integer(forKey: "firstWeekday") ?? 1)
+        CalendarPeriodSelection().start(period: .week, now: environment.now, calendar: environment.calendar, firstWeekday: environment.calendar.firstWeekday, firstDayOfMonth: environment.firstDayOfMonth)
     }
 
     // start of week of final transaction
     var startOfLastWeek: Date {
-        let earliest = transactions.compactMap(\.date).first(where: LedgerCalendar.isValid) ?? Date.now
-        return CalendarPeriodSelection(start: earliest).start(period: .week, firstWeekday: UserDefaults(suiteName: AppIdentifiers.appGroup)?.integer(forKey: "firstWeekday") ?? 1)
+        CalendarPeriodSelection(start: metadata?.earliestDate ?? environment.now, calendar: environment.calendar).start(period: .week, now: environment.now, calendar: environment.calendar, firstWeekday: environment.calendar.firstWeekday, firstDayOfMonth: environment.firstDayOfMonth)
     }
 
     var swipeStrings: (backward: String, forward: String) {
         let dateFormatter = DateFormatter()
         dateFormatter.setLocalizedDateFormatFromTemplate("dMMM")
 
-        let calendar = Calendar.current
+        let calendar = environment.calendar
 
-        let startOfLastWeek = calendar.date(byAdding: .day, value: -7, to: showingWeek) ?? Date.now
-        let startOfNextWeek = calendar.date(byAdding: .day, value: 7, to: showingWeek) ?? Date.now
+        let startOfLastWeek = calendar.date(byAdding: .day, value: -7, to: showingWeek) ?? environment.now
+        let startOfNextWeek = calendar.date(byAdding: .day, value: 7, to: showingWeek) ?? environment.now
 
         return (dateFormatter.string(from: startOfLastWeek), dateFormatter.string(from: startOfNextWeek))
     }
@@ -832,11 +719,10 @@ struct WeekGraphView: View {
 
     @State private var periodSelection = CalendarPeriodSelection()
     var showingWeek: Date {
-        get { periodSelection.start(period: .week, firstWeekday: UserDefaults(suiteName: AppIdentifiers.appGroup)?.integer(forKey: "firstWeekday") ?? 1) }
-        nonmutating set { periodSelection.select(newValue, period: .week, firstWeekday: UserDefaults(suiteName: AppIdentifiers.appGroup)?.integer(forKey: "firstWeekday") ?? 1) }
+        get { periodSelection.start(period: .week, now: environment.now, calendar: environment.calendar, firstWeekday: environment.calendar.firstWeekday, firstDayOfMonth: environment.firstDayOfMonth) }
+        nonmutating set { periodSelection.select(newValue, period: .week, now: environment.now, calendar: environment.calendar, firstWeekday: environment.calendar.firstWeekday, firstDayOfMonth: environment.firstDayOfMonth) }
     }
 
-    @State private var refreshID1 = UUID()
 
     @State var chosenCategoryName = ""
     @State var chosenCategoryAmount = 0.0
@@ -849,13 +735,21 @@ struct WeekGraphView: View {
     @State var incomeFiltering: Bool = true
 
     var body: some View {
-        let _ = calendarRevision
+        let request = InsightsRequest(start: showingWeek, type: 1, environment: environment)
+        AnalyticsReadView(key: request, load: dataController.analyticsInsightsSnapshot) { snapshot in
+            if snapshot.current.spent.isFinite && snapshot.current.income.isFinite {
+                graphContent(snapshot)
+            } else { Text("Amount unavailable").padding() }
+        }
+    }
+
+    @ViewBuilder private func graphContent(_ snapshot: InsightsSnapshot) -> some View {
+        let selectedCategory = (income ? snapshot.income : snapshot.expenses).categories.first { $0.id == categoryFilter?.objectID.uriRepresentation() }
         ScrollView(showsIndicators: false) {
             VStack(spacing: 18) {
                 ZStack {
-                    SingleGraphView(showingDate: showingWeek, date: Binding(get: { selectedDate }, set: { selectedDate = $0 }), mode: $categoryFilterMode, categoryName: chosenCategoryName, categoryAmount: chosenCategoryAmount, currencySymbol: currencySymbol, showCents: showCents, dataController: dataController, income: $income, incomeFiltering: $incomeFiltering, type: 1)
+                    SingleGraphView(showingDate: showingWeek, date: Binding(get: { selectedDate }, set: { selectedDate = $0 }), mode: Binding(get: { categoryFilterMode && selectedCategory != nil }, set: { categoryFilterMode = $0 }), categoryName: selectedCategory?.category.name ?? "", categoryAmount: selectedCategory?.amount ?? 0, currencySymbol: currencySymbol, showCents: showCents, snapshot: snapshot, income: $income, incomeFiltering: $incomeFiltering, type: 1)
                         .drawingGroup()
-                        .id(refreshID)
                         .offset(x: offset)
 
                     if !changeDate {
@@ -914,7 +808,7 @@ struct WeekGraphView: View {
 
                                     offset = UIScreen.main.bounds.width
 
-                                    showingWeek = Calendar.current.date(byAdding: .day, value: 7, to: showingWeek) ?? Date.now
+                                    showingWeek = environment.calendar.date(byAdding: .day, value: 7, to: showingWeek) ?? environment.now
 
                                     withAnimation(.easeInOut(duration: 0.3)) {
                                         offset = 0
@@ -924,7 +818,7 @@ struct WeekGraphView: View {
 
                                     offset = -UIScreen.main.bounds.width
 
-                                    showingWeek = Calendar.current.date(byAdding: .day, value: -7, to: showingWeek) ?? Date.now
+                                    showingWeek = environment.calendar.date(byAdding: .day, value: -7, to: showingWeek) ?? environment.now
 
                                     withAnimation(.easeInOut(duration: 0.3)) {
                                         offset = 0
@@ -955,7 +849,6 @@ struct WeekGraphView: View {
                 .onChange(of: showingWeek) { _ in
                     selectedDate = nil
                     categoryFilterMode = false
-                    refreshID1 = UUID()
                 }
                 .onChange(of: income) { _ in
                     selectedDate = nil
@@ -974,10 +867,9 @@ struct WeekGraphView: View {
                             .padding(.horizontal, 20)
                     } else {
                         if selectedDate == nil {
-                            HorizontalPieChartView(date: showingWeek, categoryFilter: $categoryFilter, categoryFilterMode: $categoryFilterMode, selectedDate: Binding(get: { selectedDate }, set: { selectedDate = $0 }), chosenAmount: $chosenCategoryAmount, chosenName: $chosenCategoryName, type: .week, income: income)
+                            HorizontalPieChartView(date: showingWeek, categoryFilter: $categoryFilter, categoryFilterMode: $categoryFilterMode, selectedDate: Binding(get: { selectedDate }, set: { selectedDate = $0 }), chosenAmount: $chosenCategoryAmount, chosenName: $chosenCategoryName, type: .week, income: income, snapshot: income ? snapshot.income : snapshot.expenses)
                                 .padding(.horizontal, 30)
                                 .padding(.bottom, 70)
-                                .id(refreshID1)
 
                             if categoryFilterMode {
                                 FilteredCategoryInsightsView(category: categoryFilter, date: showingWeek, type: .week)
@@ -985,7 +877,7 @@ struct WeekGraphView: View {
                                     .padding(.horizontal, 20)
                             }
                         } else {
-                            FilteredDateInsightsView(date: selectedDate ?? Date.now, income: income)
+                            FilteredDateInsightsView(date: selectedDate ?? environment.now, income: income)
                                 .padding(.bottom, 70)
                                 .padding(.horizontal, 20)
                         }
@@ -996,10 +888,6 @@ struct WeekGraphView: View {
                     categoryFilterMode = false
                 }
             }
-        }
-        .onReceive(self.didSave) { _ in
-            self.refreshID = UUID()
-            self.refreshID1 = UUID()
         }
     }
 }
@@ -1068,9 +956,7 @@ struct AverageLineView: View {
 struct SingleWeekBarGraphView: View {
     @Binding var selectedDate: Date?
     @Binding var categoryFilterMode: Bool
-    @Binding var selectedDateAmount: Double
 
-    @State private var refreshID = UUID()
 
     var daysOfWeek = [Date]()
 
@@ -1144,12 +1030,7 @@ struct SingleWeekBarGraphView: View {
             // average line
             AverageLineView(getMax: getMax, average: weekAverage)
                 .opacity(actualDays <= 1 ? 0 : 1)
-                .id(refreshID)
 
-        }
-        .onChange(of: selectedDate) { _ in
-            selectedDateAmount = dayDictionary[selectedDate ?? Date.now] ?? 0.0
-            refreshID = UUID()
         }
     }
 
@@ -1161,31 +1042,27 @@ struct SingleWeekBarGraphView: View {
         return dateFormatter.string(from: day)
     }
 
-    init(week: Date, date: Binding<Date?>?, mode: Binding<Bool>, amount: Binding<Double>, dataController: DataController, income: Bool) {
+    init(week: Date, date: Binding<Date?>?, mode: Binding<Bool>, snapshot: BucketSnapshot) {
         _selectedDate = date ?? Binding.constant(nil)
         _categoryFilterMode = mode
-        _selectedDateAmount = amount
 
-        let loaded = dataController.getInsights(type: 1, date: week, income: income)
+        let loaded = snapshot
 
         daysOfWeek = loaded.dates
-        dayDictionary = loaded.dateDictionary
+        dayDictionary = loaded.totals
         self.max = loaded.maximum
         weekTotal = loaded.amount
         weekAverage = loaded.average
-        actualDays = loaded.numberOfDays
+        actualDays = loaded.nonzeroCount
     }
 }
 
 struct MonthGraphView: View {
     @Environment(\.ledgerCalendarRevision) private var calendarRevision
     @EnvironmentObject var dataController: DataController
-    private var didSave = NotificationCenter.default.publisher(for: .NSManagedObjectContextDidSave)
-    @State private var refreshID = UUID()
+    @AnalyticsInput private var environment
+    @Environment(\.ledgerMetadata) private var metadata
 
-    @FetchRequest(sortDescriptors: [
-        SortDescriptor(\.date)
-    ]) private var transactions: FetchedResults<Transaction>
 
     @AppStorage("firstDayOfMonth", store: UserDefaults(suiteName: AppIdentifiers.appGroup)) var firstDayOfMonth: Int = 1
 
@@ -1201,37 +1078,25 @@ struct MonthGraphView: View {
 
     @State private var selectedDay: CalendarPeriodSelection?
     var selectedDate: Date? {
-        get { selectedDay?.start(period: .day) }
-        nonmutating set { selectedDay = newValue.map { CalendarPeriodSelection(start: $0) } }
+        get { selectedDay?.start(period: .day, now: environment.now, calendar: environment.calendar) }
+        nonmutating set { selectedDay = newValue.map { CalendarPeriodSelection(start: $0, calendar: environment.calendar) } }
     }
 
     var startOfCurrentMonth: Date {
-        CalendarPeriodSelection().start(period: .month, firstDayOfMonth: firstDayOfMonth)
+        CalendarPeriodSelection().start(period: .month, now: environment.now, calendar: environment.calendar, firstWeekday: environment.calendar.firstWeekday, firstDayOfMonth: environment.firstDayOfMonth)
     }
 
     // start of month of the earliest transaction
     var startOfLastMonth: Date {
-        if transactions.isEmpty {
-            return Date.now
-        } else {
-            let date = transactions.compactMap(\.date).first(where: LedgerCalendar.isValid) ?? Date.now
-
-            return calculateStartOfMonthPeriod(earliestDate: date, startOfMonthDay: firstDayOfMonth)
-//
-//            let dateComponents = calendar.dateComponents([.month, .year], from: date)
-//
-//            return  calendar.date(from: dateComponents) ?? Date.now
-        }
+        calculateStartOfMonthPeriod(earliestDate: metadata?.earliestDate ?? environment.now, startOfMonthDay: environment.firstDayOfMonth, calendar: environment.calendar)
     }
 
     var swipeStrings: (backward: String, forward: String) {
         let dateFormatter = DateFormatter()
         dateFormatter.setLocalizedDateFormatFromTemplate("MMMyy")
 
-        let calendar = Calendar.current
-
-        let startOfLastMonth = LedgerCalendar.monthStart(in: showingMonth, day: firstDayOfMonth, offset: -1) ?? showingMonth
-        let startOfNextMonth = LedgerCalendar.monthStart(in: showingMonth, day: firstDayOfMonth, offset: 1) ?? showingMonth
+        let startOfLastMonth = LedgerCalendar.monthStart(in: showingMonth, day: environment.firstDayOfMonth, offset: -1, calendar: environment.calendar) ?? showingMonth
+        let startOfNextMonth = LedgerCalendar.monthStart(in: showingMonth, day: environment.firstDayOfMonth, offset: 1, calendar: environment.calendar) ?? showingMonth
 
         return (dateFormatter.string(from: startOfLastMonth), dateFormatter.string(from: startOfNextMonth))
     }
@@ -1253,11 +1118,10 @@ struct MonthGraphView: View {
 
     @State private var periodSelection = CalendarPeriodSelection()
     var showingMonth: Date {
-        get { periodSelection.start(period: .month, firstDayOfMonth: firstDayOfMonth) }
-        nonmutating set { periodSelection.select(newValue, period: .month, firstDayOfMonth: firstDayOfMonth) }
+        get { periodSelection.start(period: .month, now: environment.now, calendar: environment.calendar, firstWeekday: environment.calendar.firstWeekday, firstDayOfMonth: environment.firstDayOfMonth) }
+        nonmutating set { periodSelection.select(newValue, period: .month, now: environment.now, calendar: environment.calendar, firstWeekday: environment.calendar.firstWeekday, firstDayOfMonth: environment.firstDayOfMonth) }
     }
 
-    @State private var refreshID1 = UUID()
 
     @State var chosenCategoryName = ""
     @State var chosenCategoryAmount = 0.0
@@ -1270,13 +1134,21 @@ struct MonthGraphView: View {
     @State var incomeFiltering: Bool = true
 
     var body: some View {
-        let _ = calendarRevision
+        let request = InsightsRequest(start: showingMonth, type: 2, environment: environment)
+        AnalyticsReadView(key: request, load: dataController.analyticsInsightsSnapshot) { snapshot in
+            if snapshot.current.spent.isFinite && snapshot.current.income.isFinite {
+                graphContent(snapshot)
+            } else { Text("Amount unavailable").padding() }
+        }
+    }
+
+    @ViewBuilder private func graphContent(_ snapshot: InsightsSnapshot) -> some View {
+        let selectedCategory = (income ? snapshot.income : snapshot.expenses).categories.first { $0.id == categoryFilter?.objectID.uriRepresentation() }
         ScrollView(showsIndicators: false) {
             VStack(spacing: 18) {
                 ZStack {
-                    SingleGraphView(showingDate: showingMonth, date: Binding(get: { selectedDate }, set: { selectedDate = $0 }), mode: $categoryFilterMode, categoryName: chosenCategoryName, categoryAmount: chosenCategoryAmount, currencySymbol: currencySymbol, showCents: showCents, dataController: dataController, income: $income, incomeFiltering: $incomeFiltering, type: 2)
+                    SingleGraphView(showingDate: showingMonth, date: Binding(get: { selectedDate }, set: { selectedDate = $0 }), mode: Binding(get: { categoryFilterMode && selectedCategory != nil }, set: { categoryFilterMode = $0 }), categoryName: selectedCategory?.category.name ?? "", categoryAmount: selectedCategory?.amount ?? 0, currencySymbol: currencySymbol, showCents: showCents, snapshot: snapshot, income: $income, incomeFiltering: $incomeFiltering, type: 2)
                         .drawingGroup()
-                        .id(refreshID)
                         .offset(x: offset)
 
                     if !changeDate {
@@ -1335,7 +1207,7 @@ struct MonthGraphView: View {
 
                                     offset = UIScreen.main.bounds.width
 
-                                    showingMonth = LedgerCalendar.monthStart(in: showingMonth, day: firstDayOfMonth, offset: 1) ?? showingMonth
+                                    showingMonth = LedgerCalendar.monthStart(in: showingMonth, day: environment.firstDayOfMonth, offset: 1, calendar: environment.calendar) ?? showingMonth
 
                                     withAnimation(.easeInOut(duration: 0.3)) {
                                         offset = 0
@@ -1345,7 +1217,7 @@ struct MonthGraphView: View {
 
                                     offset = -UIScreen.main.bounds.width
 
-                                    showingMonth = LedgerCalendar.monthStart(in: showingMonth, day: firstDayOfMonth, offset: -1) ?? showingMonth
+                                    showingMonth = LedgerCalendar.monthStart(in: showingMonth, day: environment.firstDayOfMonth, offset: -1, calendar: environment.calendar) ?? showingMonth
 
                                     withAnimation(.easeInOut(duration: 0.3)) {
                                         offset = 0
@@ -1376,7 +1248,6 @@ struct MonthGraphView: View {
                 .onChange(of: showingMonth) { _ in
                     selectedDate = nil
                     categoryFilterMode = false
-                    refreshID1 = UUID()
                 }
                 .onChange(of: income) { _ in
                     selectedDate = nil
@@ -1395,10 +1266,9 @@ struct MonthGraphView: View {
                             .padding(.horizontal, 20)
                     } else {
                         if selectedDate == nil {
-                            HorizontalPieChartView(date: showingMonth, categoryFilter: $categoryFilter, categoryFilterMode: $categoryFilterMode, selectedDate: Binding(get: { selectedDate }, set: { selectedDate = $0 }), chosenAmount: $chosenCategoryAmount, chosenName: $chosenCategoryName, type: .month, income: income)
+                            HorizontalPieChartView(date: showingMonth, categoryFilter: $categoryFilter, categoryFilterMode: $categoryFilterMode, selectedDate: Binding(get: { selectedDate }, set: { selectedDate = $0 }), chosenAmount: $chosenCategoryAmount, chosenName: $chosenCategoryName, type: .month, income: income, snapshot: income ? snapshot.income : snapshot.expenses)
                                 .padding(.horizontal, 30)
                                 .padding(.bottom, 70)
-                                .id(refreshID1)
 
                             if categoryFilterMode {
                                 FilteredCategoryInsightsView(category: categoryFilter, date: showingMonth, type: .month)
@@ -1406,7 +1276,7 @@ struct MonthGraphView: View {
                                     .padding(.horizontal, 20)
                             }
                         } else {
-                            FilteredDateInsightsView(date: selectedDate ?? Date.now, income: income)
+                            FilteredDateInsightsView(date: selectedDate ?? environment.now, income: income)
                                 .padding(.bottom, 70)
                                 .padding(.horizontal, 20)
                         }
@@ -1419,7 +1289,7 @@ struct MonthGraphView: View {
 //                            .padding(.bottom, 70)
 //                    } else {
 //                        if selectedDate != nil {
-//                            FilteredDateInsightsView(date: selectedDate ?? Date.now, income: income)
+//                            FilteredDateInsightsView(date: selectedDate ?? environment.now, income: income)
 //                                .padding(.bottom, 70)
 //
 //                        } else if categoryFilterMode {
@@ -1438,10 +1308,6 @@ struct MonthGraphView: View {
 //                }
             }
         }
-        .onReceive(self.didSave) { _ in
-            self.refreshID = UUID()
-            self.refreshID1 = UUID()
-        }
     }
 }
 
@@ -1450,7 +1316,6 @@ struct SingleMonthBarGraphView: View {
 
     @Binding var selectedDate: Date?
     @Binding var categoryFilterMode: Bool
-    @Binding var selectedDateAmount: Double
 
     var daysOfMonth = [Date]()
 
@@ -1539,36 +1404,29 @@ struct SingleMonthBarGraphView: View {
                 .opacity(actualDays <= 1 ? 0 : 1)
 
         }
-        .onChange(of: selectedDate) { _ in
-            selectedDateAmount = dayDictionary[selectedDate ?? Date.now] ?? 0.0
-        }
     }
 
-    init(month: Date, date: Binding<Date?>?, mode: Binding<Bool>, amount: Binding<Double>, dataController: DataController, income: Bool) {
+    init(month: Date, date: Binding<Date?>?, mode: Binding<Bool>, snapshot: BucketSnapshot) {
         _selectedDate = date ?? Binding.constant(nil)
         _categoryFilterMode = mode
-        _selectedDateAmount = amount
 
-        let loaded = dataController.getInsights(type: 2, date: month, income: income)
+        let loaded = snapshot
 
         daysOfMonth = loaded.dates
-        dayDictionary = loaded.dateDictionary
+        dayDictionary = loaded.totals
         self.max = loaded.maximum
         monthTotal = loaded.amount
         monthAverage = loaded.average
-        actualDays = loaded.numberOfDays
+        actualDays = loaded.nonzeroCount
     }
 }
 
 struct YearGraphView: View {
     @Environment(\.ledgerCalendarRevision) private var calendarRevision
     @EnvironmentObject var dataController: DataController
-    private var didSave = NotificationCenter.default.publisher(for: .NSManagedObjectContextDidSave)
-    @State private var refreshID = UUID()
+    @AnalyticsInput private var environment
+    @Environment(\.ledgerMetadata) private var metadata
 
-    @FetchRequest(sortDescriptors: [
-        SortDescriptor(\.date)
-    ]) private var transactions: FetchedResults<Transaction>
 
     @AppStorage("currency", store: UserDefaults(suiteName: AppIdentifiers.appGroup)) var currency: String = (Locale.current.currencyCode ?? "USD")
     var currencySymbol: String {
@@ -1582,27 +1440,26 @@ struct YearGraphView: View {
 
     @State private var selectedDay: CalendarPeriodSelection?
     var selectedDate: Date? {
-        get { selectedDay?.start(period: .day) }
-        nonmutating set { selectedDay = newValue.map { CalendarPeriodSelection(start: $0) } }
+        get { selectedDay?.start(period: .day, now: environment.now, calendar: environment.calendar) }
+        nonmutating set { selectedDay = newValue.map { CalendarPeriodSelection(start: $0, calendar: environment.calendar) } }
     }
 
     var startOfCurrentYear: Date {
-        CalendarPeriodSelection().start(period: .year)
+        CalendarPeriodSelection().start(period: .year, now: environment.now, calendar: environment.calendar, firstWeekday: environment.calendar.firstWeekday, firstDayOfMonth: environment.firstDayOfMonth)
     }
 
     var startOfLastYear: Date {
-        let earliest = transactions.compactMap(\.date).first(where: LedgerCalendar.isValid) ?? Date.now
-        return CalendarPeriodSelection(start: earliest).start(period: .year)
+        CalendarPeriodSelection(start: metadata?.earliestDate ?? environment.now, calendar: environment.calendar).start(period: .year, now: environment.now, calendar: environment.calendar, firstWeekday: environment.calendar.firstWeekday, firstDayOfMonth: environment.firstDayOfMonth)
     }
 
     var swipeStrings: (backward: String, forward: String) {
         let dateFormatter = DateFormatter()
         dateFormatter.setLocalizedDateFormatFromTemplate("yyyy")
 
-        let calendar = Calendar.current
+        let calendar = environment.calendar
 
-        let startOfLastYear = calendar.date(byAdding: .year, value: -1, to: showingYear) ?? Date.now
-        let startOfNextYear = calendar.date(byAdding: .year, value: 1, to: showingYear) ?? Date.now
+        let startOfLastYear = calendar.date(byAdding: .year, value: -1, to: showingYear) ?? environment.now
+        let startOfNextYear = calendar.date(byAdding: .year, value: 1, to: showingYear) ?? environment.now
 
         return (dateFormatter.string(from: startOfLastYear), dateFormatter.string(from: startOfNextYear))
     }
@@ -1624,11 +1481,10 @@ struct YearGraphView: View {
 
     @State private var periodSelection = CalendarPeriodSelection()
     var showingYear: Date {
-        get { periodSelection.start(period: .year) }
-        nonmutating set { periodSelection.select(newValue, period: .year) }
+        get { periodSelection.start(period: .year, now: environment.now, calendar: environment.calendar, firstWeekday: environment.calendar.firstWeekday, firstDayOfMonth: environment.firstDayOfMonth) }
+        nonmutating set { periodSelection.select(newValue, period: .year, now: environment.now, calendar: environment.calendar, firstWeekday: environment.calendar.firstWeekday, firstDayOfMonth: environment.firstDayOfMonth) }
     }
 
-    @State private var refreshID1 = UUID()
 
     @State var chosenCategoryName = ""
     @State var chosenCategoryAmount = 0.0
@@ -1641,13 +1497,21 @@ struct YearGraphView: View {
     @State var incomeFiltering: Bool = true
 
     var body: some View {
-        let _ = calendarRevision
+        let request = InsightsRequest(start: showingYear, type: 3, environment: environment)
+        AnalyticsReadView(key: request, load: dataController.analyticsInsightsSnapshot) { snapshot in
+            if snapshot.current.spent.isFinite && snapshot.current.income.isFinite {
+                graphContent(snapshot)
+            } else { Text("Amount unavailable").padding() }
+        }
+    }
+
+    @ViewBuilder private func graphContent(_ snapshot: InsightsSnapshot) -> some View {
+        let selectedCategory = (income ? snapshot.income : snapshot.expenses).categories.first { $0.id == categoryFilter?.objectID.uriRepresentation() }
         ScrollView(showsIndicators: false) {
             VStack(spacing: 18) {
                 ZStack {
-                    SingleGraphView(showingDate: showingYear, date: Binding(get: { selectedDate }, set: { selectedDate = $0 }), mode: $categoryFilterMode, categoryName: chosenCategoryName, categoryAmount: chosenCategoryAmount, currencySymbol: currencySymbol, showCents: showCents, dataController: dataController, income: $income, incomeFiltering: $incomeFiltering, type: 3)
+                    SingleGraphView(showingDate: showingYear, date: Binding(get: { selectedDate }, set: { selectedDate = $0 }), mode: Binding(get: { categoryFilterMode && selectedCategory != nil }, set: { categoryFilterMode = $0 }), categoryName: selectedCategory?.category.name ?? "", categoryAmount: selectedCategory?.amount ?? 0, currencySymbol: currencySymbol, showCents: showCents, snapshot: snapshot, income: $income, incomeFiltering: $incomeFiltering, type: 3)
                         .drawingGroup()
-                        .id(refreshID)
                         .offset(x: offset)
 
                     if !changeDate {
@@ -1706,7 +1570,7 @@ struct YearGraphView: View {
 
                                     offset = UIScreen.main.bounds.width
 
-                                    showingYear = Calendar.current.date(byAdding: .year, value: 1, to: showingYear) ?? Date.now
+                                    showingYear = environment.calendar.date(byAdding: .year, value: 1, to: showingYear) ?? environment.now
 
                                     withAnimation(.easeInOut(duration: 0.3)) {
                                         offset = 0
@@ -1716,7 +1580,7 @@ struct YearGraphView: View {
 
                                     offset = -UIScreen.main.bounds.width
 
-                                    showingYear = Calendar.current.date(byAdding: .year, value: -1, to: showingYear) ?? Date.now
+                                    showingYear = environment.calendar.date(byAdding: .year, value: -1, to: showingYear) ?? environment.now
 
                                     withAnimation(.easeInOut(duration: 0.3)) {
                                         offset = 0
@@ -1747,7 +1611,6 @@ struct YearGraphView: View {
                 .onChange(of: showingYear) { _ in
                     selectedDate = nil
                     categoryFilterMode = false
-                    refreshID1 = UUID()
                 }
                 .onChange(of: income) { _ in
                     selectedDate = nil
@@ -1766,10 +1629,9 @@ struct YearGraphView: View {
                             .padding(.horizontal, 20)
                     } else {
                         if selectedDate == nil {
-                            HorizontalPieChartView(date: showingYear, categoryFilter: $categoryFilter, categoryFilterMode: $categoryFilterMode, selectedDate: Binding(get: { selectedDate }, set: { selectedDate = $0 }), chosenAmount: $chosenCategoryAmount, chosenName: $chosenCategoryName, type: .year, income: income)
+                            HorizontalPieChartView(date: showingYear, categoryFilter: $categoryFilter, categoryFilterMode: $categoryFilterMode, selectedDate: Binding(get: { selectedDate }, set: { selectedDate = $0 }), chosenAmount: $chosenCategoryAmount, chosenName: $chosenCategoryName, type: .year, income: income, snapshot: income ? snapshot.income : snapshot.expenses)
                                 .padding(.horizontal, 30)
                                 .padding(.bottom, 70)
-                                .id(refreshID1)
 
                             if categoryFilterMode {
                                 FilteredCategoryInsightsView(category: categoryFilter, date: showingYear, type: .year)
@@ -1777,7 +1639,7 @@ struct YearGraphView: View {
                                     .padding(.horizontal, 20)
                             }
                         } else {
-                            FilteredInsightsView(startDate: selectedDate ?? Date.now, income: income, type: 2)
+                            FilteredDateInsightsView(date: selectedDate ?? environment.now, income: income, chartType: 3)
                                 .padding(.bottom, 70)
                                 .padding(.horizontal, 20)
                         }
@@ -1785,17 +1647,12 @@ struct YearGraphView: View {
                 }
             }
         }
-        .onReceive(self.didSave) { _ in
-            self.refreshID = UUID()
-            self.refreshID1 = UUID()
-        }
     }
 }
 
 struct SingleYearBarGraphView: View {
     @Binding var selectedDate: Date?
     @Binding var categoryFilterMode: Bool
-    @Binding var selectedDateAmount: Double
 
     var monthsOfYear = [Date]()
 
@@ -1885,9 +1742,6 @@ struct SingleYearBarGraphView: View {
                 .opacity(actualMonths <= 1 ? 0 : 1)
 
         }
-        .onChange(of: selectedDate) { _ in
-            selectedDateAmount = monthDictionary[selectedDate ?? Date.now] ?? 0.0
-        }
     }
 
     func getMonth(month: Date) -> String {
@@ -1898,19 +1752,18 @@ struct SingleYearBarGraphView: View {
         return dateFormatter.string(from: month)
     }
 
-    init(year: Date, date: Binding<Date?>?, mode: Binding<Bool>, amount: Binding<Double>, dataController: DataController, income: Bool) {
+    init(year: Date, date: Binding<Date?>?, mode: Binding<Bool>, snapshot: BucketSnapshot) {
         _selectedDate = date ?? Binding.constant(nil)
         _categoryFilterMode = mode
-        _selectedDateAmount = amount
 
-        let loaded = dataController.getInsights(type: 3, date: year, income: income)
+        let loaded = snapshot
 
         monthsOfYear = loaded.dates
-        monthDictionary = loaded.dateDictionary
+        monthDictionary = loaded.totals
         self.max = loaded.maximum
         yearTotal = loaded.amount
         yearAverage = loaded.average
-        actualMonths = loaded.numberOfDays
+        actualMonths = loaded.nonzeroCount
     }
 }
 

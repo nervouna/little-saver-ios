@@ -13,9 +13,10 @@ import Popovers
 import SwiftUI
 
 struct LogView: View {
+    @AnalyticsInput private var environment
     @Environment(\.ledgerCalendarRevision) private var calendarRevision
 
-    @FetchRequest(sortDescriptors: []) private var transactions: FetchedResults<Transaction>
+    @Environment(\.ledgerMetadata) private var metadata
 
     @EnvironmentObject var dataController: DataController
     @Environment(\.managedObjectContext) var moc
@@ -48,18 +49,18 @@ struct LogView: View {
     @State var categoryFilter: Category?
     @State private var dateSelection = CalendarPeriodSelection()
     var dateFilter: Date {
-        get { dateSelection.start(period: .day) }
-        nonmutating set { dateSelection.select(newValue, period: .day) }
+        get { dateSelection.start(period: .day, now: environment.now, calendar: environment.calendar) }
+        nonmutating set { dateSelection.select(newValue, period: .day, now: environment.now, calendar: environment.calendar) }
     }
     @State private var weekSelection = CalendarPeriodSelection()
     var weekFilter: Date {
-        get { weekSelection.start(period: .week, firstWeekday: UserDefaults(suiteName: AppIdentifiers.appGroup)?.integer(forKey: "firstWeekday") ?? 1) }
-        nonmutating set { weekSelection.select(newValue, period: .week, firstWeekday: UserDefaults(suiteName: AppIdentifiers.appGroup)?.integer(forKey: "firstWeekday") ?? 1) }
+        get { weekSelection.start(period: .week, now: environment.now, calendar: environment.calendar, firstWeekday: environment.calendar.firstWeekday) }
+        nonmutating set { weekSelection.select(newValue, period: .week, now: environment.now, calendar: environment.calendar, firstWeekday: environment.calendar.firstWeekday) }
     }
     @State private var monthSelection = CalendarPeriodSelection()
     var monthFilter: Date {
-        get { monthSelection.start(period: .month) }
-        nonmutating set { monthSelection.select(newValue, period: .month) }
+        get { monthSelection.start(period: .month, now: environment.now, calendar: environment.calendar) }
+        nonmutating set { monthSelection.select(newValue, period: .month, now: environment.now, calendar: environment.calendar) }
     }
     @State var income = false
 
@@ -79,7 +80,8 @@ struct LogView: View {
 
     var body: some View {
         let _ = calendarRevision
-        if transactions.isEmpty {
+        if metadata == nil { ProgressView() }
+        else if metadata?.hasTransactions != true {
             VStack(spacing: 5) {
                 Image("dropbox")
                     .resizable()
@@ -381,7 +383,24 @@ struct NumberView: AnimatableModifier {
 }
 
 struct LogInsightsView: View {
-    @EnvironmentObject var dataController: DataController
+    @EnvironmentObject private var controller: DataController
+    @AnalyticsInput private var environment
+    @AppStorage("logInsightsTimeFrame", store: UserDefaults(suiteName: AppIdentifiers.appGroup)) private var timeframe = 2
+    @Binding var navBarText: String
+    let showCents: Bool
+    let currencySymbol: String
+    var body: some View {
+        AnalyticsReadView(key: LogRequest(timeframe: timeframe, environment: environment), load: controller.logSnapshot) { snapshot in
+            if snapshot.totals.net.isFinite && snapshot.netPoints.allSatisfy({ $0.amount.isFinite }) {
+                LogInsightsContent(snapshot: snapshot, readDate: environment.now, navBarText: $navBarText, showCents: showCents, currencySymbol: currencySymbol)
+            } else { Text("Amount unavailable").padding() }
+        }
+    }
+}
+
+struct LogInsightsContent: View {
+    let snapshot: LogSnapshot
+    let readDate: Date
     @Environment(\.dynamicTypeSize) var dynamicTypeSize
 
     @Binding var navBarText: String
@@ -398,7 +417,7 @@ struct LogInsightsView: View {
     @AppStorage("logViewLineGraph", store: UserDefaults(suiteName: AppIdentifiers.appGroup)) var lineGraph: Bool = false
 
     var netTotal: (value: Double, positive: Bool) {
-        dataController.getLogViewTotalNet(type: timeframe)
+        (abs(snapshot.totals.net), snapshot.totals.net >= 0)
     }
 
     var range: Int {
@@ -408,44 +427,44 @@ struct LogInsightsView: View {
         calendar.minimumDaysInFirstWeek = 4
 
         if timeframe == 3 {
-            let dateComponents = calendar.dateComponents([.month, .year], from: Date.now)
+            let dateComponents = calendar.dateComponents([.month, .year], from: readDate)
 
-            let thisMonth = calendar.date(from: dateComponents) ?? Date.now
-            let numberOfDays = calendar.dateComponents([.day], from: thisMonth, to: Date.now)
+            let thisMonth = calendar.date(from: dateComponents) ?? readDate
+            let numberOfDays = calendar.dateComponents([.day], from: thisMonth, to: readDate)
 
             return (numberOfDays.day ?? 0) + 1
         } else if timeframe == 4 {
-            let dateComponents = calendar.dateComponents([.year], from: Date.now)
+            let dateComponents = calendar.dateComponents([.year], from: readDate)
 
-            let thisYear = calendar.date(from: dateComponents) ?? Date.now
+            let thisYear = calendar.date(from: dateComponents) ?? readDate
 
-            let numberOfMonths = calendar.dateComponents([.month], from: thisYear, to: Date.now)
+            let numberOfMonths = calendar.dateComponents([.month], from: thisYear, to: readDate)
 
             return (numberOfMonths.month ?? 0) + 1
         } else {
-            let dateComponents = calendar.dateComponents([.weekOfYear, .yearForWeekOfYear], from: Date.now)
-            let thisWeek = calendar.date(from: dateComponents) ?? Date.now
-            let numberOfDays = calendar.dateComponents([.day], from: thisWeek, to: Date.now)
+            let dateComponents = calendar.dateComponents([.weekOfYear, .yearForWeekOfYear], from: readDate)
+            let thisWeek = calendar.date(from: dateComponents) ?? readDate
+            let numberOfDays = calendar.dateComponents([.day], from: thisWeek, to: readDate)
 
             return (numberOfDays.day ?? 0) + 1
         }
     }
 
     var totalSpent: Double {
-        return dataController.getLogViewTotalSpent(type: timeframe)
+        return snapshot.totals.spent
     }
 
     var totalIncome: Double {
-        return dataController.getLogViewTotalIncome(type: timeframe)
+        return snapshot.totals.income
     }
 
     var lineGraphData: [LineGraphDataPoint] {
         if insightsType == 1 {
-            return dataController.getLineGraphDataNet(type: timeframe)
+            return snapshot.netPoints
         } else if insightsType == 2 {
-            return dataController.getLineGraphData(income: true, type: timeframe)
+            return snapshot.incomePoints
         } else {
-            return dataController.getLineGraphData(income: false, type: timeframe)
+            return snapshot.expensePoints
         }
     }
 
@@ -680,13 +699,13 @@ struct SearchView: View {
 }
 
 struct FilteredSearchView: View {
-    @FetchRequest<Transaction> private var transactions: FetchedResults<Transaction>
-
-    var searchQuery: String
-
+    @EnvironmentObject private var controller: DataController
+    @AnalyticsInput private var environment
+    let searchQuery: String
     var body: some View {
+        AnalyticsReadView(key: LedgerListRequest(query: .search(searchQuery), environment: environment), load: controller.ledgerListSnapshot) { snapshot in
         VStack {
-            if searchQuery != "" && transactions.count == 0 {
+            if searchQuery != "" && snapshot.rows.count == 0 {
                 VStack(spacing: 2) {
                     Text("📭️")
                         .font(.system(size: 50))
@@ -707,31 +726,10 @@ struct FilteredSearchView: View {
                 .padding(.top, 80)
             }
 
-            ListView(transactions: Array(transactions))
+            ListView(snapshot: snapshot)
         }
         .frame(maxHeight: .infinity)
-    }
-
-    init(searchQuery: String) {
-        let beginPredicate = NSPredicate(format: "%K BEGINSWITH[cd] %@", #keyPath(Transaction.note), searchQuery)
-        let containPredicate = NSPredicate(format: "%K CONTAINS[cd] %@", #keyPath(Transaction.note), searchQuery)
-        let containPredicate1 = NSPredicate(format: "%K CONTAINS[cd] %@", #keyPath(Transaction.category.name), searchQuery)
-
-        let compound: NSCompoundPredicate
-
-        // allow searching by amount too
-        if let amount = Double(searchQuery) {
-            let amountPredicate = NSPredicate(format: "amount == %@", NSNumber(value: amount))
-            compound = NSCompoundPredicate(orPredicateWithSubpredicates: [beginPredicate, containPredicate, containPredicate1, amountPredicate])
-        } else {
-            compound = NSCompoundPredicate(orPredicateWithSubpredicates: [beginPredicate, containPredicate, containPredicate1])
         }
-
-        _transactions = FetchRequest<Transaction>(sortDescriptors: [
-            SortDescriptor(\.date, order: .reverse)
-        ], predicate: compound)
-
-        self.searchQuery = searchQuery
     }
 }
 
@@ -897,11 +895,6 @@ struct TransactionsList: View {
 
     @EnvironmentObject var dataController: DataController
 
-    @FetchRequest<Transaction>(sortDescriptors: [
-        SortDescriptor(\.date, order: .reverse),
-        SortDescriptor(\.note)
-    ], predicate: NSPredicate(format: "%K <= %@", #keyPath(Transaction.date), Date.now as CVarArg)) private var transactions: FetchedResults<Transaction>
-
     var body: some View {
         let _ = calendarRevision
         VStack {
@@ -912,7 +905,7 @@ struct TransactionsList: View {
 
             switch filter {
             case .all:
-                ListView(transactions: Array(transactions))
+                SnapshotTransactionsView(query: .all)
             case .category:
                 FilteredCategoryView(category: category)
             case .day:
@@ -920,7 +913,7 @@ struct TransactionsList: View {
             case .week:
                 FilteredInsightsView(startDate: week, type: 1)
             case .month:
-                FilteredInsightsView(startDate: month, type: 2)
+                FilteredInsightsView(startDate: month, type: 2, naturalMonth: true)
             case .recurring:
                 FilteredRecurringView()
             case .type:
@@ -933,53 +926,35 @@ struct TransactionsList: View {
 }
 
 struct ListView: View {
-    @Environment(\.ledgerCalendarRevision) private var calendarRevision
-    let transactions: [Transaction]
-
-    @AppStorage("showCents", store: UserDefaults(suiteName: AppIdentifiers.appGroup)) var showCents: Bool = true
-
-    @AppStorage("currency", store: UserDefaults(suiteName: AppIdentifiers.appGroup)) var currency: String = (Locale.current.currencyCode ?? "USD")
-    var currencySymbol: String {
-        return (Locale.current.localizedCurrencySymbol(forCurrencyCode: currency) ?? currency)
-    }
-    
-    @AppStorage("showExpenseOrIncomeSign", store: UserDefaults(suiteName: AppIdentifiers.appGroup))
-    var showExpenseOrIncomeSign: Bool = true
-
-    @AppStorage("swapTimeLabel", store: UserDefaults(suiteName: AppIdentifiers.appGroup)) var swapTimeLabel: Bool = false
-
+    @Environment(\.managedObjectContext) private var context
+    let snapshot: LedgerListSnapshot
+    var dayHeaders = true
+    @AppStorage("showCents", store: UserDefaults(suiteName: AppIdentifiers.appGroup)) var showCents = true
+    @AppStorage("currency", store: UserDefaults(suiteName: AppIdentifiers.appGroup)) var currency = Locale.current.currencyCode ?? "USD"
+    @AppStorage("showExpenseOrIncomeSign", store: UserDefaults(suiteName: AppIdentifiers.appGroup)) var showExpenseOrIncomeSign = true
+    @AppStorage("swapTimeLabel", store: UserDefaults(suiteName: AppIdentifiers.appGroup)) var swapTimeLabel = false
     @EnvironmentObject var toastPresenter: OverallToastPresenter
+    var currencySymbol: String { Locale.current.localizedCurrencySymbol(forCurrencyCode: currency) ?? currency }
 
     var body: some View {
-        let _ = calendarRevision
         LazyVStack(spacing: 0) {
-            ForEach(LedgerCalendar.groupedTransactions(transactions)) { day in
-                let filtered = filterOutDupes(day: day.transactions)
+            ForEach(snapshot.days) { day in
+                let transactions: [Transaction] = day.rows.compactMap { presentationObject($0.id, in: context) }
                 let dateText = day.date.map { dateConverter(date: $0).uppercased() } ?? String(localized: "Date unavailable")
-
+                let amountText = formattedLedgerNet(day.net, currency: currency, showCents: showCents)
                 VStack(spacing: 0) {
-                    VStack(spacing: 4) {
-                        HStack {
-                            Text(dateText)
-                            Spacer()
-
-                            Text(filtered.string)
-                                .layoutPriority(1)
-                        }
-                        .font(.system(.callout, design: .rounded).weight(.semibold))
-                        .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
-//                        .font(.system(size: 14, weight: .semibold, design: .rounded))
-                        .foregroundColor(Color.SubtitleText)
-                        .accessibilityElement(children: .ignore)
-                        .accessibilityLabel(String(localized: "\(filtered.string) spent \(day.date.map { dateConverterAccessibilityLabel(date: $0) } ?? String(localized: "Date unavailable"))"))
-
-                        Line()
-                            .stroke(Color.Outline, style: StrokeStyle(lineWidth: 1.3, lineCap: .round))
+                    if dayHeaders {
+                        VStack(spacing: 4) {
+                            HStack { Text(dateText); Spacer(); Text(amountText).layoutPriority(1) }
+                                .font(.system(.callout, design: .rounded).weight(.semibold))
+                                .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
+                                .foregroundColor(Color.SubtitleText)
+                                .accessibilityElement(children: .ignore)
+                                .accessibilityLabel(String(localized: "\(amountText) spent \(day.date.map { dateConverterAccessibilityLabel(date: $0) } ?? String(localized: "Date unavailable"))"))
+                            Line().stroke(Color.Outline, style: StrokeStyle(lineWidth: 1.3, lineCap: .round))
+                        }.padding(.horizontal, 10).padding(.top, 10)
                     }
-                    .padding(.horizontal, 10)
-                    .padding(.top, 10)
-
-                    ForEach(filtered.transactions, id: \.objectID) { transaction in
+                    ForEach(transactions, id: \.objectID) { transaction in
                         SingleTransactionView(transaction: transaction, showCents: showCents, currencySymbol: currencySymbol, currency: currency, swapTimeLabel: swapTimeLabel, future: false, showExpenseOrIncomeSign: showExpenseOrIncomeSign)
                     }
                 }
@@ -987,179 +962,53 @@ struct ListView: View {
                 .contextMenu {
                     if #available(iOS 16.0, *) {
                         Button {
-                            guard let image = ImageRenderer(content: SingleDayPhotoView(amountText: filtered.string, dateText: dateText, transactions: filtered.transactions, showCents: showCents, currencySymbol: currencySymbol, currency: currency, swapTimeLabel: swapTimeLabel, future: false)).uiImage else {
-                                return
-                            }
-
+                            guard let image = ImageRenderer(content: SingleDayPhotoView(amountText: amountText, dateText: dateText, transactions: transactions, showCents: showCents, currencySymbol: currencySymbol, currency: currency, swapTimeLabel: swapTimeLabel, future: false)).uiImage else { return }
                             UIImageWriteToSavedPhotosAlbum(image, nil, nil, nil)
-
-                            self.toastPresenter.showToast.toggle()
-                        } label: {
-                            Label("Save as Photo", systemImage: "square.and.arrow.up")
-                        }
+                            toastPresenter.showToast.toggle()
+                        } label: { Label("Save as Photo", systemImage: "square.and.arrow.up") }
                     }
                 }
-                .padding(.bottom, 18)
+                .padding(.bottom, dayHeaders ? 18 : 0)
             }
         }
-    }
-
-    func filterOutDupes(day: [Transaction]) -> (transactions: [Transaction], string: String) {
-        var seen = [Transaction]()
-        let filtered = day.filter { entity -> Bool in
-            if seen.contains(where: { $0.objectID == entity.objectID || ($0.id != nil && $0.id == entity.id) }) {
-                return false
-            } else {
-                seen.append(entity)
-                return true
-            }
-        }
-
-        let numberFormatter = NumberFormatter()
-        numberFormatter.numberStyle = .currency
-        numberFormatter.currencyCode = currency
-
-        if showCents {
-            numberFormatter.maximumFractionDigits = 2
-        } else {
-            numberFormatter.maximumFractionDigits = 0
-        }
-
-        let total = dayTotal(dayTransaction: filtered)
-        guard total.isFinite else { return (filtered, String(localized: "Amount unavailable")) }
-
-        let text: String
-
-        if total >= 0 {
-            text = "+" + (numberFormatter.string(from: NSNumber(value: total)) ?? "$0")
-        } else {
-            text = (numberFormatter.string(from: NSNumber(value: total)) ?? "$0")
-        }
-
-        return (filtered, text)
     }
 }
 
 struct FutureListView: View {
-    @EnvironmentObject var dataController: DataController
-
-    @FetchRequest private var fetchedResults: FetchedResults<Transaction>
-    var filterMode: Bool
-    var limitedMode: Bool
-
-    var transactions: [Transaction] {
-        if limitedMode {
-            let calendar = Calendar.current
-
-            let startOfToday = calendar.startOfDay(for: Date.now)
-            let twoWeeksFromStartOfToday = calendar.date(byAdding: .weekOfYear, value: 2, to: startOfToday)!
-
-            let holding = fetchedResults.filter {
-                let date = $0.wrappedDate > Date.now ? $0.wrappedDate : $0.nextTransactionDate
-
-                return date < twoWeeksFromStartOfToday
-            }
-
-            return holding.sorted { itemA, itemB in
-                let date1 = itemA.wrappedDate > Date.now ? itemA.wrappedDate : itemA.nextTransactionDate
-                let date2 = itemB.wrappedDate > Date.now ? itemB.wrappedDate : itemB.nextTransactionDate
-
-                return date1 > date2
-            }
-
-        } else {
-            return fetchedResults.sorted { itemA, itemB in
-                let date1 = itemA.wrappedDate > Date.now ? itemA.wrappedDate : itemA.nextTransactionDate
-                let date2 = itemB.wrappedDate > Date.now ? itemB.wrappedDate : itemB.nextTransactionDate
-
-                return date1 > date2
-            }
-        }
-    }
-
-    @AppStorage("showCents", store: UserDefaults(suiteName: AppIdentifiers.appGroup)) var showCents: Bool = true
-
-    @AppStorage("currency", store: UserDefaults(suiteName: AppIdentifiers.appGroup)) var currency: String = (Locale.current.currencyCode ?? "USD")
-    var currencySymbol: String {
-        return (Locale.current.localizedCurrencySymbol(forCurrencyCode: currency) ?? currency)
-    }
-    
-    @AppStorage("showExpenseOrIncomeSign", store: UserDefaults(suiteName: AppIdentifiers.appGroup))
-    var showExpenseOrIncomeSign: Bool = true
-
-    @AppStorage("swapTimeLabel", store: UserDefaults(suiteName: AppIdentifiers.appGroup)) var swapTimeLabel: Bool = false
-
-    var totalString: String {
-        let numberFormatter = NumberFormatter()
-        numberFormatter.numberStyle = .currency
-        numberFormatter.currencyCode = currency
-
-        if showCents {
-            numberFormatter.maximumFractionDigits = 2
-        } else {
-            numberFormatter.maximumFractionDigits = 0
-        }
-
-        var total = 0.0
-
-        transactions.forEach { transaction in
-            if transaction.income {
-                total += transaction.amount
-            } else {
-                total -= transaction.amount
-            }
-        }
-
-        if total >= 0 {
-            return "+" + (numberFormatter.string(from: NSNumber(value: total)) ?? "$0")
-        } else {
-            return numberFormatter.string(from: NSNumber(value: total)) ?? "$0"
-        }
-    }
+    @EnvironmentObject private var controller: DataController
+    @Environment(\.managedObjectContext) private var context
+    @AnalyticsInput private var environment
+    let filterMode: Bool
+    let limitedMode: Bool
+    @AppStorage("showCents", store: UserDefaults(suiteName: AppIdentifiers.appGroup)) var showCents = true
+    @AppStorage("currency", store: UserDefaults(suiteName: AppIdentifiers.appGroup)) var currency = Locale.current.currencyCode ?? "USD"
+    @AppStorage("showExpenseOrIncomeSign", store: UserDefaults(suiteName: AppIdentifiers.appGroup)) var showExpenseOrIncomeSign = true
+    @AppStorage("swapTimeLabel", store: UserDefaults(suiteName: AppIdentifiers.appGroup)) var swapTimeLabel = false
+    var currencySymbol: String { Locale.current.localizedCurrencySymbol(forCurrencyCode: currency) ?? currency }
 
     var body: some View {
-        if !transactions.isEmpty {
-            VStack(spacing: 0) {
-                VStack(spacing: 4) {
-                    HStack {
-                        Text("UPCOMING")
-                        Spacer()
-
-                        Text(totalString)
+        AnalyticsReadView(key: LedgerListRequest(query: .upcoming(limited: limitedMode), environment: environment), load: controller.ledgerListSnapshot) { snapshot in
+            if !snapshot.rows.isEmpty {
+                VStack(spacing: 0) {
+                    VStack(spacing: 4) {
+                        HStack { Text("UPCOMING"); Spacer(); Text(formattedLedgerNet(snapshot.net, currency: currency, showCents: showCents)) }
+                            .font(.system(.callout, design: .rounded).weight(.semibold))
+                            .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
+                            .foregroundColor(Color.SubtitleText)
+                            .accessibilityElement(children: .ignore)
+                        Line().stroke(Color.Outline, style: StrokeStyle(lineWidth: 1.3, lineCap: .round))
+                    }.padding(.horizontal, 10)
+                    ForEach(snapshot.rows) { row in
+                        if let transaction: Transaction = presentationObject(row.id, in: context) {
+                            SingleTransactionView(transaction: transaction, showCents: showCents, currencySymbol: currencySymbol, currency: currency, swapTimeLabel: swapTimeLabel, future: true, showExpenseOrIncomeSign: showExpenseOrIncomeSign)
+                        }
                     }
-                    .font(.system(.callout, design: .rounded).weight(.semibold))
-                    .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
-//                    .font(.system(size: 14, weight: .semibold, design: .rounded))
-                    .foregroundColor(Color.SubtitleText)
-                    .accessibilityElement(children: .ignore)
-
-                    Line()
-                        .stroke(Color.Outline, style: StrokeStyle(lineWidth: 1.3, lineCap: .round))
-                }
-                .padding(.horizontal, 10)
-
-                ForEach(transactions) { transaction in
-                    SingleTransactionView(transaction: transaction, showCents: showCents, currencySymbol: currencySymbol, currency: currency, swapTimeLabel: swapTimeLabel, future: true, showExpenseOrIncomeSign: showExpenseOrIncomeSign)
-                }
-            }
-            .padding(.bottom, 18)
-        } else if transactions.isEmpty && filterMode {
-            NoResultsView(fullscreen: true)
-        } else {
-            EmptyView()
+                }.padding(.bottom, 18)
+            } else if filterMode { NoResultsView(fullscreen: true) }
         }
     }
-
     init(dataController _: DataController, filterMode: Bool, limitedMode: Bool) {
-        let recurringPredicate = NSPredicate(format: "%K > %i", #keyPath(Transaction.recurringType), 0)
-        let futurePredicate = NSPredicate(format: "%K > %@", #keyPath(Transaction.date), Date.now as CVarArg)
-
-        let andPredicate = NSCompoundPredicate(type: .or, subpredicates: [recurringPredicate, futurePredicate])
-
-        _fetchedResults = FetchRequest<Transaction>(sortDescriptors: [], predicate: andPredicate)
-
-        self.filterMode = filterMode
-        self.limitedMode = limitedMode
+        self.filterMode = filterMode; self.limitedMode = limitedMode
     }
 }
 
@@ -1585,138 +1434,25 @@ struct BackgroundBlurView: UIViewRepresentable {
 }
 
 struct FilteredRecurringView: View {
-    @FetchRequest<Transaction> private var transactions: FetchedResults<Transaction>
-
-    var body: some View {
-        VStack(spacing: 30) {
-            if transactions.count == 0 {
-                NoResultsView(fullscreen: true)
-            }
-
-            ListView(transactions: Array(transactions))
-        }
-        .frame(maxHeight: .infinity)
-    }
-
-    init() {
-        let recurringPredicate = NSPredicate(format: "%K = %d", #keyPath(Transaction.onceRecurring), true)
-        let datePredicate = NSPredicate(format: "%K <= %@", #keyPath(Transaction.date), Date.now as CVarArg)
-
-        let andPredicate = NSCompoundPredicate(type: .and, subpredicates: [recurringPredicate, datePredicate])
-
-        _transactions = FetchRequest<Transaction>(sortDescriptors: [
-            SortDescriptor(\.date, order: .reverse),
-            SortDescriptor(\.note, order: .reverse)
-        ], predicate: andPredicate)
-    }
+    var body: some View { SnapshotTransactionsView(query: .recurring, fullscreen: true) }
 }
 
 struct FilteredTypeView: View {
-    @FetchRequest<Transaction> private var transactions: FetchedResults<Transaction>
-
-    var income: Bool
-
-    var body: some View {
-        VStack(spacing: 30) {
-            if transactions.count == 0 {
-                NoResultsView(fullscreen: true)
-            }
-
-            ListView(transactions: Array(transactions))
-        }
-        .frame(maxHeight: .infinity)
-    }
-
-    init(income: Bool) {
-        let incomePredicate = NSPredicate(format: "income = %d", income)
-        let datePredicate = NSPredicate(format: "%K <= %@", #keyPath(Transaction.date), Date.now as CVarArg)
-
-        let andPredicate = NSCompoundPredicate(type: .and, subpredicates: [incomePredicate, datePredicate])
-
-        _transactions = FetchRequest<Transaction>(sortDescriptors: [
-            SortDescriptor(\.date, order: .reverse)
-        ], predicate: andPredicate)
-
-        self.income = income
-    }
+    let income: Bool
+    var body: some View { SnapshotTransactionsView(query: .income(income), fullscreen: true) }
 }
 
 struct FilteredCategoryView: View {
-    @FetchRequest<Transaction> private var transactions: FetchedResults<Transaction>
-
-    var category: Category?
-
-    var body: some View {
-        VStack(spacing: 30) {
-            if transactions.count == 0 || category == nil {
-                NoResultsView(fullscreen: true)
-            } else {
-                ListView(transactions: Array(transactions))
-            }
-        }
-        .frame(maxHeight: .infinity)
-    }
-
-    init(category: Category?) {
-        if let unwrappedCategory = category {
-            let categoryPredicate = NSPredicate(format: "%K == %@", #keyPath(Transaction.category), unwrappedCategory)
-            let datePredicate = NSPredicate(format: "%K <= %@", #keyPath(Transaction.date), Date.now as CVarArg)
-
-            let andPredicate = NSCompoundPredicate(type: .and, subpredicates: [categoryPredicate, datePredicate])
-
-            _transactions = FetchRequest<Transaction>(sortDescriptors: [
-                SortDescriptor(\.date, order: .reverse)
-            ], predicate: andPredicate)
-        } else {
-            _transactions = FetchRequest<Transaction>(sortDescriptors: [
-                SortDescriptor(\.date, order: .reverse)
-            ])
-        }
-
-        self.category = category
-    }
+    let category: Category?
+    var body: some View { SnapshotTransactionsView(query: .category(category?.objectID.uriRepresentation()), fullscreen: true) }
 }
 
 struct FilteredDateView: View {
-    @FetchRequest private var transactions: FetchedResults<Transaction>
-
-    var date: Date
-
-    @AppStorage("currency", store: UserDefaults(suiteName: AppIdentifiers.appGroup)) var currency: String = (Locale.current.currencyCode ?? "USD")
-    var currencySymbol: String {
-        return (Locale.current.localizedCurrencySymbol(forCurrencyCode: currency) ?? currency)
-    }
-
-    @AppStorage("swapTimeLabel", store: UserDefaults(suiteName: AppIdentifiers.appGroup)) var swapTimeLabel: Bool = false
-
-    @AppStorage("showCents", store: UserDefaults(suiteName: AppIdentifiers.appGroup)) var showCents: Bool = true
-    
-    @AppStorage("showExpenseOrIncomeSign", store: UserDefaults(suiteName: AppIdentifiers.appGroup))
-    var showExpenseOrIncomeSign: Bool = true
-
+    @AnalyticsInput private var environment
+    let date: Date
     var body: some View {
-        VStack(spacing: 0) {
-            if transactions.count == 0 {
-                NoResultsView(fullscreen: true)
-            }
-            ForEach(transactions) { transaction in
-                SingleTransactionView(transaction: transaction, showCents: showCents, currencySymbol: currencySymbol, currency: currency, swapTimeLabel: swapTimeLabel, future: false, showExpenseOrIncomeSign: showExpenseOrIncomeSign)
-            }
-        }
-        .frame(maxHeight: .infinity)
-    }
-
-    init(date: Date) {
-        let datePredicate = LedgerCalendar.dayPredicate(date)
-        let futurePredicate = NSPredicate(format: "%K <= %@", #keyPath(Transaction.date), Date.now as CVarArg)
-
-        let andPredicate = NSCompoundPredicate(type: .and, subpredicates: [futurePredicate, datePredicate])
-
-        _transactions = FetchRequest<Transaction>(sortDescriptors: [
-            SortDescriptor(\.date, order: .reverse)
-        ], predicate: andPredicate)
-
-        self.date = date
+        let interval = LedgerCalendar.dayInterval(containing: date, calendar: environment.calendar)
+        SnapshotTransactionsView(query: .interval(start: interval?.start ?? date, end: interval?.end ?? date, income: nil, category: nil), fullscreen: true, dayHeaders: false)
     }
 }
 
@@ -1773,9 +1509,13 @@ struct NoResultsView: View {
 
 struct CategoryStepperView: View {
     @Binding var categoryFilter: Category?
-    @EnvironmentObject var dataController: DataController
+    @Environment(\.ledgerMetadata) private var metadata
+    @Environment(\.managedObjectContext) private var context
     @State var income = false
-    @State var categories = [Category]()
+    private var categories: [Category] { categoryObjects(income: income) }
+    private func categoryObjects(income: Bool) -> [Category] {
+        (metadata?.categories ?? []).filter { $0.income == income }.compactMap { presentationObject($0.id, in: context) }
+    }
 
     var body: some View {
         HStack(spacing: 8) {
@@ -1792,15 +1532,13 @@ struct CategoryStepperView: View {
                     .background(Color.IncomeGreen.opacity(0.23), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
                     .contentShape(Rectangle())
                     .onTapGesture {
-                        let fetchRequest = dataController.fetchRequestForCategories(income: false)
-                        let holding = dataController.results(for: fetchRequest)
+                        let holding = categoryObjects(income: false)
 
                         if holding.isEmpty {
                             return
                         } else {
                             income = false
-                            categories = holding
-                            categoryFilter = categories[0]
+                            categoryFilter = holding.first
                         }
                     }
             } else {
@@ -1816,15 +1554,13 @@ struct CategoryStepperView: View {
                     .background(Color.AlertRed.opacity(0.23), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
                     .contentShape(Rectangle())
                     .onTapGesture {
-                        let fetchRequest = dataController.fetchRequestForCategories(income: true)
-                        let holding = dataController.results(for: fetchRequest)
+                        let holding = categoryObjects(income: true)
 
                         if holding.isEmpty {
                             return
                         } else {
                             income = true
-                            categories = holding
-                            categoryFilter = categories[0]
+                            categoryFilter = holding.first
                         }
                     }
             }
@@ -1874,16 +1610,13 @@ struct CategoryStepperView: View {
         .frame(maxWidth: .infinity)
         .frame(height: 30)
         .onAppear {
-            let fetchRequest = dataController.fetchRequestForCategories(income: income)
-            categories = dataController.results(for: fetchRequest)
-
             if categories.isEmpty {
                 categoryFilter = nil
             } else {
                 categoryFilter = categories[0]
             }
         }
-        .onChange(of: income) { _ in
+        .onChange(of: categories.map(\.objectID)) { _ in
             if categories.isEmpty {
                 categoryFilter = nil
             } else {
@@ -1964,20 +1697,13 @@ struct IncomeFilterToggleView: View {
 }
 
 struct DateStepperView: View {
-    @FetchRequest(sortDescriptors: [
-        SortDescriptor(\.date)
-    ]) private var transactions: FetchedResults<Transaction>
+    @Environment(\.ledgerMetadata) private var metadata
+    @AnalyticsInput private var environment
 
     @Binding var date: Date
-    var endDate: Date {
-        if transactions.isEmpty {
-            return Date.now
-        } else {
-            return transactions.compactMap(\.date).first(where: LedgerCalendar.isValid).map { Calendar.current.startOfDay(for: $0) } ?? Date.now
-        }
-    }
+    var endDate: Date { environment.calendar.startOfDay(for: metadata?.earliestDate ?? environment.now) }
 
-    let currentDate = Calendar.current.date(bySettingHour: 0, minute: 0, second: 0, of: Date.now) ?? Date.now
+    var currentDate: Date { environment.calendar.startOfDay(for: environment.now) }
 
     var dateString: String {
         let dateFormatter = DateFormatter()
@@ -1991,7 +1717,7 @@ struct DateStepperView: View {
         HStack {
             StepperButtonView(left: true, disabled: date <= endDate) {
                 if date > endDate {
-                    date = Calendar.current.date(byAdding: .day, value: -1, to: date) ?? Date.now
+                    date = environment.calendar.date(byAdding: .day, value: -1, to: date) ?? environment.now
                 }
             }
             .accessibilityLabel("previous day")
@@ -2008,36 +1734,28 @@ struct DateStepperView: View {
 
             StepperButtonView(left: false, disabled: date >= currentDate) {
                 if date < currentDate {
-                    date = Calendar.current.date(byAdding: .day, value: 1, to: date) ?? Date.now
+                    date = environment.calendar.date(byAdding: .day, value: 1, to: date) ?? environment.now
                 }
             }
             .accessibilityLabel("next day")
         }
         .frame(maxWidth: .infinity)
-        .onAppear {
-            date = currentDate
-        }
     }
 }
 
 struct WeekStepperView: View {
-    @FetchRequest(sortDescriptors: [
-        SortDescriptor(\.date)
-    ]) private var transactions: FetchedResults<Transaction>
-
-    @FetchRequest(sortDescriptors: [
-        SortDescriptor(\.date, order: .reverse)
-    ], predicate: NSPredicate(format: "%K < %@", #keyPath(Transaction.date), Date.now as CVarArg)) private var transactionsReversed: FetchedResults<Transaction>
+    @Environment(\.ledgerMetadata) private var metadata
+    @AnalyticsInput private var environment
 
     @Binding var showingDate: Date
     var endDate: Date {
-        let earliest = transactions.compactMap(\.date).first(where: LedgerCalendar.isValid) ?? Date.now
-        return CalendarPeriodSelection(start: earliest).start(period: .week, firstWeekday: UserDefaults(suiteName: AppIdentifiers.appGroup)?.integer(forKey: "firstWeekday") ?? 1)
+        let earliest = metadata?.earliestDate ?? environment.now
+        return CalendarPeriodSelection(start: earliest, calendar: environment.calendar).start(period: .week, now: environment.now, calendar: environment.calendar, firstWeekday: environment.calendar.firstWeekday)
     }
 
     var startDate: Date {
-        let latest = transactionsReversed.compactMap(\.date).first(where: LedgerCalendar.isValid) ?? Date.now
-        return CalendarPeriodSelection(start: latest).start(period: .week, firstWeekday: UserDefaults(suiteName: AppIdentifiers.appGroup)?.integer(forKey: "firstWeekday") ?? 1)
+        let latest = metadata?.latestDate ?? environment.now
+        return CalendarPeriodSelection(start: latest, calendar: environment.calendar).start(period: .week, now: environment.now, calendar: environment.calendar, firstWeekday: environment.calendar.firstWeekday)
     }
 
     var dateString: String {
@@ -2046,7 +1764,7 @@ struct WeekStepperView: View {
         dateFormatter.setLocalizedDateFormatFromTemplate("dMMM")
 
         let endComponents = DateComponents(day: 7, second: -1)
-        let endWeekDate = Calendar.current.date(byAdding: endComponents, to: showingDate) ?? Date.now
+        let endWeekDate = environment.calendar.date(byAdding: endComponents, to: showingDate) ?? environment.now
 
         return dateFormatter.string(from: showingDate) + " - " + dateFormatter.string(from: endWeekDate)
     }
@@ -2057,7 +1775,7 @@ struct WeekStepperView: View {
         dateFormatter.setLocalizedDateFormatFromTemplate("dMMM")
 
         let endComponents = DateComponents(day: 7, second: -1)
-        let endWeekDate = Calendar.current.date(byAdding: endComponents, to: showingDate) ?? Date.now
+        let endWeekDate = environment.calendar.date(byAdding: endComponents, to: showingDate) ?? environment.now
 
         return String(localized: "Showing transactions from \(dateFormatter.string(from: showingDate)) to \(dateFormatter.string(from: endWeekDate))")
     }
@@ -2066,7 +1784,7 @@ struct WeekStepperView: View {
         HStack {
             StepperButtonView(left: true, disabled: showingDate == endDate) {
                 if showingDate > endDate {
-                    showingDate = Calendar.current.date(byAdding: .day, value: -7, to: showingDate) ?? Date.now
+                    showingDate = environment.calendar.date(byAdding: .day, value: -7, to: showingDate) ?? environment.now
                 }
             }
             .accessibilityLabel("previous week")
@@ -2081,36 +1799,28 @@ struct WeekStepperView: View {
 
             StepperButtonView(left: false, disabled: showingDate == startDate) {
                 if showingDate < startDate {
-                    showingDate = Calendar.current.date(byAdding: .day, value: 7, to: showingDate) ?? Date.now
+                    showingDate = environment.calendar.date(byAdding: .day, value: 7, to: showingDate) ?? environment.now
                 }
             }
             .accessibilityLabel("next week")
         }
         .frame(maxWidth: .infinity)
-        .onAppear {
-            showingDate = startDate
-        }
     }
 }
 
 struct MonthStepperView: View {
-    @FetchRequest(sortDescriptors: [
-        SortDescriptor(\.date)
-    ]) private var transactions: FetchedResults<Transaction>
-
-    @FetchRequest(sortDescriptors: [
-        SortDescriptor(\.date, order: .reverse)
-    ], predicate: NSPredicate(format: "%K < %@", #keyPath(Transaction.date), Date.now as CVarArg)) private var transactionsReversed: FetchedResults<Transaction>
+    @Environment(\.ledgerMetadata) private var metadata
+    @AnalyticsInput private var environment
 
     @Binding var showingDate: Date
     var endDate: Date {
-        let earliest = transactions.compactMap(\.date).first(where: LedgerCalendar.isValid) ?? Date.now
-        return CalendarPeriodSelection(start: earliest).start(period: .month)
+        let earliest = metadata?.earliestDate ?? environment.now
+        return CalendarPeriodSelection(start: earliest, calendar: environment.calendar).start(period: .month, now: environment.now, calendar: environment.calendar)
     }
 
     var startDate: Date {
-        let latest = transactionsReversed.compactMap(\.date).first(where: LedgerCalendar.isValid) ?? Date.now
-        return CalendarPeriodSelection(start: latest).start(period: .month)
+        let latest = metadata?.latestDate ?? environment.now
+        return CalendarPeriodSelection(start: latest, calendar: environment.calendar).start(period: .month, now: environment.now, calendar: environment.calendar)
     }
 
     var dateString: String {
@@ -2125,7 +1835,7 @@ struct MonthStepperView: View {
         HStack {
             StepperButtonView(left: true, disabled: showingDate == endDate) {
                 if showingDate > endDate {
-                    showingDate = Calendar.current.date(byAdding: .month, value: -1, to: showingDate) ?? Date.now
+                    showingDate = environment.calendar.date(byAdding: .month, value: -1, to: showingDate) ?? environment.now
                 }
             }
             .accessibilityLabel("previous month")
@@ -2140,15 +1850,12 @@ struct MonthStepperView: View {
 
             StepperButtonView(left: false, disabled: showingDate == startDate) {
                 if showingDate < startDate {
-                    showingDate = Calendar.current.date(byAdding: .month, value: 1, to: showingDate) ?? Date.now
+                    showingDate = environment.calendar.date(byAdding: .month, value: 1, to: showingDate) ?? environment.now
                 }
             }
             .accessibilityLabel("next month")
         }
         .frame(maxWidth: .infinity)
-        .onAppear {
-            showingDate = startDate
-        }
     }
 }
 

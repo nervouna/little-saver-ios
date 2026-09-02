@@ -10,7 +10,7 @@ import Foundation
 import SwiftUI
 
 struct PowerCategory: Hashable, Identifiable {
-    let id: UUID
+    let id: URL
     let category: Category
     let percent: Double
     let amount: Double

@@ -82,8 +82,13 @@ public enum ExtensionReadStatus: Equatable, Sendable {
 
 /// Every pass is chained, including its main-context merge and atomic token write.
 /// Actor isolation alone would not serialize across those suspension points.
+struct HistoryTokenWriteError: Error {
+    let underlying: Error
+    let mergedChanges: Bool
+}
+
 actor PersistentHistoryConsumer {
-    private var tail: Task<Void, Error>?
+    private var tail: Task<Bool, Error>?
 
     private struct Changes: Sendable {
         var inserted: [NSManagedObjectID] = []
@@ -91,8 +96,8 @@ actor PersistentHistoryConsumer {
         var deleted: [NSManagedObjectID] = []
     }
 
-    func consume(container: NSPersistentContainer, configuration: DataController.Configuration?) async throws {
-        guard let configuration, configuration.mode != .inMemory, let storeURL = configuration.storeURL else { return }
+    func consume(container: NSPersistentContainer, configuration: DataController.Configuration?, localWriterContextName: String) async throws -> Bool {
+        guard let configuration, configuration.mode != .inMemory, let storeURL = configuration.storeURL else { return false }
         let previous = tail
         let task = Task {
             _ = try? await previous?.value
@@ -120,7 +125,9 @@ actor PersistentHistoryConsumer {
                 let data = try transactions.last.map {
                     try NSKeyedArchiver.archivedData(withRootObject: $0.token, requiringSecureCoding: true)
                 }
-                let changes = transactions.map { transaction in
+                // Local commands and maintenance already merge and publish after commit.
+                // Still advance the history token over their transactions without reloading twice.
+                let changes = transactions.filter { $0.contextName != localWriterContextName }.map { transaction in
                     var result = Changes()
                     for change in transaction.changes ?? [] {
                         switch change.changeType {
@@ -143,10 +150,14 @@ actor PersistentHistoryConsumer {
                     ], into: [container.viewContext])
                 }
             }
-            if let data = batch.1 { try data.write(to: tokenURL, options: .atomic) }
+            let merged = batch.0.contains { !$0.inserted.isEmpty || !$0.updated.isEmpty || !$0.deleted.isEmpty }
+            do {
+                if let data = batch.1 { try data.write(to: tokenURL, options: .atomic) }
+            } catch { throw HistoryTokenWriteError(underlying: error, mergedChanges: merged) }
+            return merged
         }
         tail = task
-        try await task.value
+        return try await task.value
     }
 }
 
@@ -229,9 +240,7 @@ public extension DataController {
     }
 
     func budgetSnapshots(now: Date = .now, calendar: Calendar = .current) async throws -> [BudgetReadSnapshot] {
-        try await performBackgroundRead { context in
-            try context.fetch(self.fetchRequestForBudgets()).compactMap { try self.snapshot(budget: $0, context: context, now: now, calendar: calendar) }
-        }
+        try await budgetDashboardSnapshot(environment: AnalyticsEnvironment(stamp: AnalyticsStamp(now: now), calendar: calendar)).budgets.compactMap(\.read)
     }
 
     func budgetSnapshot(identifier: String, now: Date = .now, calendar: Calendar = .current) async throws -> BudgetReadSnapshot? {
@@ -254,7 +263,7 @@ public extension DataController {
 
     private func snapshot(budget: Budget, context: NSManagedObjectContext, now: Date, calendar: Calendar) throws -> BudgetReadSnapshot? {
         guard let window = budget.currentWindow(now: now, calendar: calendar) else { return nil }
-        let spent = try context.fetch(fetchRequestForBudgetTransactions(budget: budget, now: now, calendar: calendar)).reduce(0) { $0 + $1.amount }
+        let spent = try analyticalFetch(fetchRequestForBudgetTransactions(budget: budget, now: now, calendar: calendar), in: context).reduce(0) { $0 + $1.amount }
         guard spent.isFinite, budget.amount.isFinite else { return nil }
         return BudgetReadSnapshot(id: budget.id, identifier: budget.id?.uuidString ?? budget.objectID.uriRepresentation().absoluteString,
                                   name: budget.wrappedName, emoji: budget.wrappedEmoji, colour: budget.wrappedColour,

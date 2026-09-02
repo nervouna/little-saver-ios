@@ -143,6 +143,7 @@ extension DataController {
         await viewContext.perform {
             NSManagedObjectContext.mergeChanges(fromRemoteContextSave: committed.1, into: [viewContext])
         }
+        if committed.2 { await MainActor.run { self.refreshAnalytics() } }
         if committed.2, configuration?.reloadWidgetsAfterSave == true {
             await MainActor.run { self.reloadWidgets() }
         }

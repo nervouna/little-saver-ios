@@ -517,3 +517,4 @@
 "Amount unavailable" = "金額を表示できません";
 "Budget unavailable. Edit this budget to repair its settings." = "予算を表示できません。予算を編集して設定を修正してください。";
 "widget.budget.percentage.spent" = "%@使用済み";
+"Retry" = "再試行";
