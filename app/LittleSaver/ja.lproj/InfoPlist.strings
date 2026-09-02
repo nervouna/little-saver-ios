@@ -1,0 +1,5 @@
+"CFBundleDisplayName" = "小さな貯金箱";
+"NSFaceIDUsageDescription" = "Face IDを使って財務データのロックを解除します。";
+"NSPhotoLibraryAddUsageDescription" = "取引の画像を共有用に保存することを許可します。";
+"Search Entries" = "記録を検索";
+"Add Expense" = "支出を追加";

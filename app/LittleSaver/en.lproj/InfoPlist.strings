@@ -1,0 +1,5 @@
+"CFBundleDisplayName" = "LittleSaver";
+"NSFaceIDUsageDescription" = "Use Face ID to unlock your financial data.";
+"NSPhotoLibraryAddUsageDescription" = "Allow LittleSaver to save a transaction image for sharing.";
+"Search Entries" = "Search Entries";
+"Add Expense" = "Add Expense";

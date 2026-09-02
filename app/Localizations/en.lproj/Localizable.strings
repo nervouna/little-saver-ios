@@ -8,7 +8,7 @@
 
 // welcome sheet
 
-"app_name" = "小小存钱罐";
+"app_name" = "LittleSaver";
 "welcome_header_1" = "Track your finances";
 "welcome_subtitle_1" = "Add new entries in a simple, straightforward manner";
 "welcome_header_2" = "Analyse your expenditure";

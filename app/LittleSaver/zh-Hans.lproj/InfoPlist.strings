@@ -1,0 +1,5 @@
+"CFBundleDisplayName" = "小小存钱罐";
+"NSFaceIDUsageDescription" = "使用面容 ID 解锁你的财务数据。";
+"NSPhotoLibraryAddUsageDescription" = "允许小小存钱罐保存交易图片以便分享。";
+"Search Entries" = "搜索记录";
+"Add Expense" = "添加支出";
