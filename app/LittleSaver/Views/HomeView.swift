@@ -22,6 +22,7 @@ enum DeletionType {
 class OverallTransactionManager: ObservableObject {
     @Published var toEdit: Transaction?
     @Published var toDelete: Transaction?
+    @Published var deletionSnapshot: TransactionDeletionSnapshot?
     @Published var showToast: Bool = false
     @Published var showPopup: Bool = false
     @Published var future: Bool = false
@@ -58,7 +59,9 @@ struct HomeView: View {
         self.bottomEdge = bottomEdge
     }
 
-    var body: some View {
+    var body: some View { content.modifier(MutationPendingModifier()) }
+
+    @ViewBuilder private var content: some View {
         ZStack(alignment: .bottom) {
             TabView(selection: $currentTab) {
                 LogView(topEdge: topEdge, bottomEdge: bottomEdge, launchSearch: launchSearch)
@@ -110,13 +113,15 @@ struct HomeView: View {
         .toast(isPresenting: $transactionManager.showToast, duration: 4, tapToDismiss: true, offsetY: 12, alert: {
             AlertToast(displayMode: .hud, type: .systemImage("arrow.uturn.backward.circle.fill", Color.AlertRed), title: "Log Deleted", subTitle: "Tap to Undo")
         }, onTap: {
-            withAnimation(.easeInOut(duration: 0.5)) {
-                moc.rollback()
-            }
-            transactionManager.toDelete = nil
-        }, completion: {
-            dataController.save()
-            transactionManager.toDelete = nil
+            guard let snapshot = transactionManager.deletionSnapshot else { return }
+            dataController.submitMutation({
+                try await dataController.restoreTransaction(snapshot)
+            }, success: {
+                transactionManager.deletionSnapshot = nil
+            }, failure: { error in
+                MutationPresentation.show(error)
+                transactionManager.showToast = true
+            })
         })
         .onChange(of: transactionManager.showPopup) { newValue in
             withAnimation {

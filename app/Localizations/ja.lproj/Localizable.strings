@@ -8,6 +8,13 @@
 "welcome_subtitle_3" = "カテゴリーと期間ごとに目標を設定して支出を抑えます";
 "Get Started" = "はじめる";
 
+"Please check the entered values." = "入力内容を確認してください。";
+"This record is no longer available." = "この記録は利用できなくなりました。";
+"This transaction cannot be restored because its schedule has changed." = "繰り返しの予定が変更されたため、この取引を復元できません。";
+"Another change is being saved. Please try again." = "別の変更を保存中です。しばらくしてから再試行してください。";
+"Unable to Save" = "保存できません";
+"OK" = "OK";
+
 // カテゴリー
 "Categories" = "カテゴリー";
 "no_income_categories" = "収入カテゴリーがありません。「新規」ボタンで追加できます";

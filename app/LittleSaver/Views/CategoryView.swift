@@ -35,7 +35,9 @@ struct CategoryView: View {
         income == false && expenseCategories.count >= 24
     }
 
-    var body: some View {
+    var body: some View { content.modifier(MutationPendingModifier()) }
+
+    @ViewBuilder private var content: some View {
         VStack(spacing: 5) {
             CategoryListView(income: $income, mode: mode, showToast: $showToast, toastTitle: $toastTitle, toastImage: $toastImage, positive: $positive)
 
@@ -603,16 +605,14 @@ struct CategoryListView: View {
                         .padding(.bottom, 15)
 
                     Button {
-                        withAnimation {
-                            if let gonnaDelete = toDelete {
-                                moc.delete(gonnaDelete)
-                            }
-
-                            dataController.save()
-                        }
-
-                        toDelete = nil
-                        deleteMode = false
+                        guard let toDelete else { return }
+                        let reference = LedgerReference(toDelete)
+                        dataController.submitMutation({
+                            try await dataController.deleteCategories([reference])
+                        }, success: {
+                            self.toDelete = nil
+                            deleteMode = false
+                        })
 
                     } label: {
                         Text("Delete")
@@ -698,32 +698,10 @@ struct CategoryListView: View {
     }
 
     private func moveItem(at sets: IndexSet, destination: Int) {
-        let itemToMove = sets.first!
-
-        if itemToMove < destination {
-            var startIndex = itemToMove + 1
-            let endIndex = destination - 1
-            var startOrder = categories[itemToMove].order
-            while startIndex <= endIndex {
-                categories[startIndex].order = startOrder
-                startOrder = startOrder + 1
-                startIndex = startIndex + 1
-            }
-            categories[itemToMove].order = startOrder
-        } else if destination < itemToMove {
-            var startIndex = destination
-            let endIndex = itemToMove - 1
-            var startOrder = categories[destination].order + 1
-            let newOrder = categories[destination].order
-            while startIndex <= endIndex {
-                categories[startIndex].order = startOrder
-                startOrder = startOrder + 1
-                startIndex = startIndex + 1
-            }
-            categories[itemToMove].order = newOrder
-        }
-
-        dataController.save()
+        var references = categories.map(LedgerReference.init)
+        references.move(fromOffsets: sets, toOffset: destination)
+        let ordered = references
+        dataController.submitMutation { try await dataController.reorderCategories(ordered) }
     }
 
     init(income: Binding<Bool>, mode: CategoryViewMode, showToast: Binding<Bool>, toastTitle: Binding<String>, toastImage: Binding<String>, positive: Binding<Bool>) {
@@ -790,7 +768,9 @@ struct NewCategoryAlert: View {
 
 //    @State var isFetching = false
 
-    var body: some View {
+    var body: some View { content.modifier(MutationPendingModifier()) }
+
+    @ViewBuilder private var content: some View {
         VStack {
             VStack {
                 VStack {
@@ -1095,63 +1075,27 @@ struct NewCategoryAlert: View {
             showToast = true
 
         } else {
-            toastTitle = String(localized: "Added \(newName)")
-
-            let generator = UINotificationFeedbackGenerator()
-            generator.notificationOccurred(.success)
-
-            if income {
-                let category = Category(context: moc)
-                category.name = newName.trimmingCharacters(in: .whitespaces).capitalized
-                category.emoji = newEmoji
-                category.dateCreated = Date.now
-                category.id = UUID()
-                category.colour = "IncomeGreen"
-                category.order = results.order
-                category.income = true
-                dataController.save()
-
+            let input = CategoryInput(name: newName, emoji: newEmoji, colour: selectedColour, income: income)
+            dataController.submitMutation({
+                try await dataController.saveCategory(input)
+            }, success: { _ in
+                toastTitle = String(localized: "Added \(input.name)")
+                UINotificationFeedbackGenerator().notificationOccurred(.success)
                 newName = ""
                 newEmoji = ""
-            } else {
-                let category = Category(context: moc)
-                category.name = newName.trimmingCharacters(in: .whitespaces).capitalized
-                category.emoji = newEmoji
-                category.dateCreated = Date.now
-                category.id = UUID()
-                category.income = false
-
-                category.colour = selectedColour
-                category.order = results.order
-
-                dataController.save()
-
-                newName = ""
-                newEmoji = ""
-
-                availableColours = Color.colorArray
-                expenseCategories.forEach { category in
-                    if availableColours.contains(category.wrappedColour) {
-                        availableColours.remove(at: availableColours.firstIndex(of: category.wrappedColour) ?? 0)
-                    }
+                availableColours = Color.colorArray.filter { colour in
+                    !expenseCategories.contains { $0.wrappedColour == colour }
                 }
-
-                if availableColours.isEmpty {
-                    selectedColour = "#FFFFFF"
+                selectedColour = availableColours.first ?? "#FFFFFF"
+                if budgetMode {
+                    dismiss()
                 } else {
-                    selectedColour = availableColours[0]
+                    focusedField = .emoji
+                    toastImage = "checkmark.circle.fill"
+                    positive = true
+                    showToast = true
                 }
-            }
-
-            if budgetMode {
-                dismiss()
-                return
-            } else {
-                focusedField = .emoji
-                toastImage = "checkmark.circle.fill"
-                positive = true
-                showToast = true
-            }
+            })
         }
     }
 
@@ -1254,7 +1198,9 @@ struct EditCategoryAlert: View {
     @State var showNativePicker: Bool = false
     @State var customSelectedColor = Color.white
 
-    var body: some View {
+    var body: some View { content.modifier(MutationPendingModifier()) }
+
+    @ViewBuilder private var content: some View {
         VStack {
             VStack {
                 HStack {
@@ -1488,30 +1434,17 @@ struct EditCategoryAlert: View {
 
             showToast = true
         } else {
-            let generator = UINotificationFeedbackGenerator()
-            generator.notificationOccurred(.success)
-
-            if toEdit.income {
-                toEdit.name = newName.trimmingCharacters(in: .whitespaces).capitalized
-                toEdit.emoji = newEmoji
-
-                dataController.save()
-            } else {
-                toEdit.name = newName.trimmingCharacters(in: .whitespaces).capitalized
-                toEdit.emoji = newEmoji
-                toEdit.colour = selectedColour
-
-                dataController.save()
-            }
-
-            rootToastTitle = "Edited \(newName)"
-            rootToastImage = "checkmark.circle.fill"
-            positive = true
-            showRootToast = true
-
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+            let input = CategoryInput(reference: LedgerReference(toEdit), name: newName, emoji: newEmoji, colour: selectedColour, income: toEdit.income)
+            dataController.submitMutation({
+                try await dataController.saveCategory(input)
+            }, success: { _ in
+                UINotificationFeedbackGenerator().notificationOccurred(.success)
+                rootToastTitle = "Edited \(input.name)"
+                rootToastImage = "checkmark.circle.fill"
+                positive = true
+                showRootToast = true
                 dismiss()
-            }
+            })
         }
     }
 }
@@ -1528,7 +1461,9 @@ struct DeleteCategoryAlert: View {
 
     @State private var offset: CGFloat = 0
 
-    var body: some View {
+    var body: some View { content.modifier(MutationPendingModifier()) }
+
+    @ViewBuilder private var content: some View {
         ZStack(alignment: .bottom) {
             Color.clear
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -1553,15 +1488,13 @@ struct DeleteCategoryAlert: View {
                     .accessibility(hidden: true)
 
                 Button {
-                    deleted = true
-                    dismiss()
-
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                        withAnimation {
-                            moc.delete(toDelete)
-                            dataController.save()
-                        }
-                    }
+                    let reference = LedgerReference(toDelete)
+                    dataController.submitMutation({
+                        try await dataController.deleteCategories([reference])
+                    }, success: {
+                        deleted = true
+                        dismiss()
+                    })
 
                 } label: {
                     Text("Delete")
@@ -1718,43 +1651,16 @@ struct SuggestedCategoriesView: View {
                             return
                         }
 
-                        let impactMed = UIImpactFeedbackGenerator(style: .light)
-                        impactMed.impactOccurred()
-
-                        if !income {
-                            let suggestedCategory = Category(context: moc)
-                            suggestedCategory.name = category.localizedName
-                            suggestedCategory.emoji = category.emoji
-                            suggestedCategory.dateCreated = Date.now
-                            suggestedCategory.id = UUID()
-                            suggestedCategory.colour = selectedColour
-                            suggestedCategory.order = (categories.last?.order ?? 0) + 1
-                            suggestedCategory.income = false
-                            dataController.save()
-
-                            availableColours = Color.colorArray
-                            categories.forEach { category in
-                                if availableColours.contains(category.wrappedColour) {
-                                    availableColours.remove(at: availableColours.firstIndex(of: category.wrappedColour) ?? 0)
-                                }
+                        let input = CategoryInput(name: category.localizedName, emoji: category.emoji, colour: selectedColour, income: income)
+                        dataController.submitMutation({
+                            try await dataController.saveCategory(input)
+                        }, success: { _ in
+                            UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                            availableColours = Color.colorArray.filter { colour in
+                                !categories.contains { $0.wrappedColour == colour }
                             }
-
-                            if availableColours.isEmpty {
-                                selectedColour = "#FFFFFF"
-                            } else {
-                                selectedColour = availableColours[0]
-                            }
-                        } else {
-                            let suggestedCategory = Category(context: moc)
-                            suggestedCategory.name = category.localizedName
-                            suggestedCategory.emoji = category.emoji
-                            suggestedCategory.dateCreated = Date.now
-                            suggestedCategory.id = UUID()
-                            suggestedCategory.colour = "#76FBB0"
-                            suggestedCategory.order = (categories.last?.order ?? 0) + 1
-                            suggestedCategory.income = true
-                            dataController.save()
-                        }
+                            selectedColour = availableColours.first ?? "#FFFFFF"
+                        })
                     }
                 }
             }
@@ -1808,11 +1714,14 @@ struct EmojiTextField: UIViewRepresentable {
         emojiTextField.font = UIFont(name: "HelveticaNeue", size: 50)
         emojiTextField.textAlignment = .center
         emojiTextField.endFloatingCursor()
-        emojiTextField.becomeFirstResponder()
+        emojiTextField.isEnabled = context.environment.isEnabled
+        if emojiTextField.isEnabled { emojiTextField.becomeFirstResponder() }
         return emojiTextField
     }
 
-    func updateUIView(_ uiView: UIEmojiTextField, context _: Context) {
+    func updateUIView(_ uiView: UIEmojiTextField, context: Context) {
+        uiView.isEnabled = context.environment.isEnabled
+        if !uiView.isEnabled { uiView.resignFirstResponder() }
         uiView.text = text
     }
 
@@ -1829,6 +1738,7 @@ struct EmojiTextField: UIViewRepresentable {
 
         func textFieldDidChangeSelection(_ textField: UITextField) {
             DispatchQueue.main.async { [weak self] in
+                guard textField.isEnabled else { return }
                 self?.parent.text = textField.text ?? ""
             }
         }
@@ -1847,6 +1757,7 @@ struct NormalTextField: UIViewRepresentable {
         textField.autocapitalizationType = .words
         textField.text = text
         textField.delegate = context.coordinator
+        textField.isEnabled = context.environment.isEnabled
 
         textField.font = UIFont.roundedSpecial(ofStyle: .title2, weight: .medium, size: 17)
 //
@@ -1854,7 +1765,9 @@ struct NormalTextField: UIViewRepresentable {
         return textField
     }
 
-    func updateUIView(_ uiView: UITextField, context _: Context) {
+    func updateUIView(_ uiView: UITextField, context: Context) {
+        uiView.isEnabled = context.environment.isEnabled
+        if !uiView.isEnabled { uiView.resignFirstResponder() }
         uiView.text = text
         uiView.placeholder = String(localized: String.LocalizationValue(placeholder))
     }
@@ -1872,11 +1785,13 @@ struct NormalTextField: UIViewRepresentable {
 
         func textFieldDidChangeSelection(_ textField: UITextField) {
             DispatchQueue.main.async { [weak self] in
+                guard textField.isEnabled else { return }
                 self?.parent.text = textField.text ?? ""
             }
         }
 
-        func textFieldShouldReturn(_: UITextField) -> Bool {
+        func textFieldShouldReturn(_ textField: UITextField) -> Bool {
+            guard textField.isEnabled else { return false }
             parent.action()
 
             return true

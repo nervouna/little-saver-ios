@@ -1,6 +1,5 @@
 import CoreData
 import Foundation
-
 public enum CSVImportError: LocalizedError, Equatable {
     case malformedCSV(line: Int)
     case emptyDocument
@@ -94,7 +93,7 @@ public enum CSVDocumentParser {
     }
 }
 
-public struct CSVImportMapping: Equatable {
+public struct CSVImportMapping: Equatable, Sendable {
     public init(categoryColumn: Int, noteColumn: Int, dateColumn: Int, amountColumn: Int) {
         self.categoryColumn = categoryColumn
         self.noteColumn = noteColumn
@@ -113,11 +112,10 @@ public struct CSVImportMapping: Equatable {
 }
 
 public enum CSVTransactionImporter {
-    private struct ValidatedRow {
+    private struct ValidatedRow: Sendable {
         let rowNumber: Int
         let note: String
-        let categoryID: NSManagedObjectID
-        let income: Bool
+        let categoryID: LedgerReference
         let amount: Double
         let date: Date
     }
@@ -126,10 +124,11 @@ public enum CSVTransactionImporter {
         _ rows: [[String]],
         mapping: CSVImportMapping,
         dateFormat: String,
-        categoriesByName: [String: Category],
+        categoriesByName: [String: LedgerReference],
         into controller: DataController,
         timeZone: TimeZone = .current
-    ) throws -> Int {
+    ) async throws -> Int {
+        try await controller.waitUntilReady()
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "en_US_POSIX")
         formatter.calendar = Calendar(identifier: .gregorian)
@@ -158,51 +157,32 @@ public enum CSVTransactionImporter {
             validated.append(ValidatedRow(
                 rowNumber: rowNumber,
                 note: row[mapping.noteColumn].trimmingCharacters(in: .whitespacesAndNewlines),
-                categoryID: category.objectID,
-                income: category.income,
+                categoryID: category,
                 amount: abs(amount),
                 date: date
             ))
         }
 
-        let context = controller.container.newBackgroundContext()
-        context.transactionAuthor = controller.configuration?.transactionAuthor
-        context.mergePolicy = NSMergeByPropertyObjectTrumpMergePolicy
-        var result: Result<Int, Error>!
-        context.performAndWait {
-            do {
-                var calendar = Calendar(identifier: .gregorian)
-                calendar.timeZone = timeZone
-                for item in validated {
-                    let object = try context.existingObject(with: item.categoryID)
-                    guard let category = object as? Category else {
-                        throw CSVImportError.invalidCategoryReference(row: item.rowNumber)
-                    }
-                    let transaction = Transaction(context: context)
-                    transaction.note = item.note.isEmpty ? category.wrappedName : item.note
-                    transaction.category = category
-                    transaction.income = item.income
-                    transaction.amount = item.amount
-                    transaction.date = item.date
-                    transaction.id = UUID()
-                    transaction.day = calendar.startOfDay(for: item.date)
-                    transaction.month = calendar.date(
-                        from: calendar.dateComponents([.month, .year], from: item.date)
-                    )
-                    transaction.recurringType = 0
-                    transaction.recurringCoefficient = 1
-                }
-                try context.save()
-                result = .success(validated.count)
-            } catch {
-                context.rollback()
-                result = .failure(error)
+        let items = validated
+        return try await controller.performCommand { context in
+            var calendar = Calendar(identifier: .gregorian)
+            calendar.timeZone = timeZone
+            for item in items {
+                let category = try item.categoryID.resolve(in: context, as: Category.self)
+                let transaction = Transaction(context: context)
+                transaction.note = item.note.isEmpty ? category.wrappedName : item.note
+                transaction.category = category
+                transaction.income = category.income
+                transaction.amount = item.amount
+                transaction.date = item.date
+                transaction.id = UUID()
+                transaction.deduplicationToken = UUID().uuidString.lowercased()
+                transaction.day = calendar.startOfDay(for: item.date)
+                transaction.month = calendar.date(from: calendar.dateComponents([.month, .year], from: item.date))
+                transaction.recurringType = 0
+                transaction.recurringCoefficient = 1
             }
+            return items.count
         }
-        let count = try result.get()
-        controller.container.viewContext.performAndWait {
-            controller.container.viewContext.refreshAllObjects()
-        }
-        return count
     }
 }

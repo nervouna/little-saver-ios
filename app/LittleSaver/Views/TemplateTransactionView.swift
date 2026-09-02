@@ -166,7 +166,9 @@ struct TemplateTransactionView: View {
 
     @Namespace var animation
 
-    var body: some View {
+    var body: some View { content.modifier(MutationPendingModifier()) }
+
+    @ViewBuilder private var content: some View {
 //        ScrollView {
         GeometryReader { proxy in
             VStack(spacing: 8) {
@@ -473,16 +475,14 @@ struct TemplateTransactionView: View {
                             .padding(.bottom, 15)
 
                         Button {
-                            deleteMode = false
-
-                            withAnimation {
-                                if let itemToDelete = toDelete {
-                                    moc.delete(itemToDelete)
-                                }
-                                dataController.save()
-                            }
-
-                            dismiss()
+                            guard let toDelete else { return }
+                            let reference = LedgerReference(toDelete)
+                            dataController.submitMutation({
+                                try await dataController.deleteTemplate(reference)
+                            }, success: {
+                                deleteMode = false
+                                dismiss()
+                            })
 
                         } label: {
                             Text("Delete")
@@ -669,56 +669,14 @@ struct TemplateTransactionView: View {
             return
         }
 
-        generator.notificationOccurred(.success)
-
-        if let editedTransaction = toEdit {
-            if note.trimmingCharacters(in: .whitespacesAndNewlines) == "" {
-                editedTransaction.note = category!.wrappedName
-            } else {
-                editedTransaction.note = note.trimmingCharacters(in: .whitespaces)
-            }
-
-            if let unwrappedCategory = category {
-                editedTransaction.category = unwrappedCategory
-            }
-
-            editedTransaction.amount = transactionValue
-            editedTransaction.income = income
-
-            editedTransaction.recurringType = Int16(repeatType)
-            editedTransaction.recurringCoefficient = Int16(repeatCoefficient)
-
-            dataController.save()
-
+        let input = TransactionInput(reference: toEdit.map(LedgerReference.init), category: category.map(LedgerReference.init), note: note, income: income, amount: transactionValue, date: Date(), repeatType: repeatType, repeatCoefficient: max(1, repeatCoefficient))
+        let capturedOrder = order
+        dataController.submitMutation({
+            try await dataController.saveTemplate(input, order: capturedOrder)
+        }, success: {
+            generator.notificationOccurred(.success)
             dismiss()
-
-        } else {
-            let transaction = TemplateTransaction(context: moc)
-            if note.trimmingCharacters(in: .whitespacesAndNewlines) == "" {
-                transaction.note = category?.wrappedName ?? ""
-            } else {
-                transaction.note = note.trimmingCharacters(in: .whitespaces)
-            }
-
-            transaction.income = income
-
-            if let unwrappedCategory = category {
-                transaction.category = unwrappedCategory
-            }
-
-            transaction.amount = transactionValue
-            transaction.id = UUID()
-            transaction.order = Int16(order)
-
-            transaction.recurringType = Int16(repeatType)
-            transaction.recurringCoefficient = Int16(repeatCoefficient)
-
-            dataController.save()
-
-            dismiss()
-        }
-
-        WidgetCenter.shared.reloadAllTimelines()
+        })
     }
 
     init(order: Int) {
@@ -969,7 +927,9 @@ struct SettingsQuickAddWidgetDraggingView: View {
 
     let columns = Array(repeating: GridItem(.fixed(100), spacing: 15), count: 2)
 
-    var body: some View {
+    var body: some View { content.modifier(MutationPendingModifier()) }
+
+    @ViewBuilder private var content: some View {
         ZStack {
             LazyVGrid(columns: columns, spacing: 15, content: {
                 ForEach(0 ..< 4) { index in
@@ -1163,15 +1123,20 @@ class GridViewModel: ObservableObject {
         }
     }
 
+    @MainActor
     func updateIndices() {
 //        let dataController = DataController()
         let dataController = DataController.platformShared
-        for (index, element) in gridItems.enumerated() {
-            if let transaction = element.transaction {
-                transaction.order = Int16(index)
-            }
+        let references = gridItems.enumerated().compactMap { index, element in
+            element.transaction.map { (LedgerReference($0), index) }
         }
-        dataController.save()
+        dataController.submitMutation({
+            try await dataController.reorderTemplates(references)
+        }, failure: { error in
+            // The grid is transient presentation state; refetch the committed order on failure.
+            self.reset()
+            MutationPresentation.show(error)
+        })
     }
 }
 
@@ -1180,7 +1145,7 @@ struct DropViewDelegate: DropDelegate {
     var gridData: GridViewModel
 
     func performDrop(info _: DropInfo) -> Bool {
-        gridData.updateIndices()
+        Task { @MainActor in gridData.updateIndices() }
         gridData.currentGrid = nil
         gridData.dragging = false
         return true

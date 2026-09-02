@@ -10,6 +10,13 @@ public enum LedgerMaintenance {
         "\(seriesID)/\(index)"
     }
 
+    /// Ordinary records already have a business UUID. Project their original identity
+    /// without a metadata write, so late pre-delete copies with nil keys share the same
+    /// suppression and deduplication rules as restored or scheduled incarnations.
+    static func effectiveTransactionKey(_ transaction: Transaction) -> String? {
+        transaction.occurrenceKey ?? transaction.id.map { "transaction:\($0.uuidString.lowercased())/0" }
+    }
+
     @discardableResult
     public static func attachSeries(to transaction: Transaction, logicalID: String? = nil,
                                     familyID: String? = nil, createdAt: Date? = nil,
@@ -95,10 +102,10 @@ public enum LedgerMaintenance {
         }
         let transactions = try context.fetch(Transaction.fetchRequest())
         let suppressed = Set(try context.fetch(RecurringSuppression.fetchRequest()).compactMap(\.occurrenceKey))
-        for transaction in transactions where transaction.occurrenceKey.map(suppressed.contains) == true {
+        for transaction in transactions where effectiveTransactionKey(transaction).map(suppressed.contains) == true {
             context.delete(transaction)
         }
-        for group in Dictionary(grouping: transactions.filter { !$0.isDeleted && $0.occurrenceKey != nil }, by: { $0.occurrenceKey! }).values {
+        for group in Dictionary(grouping: transactions.filter { !$0.isDeleted && effectiveTransactionKey($0) != nil }, by: { effectiveTransactionKey($0)! }).values {
             let sorted = group.sorted { ($0.deduplicationToken ?? "") < ($1.deduplicationToken ?? "") }
             if let canonical = sorted.first, let edited = sorted.filter({ $0.userEditedAt != nil }).max(by: {
                 if $0.userEditedAt != $1.userEditedAt { return $0.userEditedAt! < $1.userEditedAt! }
@@ -312,10 +319,16 @@ public enum LedgerMaintenance {
 
     private static func belongsToNamespace(_ transaction: Transaction, series: RecurringSeries) -> Bool {
         guard transaction.occurrenceIndex > 0, let namespace = series.occurrenceNamespace else { return false }
-        return transaction.occurrenceKey == occurrenceKey(seriesID: namespace, index: transaction.occurrenceIndex)
+        let base = occurrenceKey(seriesID: namespace, index: transaction.occurrenceIndex)
+        // Undo incarnations retain the global schedule slot but have an independent
+        // suppression identity. They remain eligible for the active-series projection.
+        return transaction.occurrenceKey == base || transaction.occurrenceKey?.hasPrefix(base + "/undo:") == true
     }
 
     private static func needsNormalization(_ transaction: Transaction, owner: RecurringSeries, series: [RecurringSeries]) -> Bool {
+        // Restored incarnations are explicit user records. The original schedule slot
+        // stays suppressed, so replay cannot normalize that slot through its old key.
+        if transaction.occurrenceKey?.contains("/undo:") == true { return false }
         guard !transaction.isDeleted, belongsToNamespace(transaction, series: owner),
               transaction.occurrenceIndex > owner.sourceIndex,
               transaction.occurrenceIndex <= lastOwnedIndex(owner, series: series),

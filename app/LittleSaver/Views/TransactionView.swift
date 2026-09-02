@@ -225,7 +225,9 @@ struct TransactionView: View {
     @State var decimalValuesAssigned: AssignedDecimal = .none
     @State private var priceString: String = "0"
 
-    var body: some View {
+    var body: some View { content.modifier(MutationPendingModifier()) }
+
+    @ViewBuilder private var content: some View {
         GeometryReader { proxy in
             VStack(spacing: 8) {
                 // income/expense picker
@@ -747,16 +749,14 @@ struct TransactionView: View {
                             .padding(.bottom, 15)
 
                         Button {
-                            deleteMode = false
-
-                            withAnimation {
-                                if let itemToDelete = toDelete {
-                                    dataController.deleteTransaction(itemToDelete)
-                                }
-                                dataController.save()
-                            }
-
-                            dismiss()
+                            guard let toDelete else { return }
+                            let reference = LedgerReference(toDelete)
+                            dataController.submitMutation({
+                                try await dataController.deleteTransaction(reference)
+                            }, success: { _ in
+                                deleteMode = false
+                                dismiss()
+                            })
 
                         } label: {
                             Text("Delete")
@@ -1016,96 +1016,13 @@ struct TransactionView: View {
             return
         }
 
-        generator.notificationOccurred(.success)
-
-        if let editedTransaction = toEdit {
-            if note.trimmingCharacters(in: .whitespacesAndNewlines) == "" {
-                editedTransaction.note = category!.wrappedName
-            } else {
-                editedTransaction.note = note.trimmingCharacters(in: .whitespaces)
-            }
-
-            if let unwrappedCategory = category {
-                editedTransaction.category = unwrappedCategory
-            }
-
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                withAnimation(.easeInOut(duration: 0.5)) {
-                    LedgerMaintenance.markUserEdit(editedTransaction)
-                    editedTransaction.amount = price
-                    if editedTransaction.seriesID != nil && editedTransaction.date != date {
-                        editedTransaction.scheduleDateOverridden = true
-                    }
-                    editedTransaction.date = date
-                    editedTransaction.income = income
-
-                    let calendar = Calendar(identifier: .gregorian)
-
-                    editedTransaction.day =
-                    calendar.date(bySettingHour: 0, minute: 0, second: 0, of: date) ?? Date.now
-
-                    let dateComponents = calendar.dateComponents([.month, .year], from: date)
-
-                    editedTransaction.month = calendar.date(from: dateComponents) ?? Date.now
-
-                    if repeatType > 0 {
-                        editedTransaction.onceRecurring = true
-                        editedTransaction.recurringType = Int16(repeatType)
-                        editedTransaction.recurringCoefficient = Int16(repeatCoefficient)
-
-                        dataController.updateRecurringTransaction(transaction: editedTransaction)
-                    } else {
-                        if editedTransaction.recurringType > 0 { dataController.stopRecurringTransaction(editedTransaction) }
-                        editedTransaction.onceRecurring = false
-                        editedTransaction.recurringType = Int16(repeatType)
-                        editedTransaction.recurringCoefficient = Int16(repeatCoefficient)
-                    }
-
-                    dataController.save()
-                }
-            }
-
+        let input = TransactionInput(reference: toEdit.map(LedgerReference.init), category: category.map(LedgerReference.init), note: note, income: income, amount: price, date: date, repeatType: repeatType, repeatCoefficient: max(1, repeatCoefficient))
+        dataController.submitMutation({
+            try await dataController.saveTransaction(input)
+        }, success: { _ in
+            generator.notificationOccurred(.success)
             dismiss()
-
-            return
-        }
-
-        let transaction = Transaction(context: moc)
-
-        if note.trimmingCharacters(in: .whitespacesAndNewlines) == "" {
-            transaction.note = category?.wrappedName ?? ""
-        } else {
-            transaction.note = note.trimmingCharacters(in: .whitespaces)
-        }
-
-        transaction.income = income
-
-        if let unwrappedCategory = category {
-            transaction.category = unwrappedCategory
-        }
-
-        transaction.amount = price
-        transaction.date = date
-        transaction.id = UUID()
-
-        let calendar = Calendar(identifier: .gregorian)
-
-        transaction.day = calendar.date(bySettingHour: 0, minute: 0, second: 0, of: date) ?? Date.now
-
-        let dateComponents = calendar.dateComponents([.month, .year], from: date)
-
-        transaction.month = calendar.date(from: dateComponents) ?? Date.now
-
-        if repeatType > 0 {
-            transaction.onceRecurring = true
-            transaction.recurringType = Int16(repeatType)
-            transaction.recurringCoefficient = Int16(repeatCoefficient)
-            dataController.updateRecurringTransaction(transaction: transaction)
-        }
-
-        dataController.save()
-
-        dismiss()
+        })
     }
 
     init(toEdit: Transaction? = nil) {

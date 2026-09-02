@@ -99,11 +99,10 @@ struct NewTransactionIntent: AppIntent {
 
             if income == .expense {
                 if let unwrappedExpenseCategory = expenseCategory {
-                    let category = try dataController.findCategory(withId: unwrappedExpenseCategory.id)
-
-                    let transaction = dataController.newTransaction(note: note ?? "", category: category, income: false, amount: amount, date: Date.now, repeatType: repeatType, repeatCoefficient: 1, delay: false)
-
-                    let snapshot = TransactionReadSnapshot(transaction: transaction)
+                    let snapshot = try await dataController.saveTransaction(TransactionInput(
+                        category: .category(unwrappedExpenseCategory.id), note: note ?? "", income: false,
+                        amount: amount, date: Date(), repeatType: repeatType, repeatCoefficient: 1
+                    ))
                     return .result(dialog: "Expense successfully logged.") {
                         ShortcutTransactionView(transaction: snapshot)
                     }
@@ -112,11 +111,10 @@ struct NewTransactionIntent: AppIntent {
                 }
             } else {
                 if let unwrappedIncomeCategory = incomeCategory {
-                    let category = try dataController.findCategory(withId: unwrappedIncomeCategory.id)
-
-                    let transaction = dataController.newTransaction(note: note ?? "", category: category, income: true, amount: amount, date: Date.now, repeatType: repeatType, repeatCoefficient: 1, delay: false)
-
-                    let snapshot = TransactionReadSnapshot(transaction: transaction)
+                    let snapshot = try await dataController.saveTransaction(TransactionInput(
+                        category: .category(unwrappedIncomeCategory.id), note: note ?? "", income: true,
+                        amount: amount, date: Date(), repeatType: repeatType, repeatCoefficient: 1
+                    ))
                     return .result(dialog: "Income successfully logged.") {
                         ShortcutTransactionView(transaction: snapshot)
                     }

@@ -152,7 +152,9 @@ struct BrandNewBudgetView: View {
         ]
     }
 
-    var body: some View {
+    var body: some View { content.modifier(MutationPendingModifier()) }
+
+    @ViewBuilder private var content: some View {
         VStack(spacing: 0) {
             HStack {
                 if #available(iOS 17.0, *) {
@@ -765,57 +767,21 @@ struct BrandNewBudgetView: View {
             startDate = Calendar.current.startOfDay(for: chosenDayYear)
         }
 
-        if let unwrappedEditedBudget = toEditBudget {
-            unwrappedEditedBudget.category = selectedCategory
-            unwrappedEditedBudget.startDate = startDate
-            unwrappedEditedBudget.amount = price
-            unwrappedEditedBudget.type = Int16(budgetType)
-
-            dataController.save()
-
+        let reference = toEditBudget.map(LedgerReference.init)
+        let category = selectedCategory.map(LedgerReference.init)
+        let amount = price
+        let type = Int16(budgetType)
+        let isCategoryBudget = toEditBudget != nil || (toEditMainBudget == nil && categoryBudget)
+        dataController.submitMutation({
+            if isCategoryBudget {
+                guard let category else { throw LedgerCommandError.invalidInput }
+                try await dataController.saveBudget(reference: reference, category: category, amount: amount, startDate: startDate, type: type)
+            } else {
+                try await dataController.upsertMainBudget(amount: amount, startDate: startDate, type: type)
+            }
+        }, success: {
             dismiss()
-
-            return
-        }
-
-        if toEditMainBudget != nil {
-            do { try dataController.upsertMainBudget(amount: price, startDate: startDate, type: Int16(budgetType)) }
-            catch {
-                toastMessage = error.localizedDescription
-                showToast = true
-                return
-            }
-            dataController.save()
-
-            dismiss()
-
-            return
-        }
-
-        if categoryBudget {
-            let newBudget = Budget(context: moc)
-
-            if let unwrappedCategory = selectedCategory {
-                newBudget.category = unwrappedCategory
-            }
-
-            newBudget.startDate = startDate
-            newBudget.amount = price
-            newBudget.dateCreated = Date.now
-            newBudget.type = Int16(budgetType)
-            newBudget.id = UUID()
-        } else {
-            do { try dataController.upsertMainBudget(amount: price, startDate: startDate, type: Int16(budgetType)) }
-            catch {
-                toastMessage = error.localizedDescription
-                showToast = true
-                return
-            }
-        }
-
-        dataController.save()
-
-        dismiss()
+        })
     }
 
     func getRows() -> [[Category]] {

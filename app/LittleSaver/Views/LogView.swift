@@ -1266,8 +1266,8 @@ struct SingleTransactionView: View {
             .contextMenu {
                 if transaction.recurringType > 0 {
                     Button {
-                        dataController.stopRecurringTransaction(transaction)
-                        dataController.save()
+                        let reference = LedgerReference(transaction)
+                        dataController.submitMutation { try await dataController.stopRecurringTransaction(reference) }
                     } label: {
                         Label("Stop Recurring", systemImage: "xmark")
                     }
@@ -1321,29 +1321,29 @@ struct SingleTransactionView: View {
                 }
                 .onEnded { _ in
                     if deleteConfirm {
-                        deleted = true
-                        withAnimation(.easeInOut(duration: 0.3)) {
-                            offset -= UIScreen.main.bounds.width
-                        }
-
+                        let reference = LedgerReference(transaction)
                         if future, transaction.wrappedDate < Date.now, transaction.recurringType > 0 {
-                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
-                                withAnimation(.easeInOut(duration: 0.5)) {
-                                    dataController.stopRecurringTransaction(transaction)
-                                    dataController.save()
-                                }
-                            }
+                            dataController.submitMutation({
+                                try await dataController.stopRecurringTransaction(reference)
+                            }, success: {
+                                deleted = true
+                                offset = 0
+                            }, failure: { error in
+                                offset = 0
+                                MutationPresentation.show(error)
+                            })
                         } else {
-                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
-                                withAnimation {
-                                    dataController.deleteTransaction(transaction)
-                                    transactionManager.showToast = true
-                                    transactionManager.toDelete = transaction
-//                                    transactionManager.future = future
-//                                    transactionManager.toDelete = transaction
-//                                    transactionManager.deletionType = .instant
-                                }
-                            }
+                            dataController.submitMutation({
+                                try await dataController.deleteTransaction(reference)
+                            }, success: { snapshot in
+                                transactionManager.deletionSnapshot = snapshot
+                                transactionManager.toDelete = nil
+                                transactionManager.showToast = true
+                                offset = 0
+                            }, failure: { error in
+                                offset = 0
+                                MutationPresentation.show(error)
+                            })
                         }
 
                     } else if deletePopup {
@@ -1492,19 +1492,23 @@ struct DeleteTransactionAlert: View {
                     .accessibility(hidden: true)
 
                 Button {
-                    transactionManager.showPopup = false
-
+                    let reference = LedgerReference(unwrappedToDelete)
                     if stopRecurring {
-                        withAnimation(.easeInOut(duration: 0.5)) {
-                            dataController.stopRecurringTransaction(unwrappedToDelete)
-                            dataController.save()
-                        }
+                        dataController.submitMutation({
+                            try await dataController.stopRecurringTransaction(reference)
+                        }, success: {
+                            transactionManager.showPopup = false
+                            transactionManager.toDelete = nil
+                        })
                     } else {
-                        withAnimation(.easeInOut(duration: 0.5)) {
-                            //                            moc.delete(toDelete)
-                            dataController.deleteTransaction(unwrappedToDelete)
+                        dataController.submitMutation({
+                            try await dataController.deleteTransaction(reference)
+                        }, success: { snapshot in
+                            transactionManager.deletionSnapshot = snapshot
+                            transactionManager.showPopup = false
+                            transactionManager.toDelete = nil
                             transactionManager.showToast = true
-                        }
+                        })
                     }
                 } label: {
                     DeleteButton(text: stopRecurring ? "Confirm" : "Delete", red: true)

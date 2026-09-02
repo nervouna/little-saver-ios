@@ -520,3 +520,12 @@
 "shortcut.insights.summary" = "%1$@ %2$@";
 "shortcut.budget.left" = "left %1$@";
 "shortcut.budget.over" = "over %1$@";
+
+
+// Atomic mutation errors
+"Please check the entered values." = "Please check the entered values.";
+"This record is no longer available." = "This record is no longer available.";
+"This transaction cannot be restored because its schedule has changed." = "This transaction cannot be restored because its schedule has changed.";
+"Another change is being saved. Please try again." = "Another change is being saved. Please try again.";
+"Unable to Save" = "Unable to Save";
+"OK" = "OK";

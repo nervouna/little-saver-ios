@@ -148,7 +148,23 @@ public final class DataController: ObservableObject {
     private let readiness = PersistenceReadiness()
     private let historyConsumer = PersistentHistoryConsumer()
     private var remoteChangeObserver: NSObjectProtocol?
-    private let maintenanceContext: NSManagedObjectContext
+    let maintenanceContext: NSManagedObjectContext
+    /// Test seam at the actual commit boundary, after changes have been prepared.
+    /// Installed before submitting commands; never used by production adapters.
+    private let commandSaveLock = NSLock()
+    private var commandSaveCallback: (NSManagedObjectContext) throws -> Void = { try $0.save() }
+    public var commandSave: (NSManagedObjectContext) throws -> Void {
+        get {
+            commandSaveLock.lock()
+            defer { commandSaveLock.unlock() }
+            return commandSaveCallback
+        }
+        set {
+            commandSaveLock.lock()
+            commandSaveCallback = newValue
+            commandSaveLock.unlock()
+        }
+    }
     private let continuationLock = NSLock()
     private var continuationRunning = false
     private var continuationRequested = false
@@ -343,7 +359,7 @@ public final class DataController: ObservableObject {
         }
     }
 
-    private func continueMaintenance() {
+    func continueMaintenance() {
         continuationLock.lock()
         guard !continuationRunning else {
             continuationRequested = true
@@ -392,140 +408,6 @@ public final class DataController: ObservableObject {
 
     // adding or deleting
 
-    public func deleteAll() {
-        guard persistentStoreState == .loaded else { return }
-        // Share the maintenance queue so an in-flight materializer cannot recreate erased rows.
-        let context = maintenanceContext
-        do {
-            try context.performAndWait {
-                context.reset()
-                do {
-                    for entity in ["RecurringSeries", "RecurringSuppression", "Transaction", "TemplateTransaction", "Budget", "MainBudget", "Category"] {
-                        for object in try context.fetch(NSFetchRequest<NSManagedObject>(entityName: entity)) { context.delete(object) }
-                    }
-                    if context.hasChanges { try context.save() }
-                } catch {
-                    context.rollback()
-                    throw error
-                }
-            }
-            container.viewContext.reset()
-            if configuration?.reloadWidgetsAfterSave == true { reloadWidgets() }
-        } catch { NSLog("Ledger erase failed: %@", error.localizedDescription) }
-    }
-
-    public func save() {
-        guard persistentStoreState == .loaded else { return }
-        if container.viewContext.hasChanges {
-            do {
-                try container.viewContext.save()
-                if configuration?.reloadWidgetsAfterSave == true { reloadWidgets() }
-                continueMaintenance()
-            } catch { NSLog("Ledger save failed: %@", error.localizedDescription) }
-        }
-    }
-
-    public func updateRecurringTransaction(transaction: Transaction) {
-        do { try LedgerMaintenance.replaceSeries(for: transaction, in: container.viewContext) }
-        catch { NSLog("Recurring schedule update failed: %@", error.localizedDescription) }
-    }
-
-    public func stopRecurringTransaction(_ transaction: Transaction) {
-        do { try LedgerMaintenance.stopSeries(for: transaction, in: container.viewContext) }
-        catch { NSLog("Recurring schedule stop failed: %@", error.localizedDescription) }
-    }
-
-    public func deleteTransaction(_ transaction: Transaction) {
-        do { try LedgerMaintenance.deleteTransaction(transaction, in: container.viewContext) }
-        catch { NSLog("Recurring transaction deletion failed: %@", error.localizedDescription) }
-    }
-
-    @discardableResult
-    public func upsertMainBudget(amount: Double, startDate: Date, type: Int16) throws -> MainBudget {
-        try LedgerMaintenance.upsertMainBudget(in: container.viewContext, amount: amount, startDate: startDate, type: type)
-    }
-
-    public func deleteMainBudget() throws {
-        try LedgerMaintenance.deleteMainBudget(in: container.viewContext)
-    }
-
-    public func updateBudgetDates() {
-        let budgets = results(for: fetchRequestForBudgets())
-        let mainBudget = LedgerMaintenance.currentMainBudget(from: results(for: fetchRequestForMainBudget()))
-
-        budgets.forEach { budget in
-            while budget.endDate <= Date.now {
-                budget.startDate = budget.endDate
-            }
-        }
-
-        if let budget = mainBudget, let original = budget.startDate, (1...4).contains(budget.type) {
-            var start = original
-            let component: Calendar.Component = budget.type < 3 ? .day : budget.type == 3 ? .month : .year
-            let value = budget.type == 2 ? 7 : 1
-            for _ in 0..<4096 {
-                guard let next = Calendar.current.date(byAdding: component, value: value, to: start), next > start, next <= Date() else { break }
-                start = next
-            }
-            if start != original {
-                // A derived period cursor is not a newer user budget decision. T5 replaces
-                // this compatibility update with a read-time period projection.
-                budget.startDate = start
-            }
-        }
-
-        save()
-    }
-
-    public func newTransaction(note: String, category: Category?, income: Bool, amount: Double, date: Date, repeatType: Int, repeatCoefficient: Int, delay _: Bool) -> Transaction {
-        let transaction = Transaction(context: container.viewContext)
-
-        if note.trimmingCharacters(in: .whitespacesAndNewlines) == "" {
-            transaction.note = category?.wrappedName ?? ""
-        } else {
-            transaction.note = note.trimmingCharacters(in: .whitespaces)
-        }
-
-        transaction.income = income
-
-        if let unwrappedCategory = category {
-            transaction.category = unwrappedCategory
-        }
-
-        transaction.amount = amount
-        transaction.date = date
-        transaction.id = UUID()
-
-        let calendar = Calendar(identifier: .gregorian)
-
-        transaction.day = calendar.date(bySettingHour: 0, minute: 0, second: 0, of: date) ?? Date.now
-
-        let dateComponents = calendar.dateComponents([.month, .year], from: date)
-
-        transaction.month = calendar.date(from: dateComponents) ?? Date.now
-
-        if repeatType > 0 {
-            transaction.onceRecurring = true
-            transaction.recurringType = Int16(repeatType)
-            transaction.recurringCoefficient = Int16(repeatCoefficient)
-            updateRecurringTransaction(transaction: transaction)
-        }
-
-        save()
-
-        return transaction
-    }
-
-    public func newTemplateTransaction(order: Int) {
-        if let match = getTemplateTransaction(order: order) {
-            if let unwrappedCategory = match.category {
-                _ = newTransaction(note: match.note ?? "", category: unwrappedCategory, income: match.income, amount: match.amount, date: Date.now, repeatType: Int(match.recurringType), repeatCoefficient: Int(match.recurringCoefficient), delay: false)
-
-                addedTransaction = true
-            }
-        }
-    }
-
     // fetching
 
     public func fetchRequestForRecurringTransactions() -> NSFetchRequest<Transaction> {
@@ -541,19 +423,8 @@ public final class DataController: ObservableObject {
 
         let results = results(for: itemRequest)
 
-        if results.count > 1 {
-            let output = results.first
-
-            for i in 1 ..< results.count {
-                container.viewContext.delete(results[i])
-            }
-
-            save()
-
-            return output
-        } else {
-            return results.first
-        }
+        // Order is presentation data, not identity. Preserve colliding peer records.
+        return results.sorted { $0.objectID.uriRepresentation().absoluteString < $1.objectID.uriRepresentation().absoluteString }.first
     }
 
     public func getAllTemplateTransactions() -> [TemplateTransaction] {

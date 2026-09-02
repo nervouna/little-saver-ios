@@ -82,7 +82,9 @@ struct DeleteAllAlert: View {
       }
   }
 
-  var body: some View {
+  var body: some View { content.modifier(MutationPendingModifier()) }
+
+  @ViewBuilder private var content: some View {
     ZStack(alignment: .bottom) {
       Color.clear
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -143,14 +145,15 @@ struct DeleteAllAlert: View {
         )
         .onChange(of: completedLongPress) { _ in
           if completedLongPress {
-            let impactMed = UIImpactFeedbackGenerator(style: .heavy)
-            impactMed.impactOccurred()
-
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-              dataController.deleteAll()
-
+            dataController.submitMutation({
+              try await dataController.deleteAll()
+            }, success: {
+              UIImpactFeedbackGenerator(style: .heavy).impactOccurred()
               dismiss()
-            }
+            }, failure: { error in
+              completedLongPress = false
+              MutationPresentation.show(error)
+            })
           }
         }
 

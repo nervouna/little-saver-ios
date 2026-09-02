@@ -232,7 +232,10 @@ struct ActualBudgetView: View {
                 BrandNewBudgetView(overallBudgetCreated: !mainBudget.isEmpty, toEditBudget: budget)
             }
             .onAppear {
-                dataController.updateBudgetDates()
+                Task {
+                    do { try await dataController.updateBudgetDates() }
+                    catch { MutationPresentation.show(error) }
+                }
             }
             .sheet(isPresented: $newBudget) {
                 BrandNewBudgetView(overallBudgetCreated: !mainBudget.isEmpty)
@@ -766,17 +769,16 @@ struct SingleBudgetView: View {
                             }
                         }.onEnded { _ in
                             if deleteConfirm {
-                                deleted = true
-                                withAnimation(.easeInOut(duration: 0.3)) {
-                                    offset -= UIScreen.main.bounds.width
-                                }
-
-                                DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
-                                    withAnimation {
-                                        moc.delete(budget)
-                                        dataController.save()
-                                    }
-                                }
+                                let reference = LedgerReference(budget)
+                                dataController.submitMutation({
+                                    try await dataController.deleteBudget(reference)
+                                }, success: {
+                                    deleted = true
+                                    offset = 0
+                                }, failure: { error in
+                                    offset = 0
+                                    MutationPresentation.show(error)
+                                })
 
                             } else if deletePopup {
                                 withAnimation(.easeInOut(duration: 0.3)) {
@@ -1104,13 +1106,13 @@ struct DeleteBudgetAlert: View {
                     .padding(.bottom, 25)
 
                 Button {
-                    dismiss()
-                    self.presentationMode.wrappedValue.dismiss()
-
-                    withAnimation {
-                        moc.delete(toDelete)
-                        dataController.save()
-                    }
+                    let reference = LedgerReference(toDelete)
+                    dataController.submitMutation({
+                        try await dataController.deleteBudget(reference)
+                    }, success: {
+                        dismiss()
+                        self.presentationMode.wrappedValue.dismiss()
+                    })
 
                 } label: {
                     DeleteButton(text: "Delete", red: true)
@@ -1188,13 +1190,9 @@ struct DeleteMainBudgetAlert: View {
                     .padding(.bottom, 25)
 
                 Button {
-                    do {
-                        try dataController.deleteMainBudget()
-                        dataController.save()
-                        dismiss()
-                    } catch {
-                        NSLog("Main budget deletion failed: %@", error.localizedDescription)
-                    }
+                    dataController.submitMutation({
+                        try await dataController.deleteMainBudget()
+                    }, success: { dismiss() })
 
                 } label: {
                     DeleteButton(text: "Delete", red: true)

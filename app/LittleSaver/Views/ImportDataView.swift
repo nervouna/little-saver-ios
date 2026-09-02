@@ -136,7 +136,9 @@ struct ImportDataView: View {
         dataController.getAllCategories(income: false)
     }
 
-    var body: some View {
+    var body: some View { content.modifier(MutationPendingModifier()) }
+
+    @ViewBuilder private var content: some View {
         VStack(spacing: 0) {
             if progress == 8 {
                 VStack(spacing: 15) {
@@ -906,32 +908,21 @@ struct ImportDataView: View {
         let dateColumnIndex = selectedColumns[2]
         let amountColumnIndex = selectedColumns[3]
 
-        let categoryDictionary: [String: Category] = Dictionary(uniqueKeysWithValues: uniqueCategories.map { ($0.excelValue, $0.category!) })
-        do {
-            _ = try CSVTransactionImporter.importRows(
-                rows,
-                mapping: CSVImportMapping(
-                    categoryColumn: categoryColumnIndex,
-                    noteColumn: noteColumnIndex,
-                    dateColumn: dateColumnIndex,
-                    amountColumn: amountColumnIndex
-                ),
-                dateFormat: dateFormatString,
-                categoriesByName: categoryDictionary,
-                into: dataController
-            )
-        } catch {
+        let categoryDictionary = Dictionary(uniqueKeysWithValues: uniqueCategories.compactMap { item in
+            item.category.map { (item.excelValue, LedgerReference($0)) }
+        })
+        let importedRows = rows
+        let mapping = CSVImportMapping(categoryColumn: categoryColumnIndex, noteColumn: noteColumnIndex, dateColumn: dateColumnIndex, amountColumn: amountColumnIndex)
+        let format = dateFormatString
+        dataController.submitMutation({
+            try await CSVTransactionImporter.importRows(importedRows, mapping: mapping, dateFormat: format, categoriesByName: categoryDictionary, into: dataController)
+        }, success: { _ in
+            processingState = .success
+            confettiNumber += 1
+        }, failure: { error in
             processingState = .error
             errorMessage = error.localizedDescription
-            return
-        }
-
-        DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
-            withAnimation {
-                processingState = .success
-                confettiNumber += 1
-            }
-        }
+        })
     }
 
     func deduceDateFormat(from dateString: String) -> String? {

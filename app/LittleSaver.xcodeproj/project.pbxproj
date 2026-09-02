@@ -7,6 +7,8 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		A40000000000000000000001 /* LedgerCommands.swift in Sources */ = {isa = PBXBuildFile; fileRef = A40000000000000000000002 /* LedgerCommands.swift */; };
+		A40000000000000000000003 /* MutationSubmission.swift in Sources */ = {isa = PBXBuildFile; fileRef = A40000000000000000000004 /* MutationSubmission.swift */; };
 		00A5C7C03012A0534736DF47 /* DataFoundationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = ED2430264B59FBBBA80D6358 /* DataFoundationTests.swift */; };
 		04B36BBA75DD77806D0AAF86 /* LittleSaverModel.xcdatamodeld in Sources */ = {isa = PBXBuildFile; fileRef = 53BC2A3F2A8B21920019E4A8 /* LittleSaverModel.xcdatamodeld */; };
 		0ED26FAB4C951DF78EAE48BA /* LittleSaverCore.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 34DFD08ADECCB2AC6466EC3A /* LittleSaverCore.framework */; };
@@ -246,6 +248,8 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		A40000000000000000000002 /* LedgerCommands.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LedgerCommands.swift; sourceTree = "<group>"; };
+		A40000000000000000000004 /* MutationSubmission.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = MutationSubmission.swift; path = LittleSaver/Utilities/MutationSubmission.swift; sourceTree = "<group>"; };
 		0FCD34B312585CF720B9AB33 /* ManagedObjects.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ManagedObjects.swift; sourceTree = "<group>"; };
 		226EB9E41A0F49A1EAF41DB8 /* LittleSaverTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = LittleSaverTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		282A0FC956692361B0F525EC /* LedgerQueryPeriod.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = LedgerQueryPeriod.swift; sourceTree = "<group>"; };
@@ -508,6 +512,7 @@
 				866947EFF5BC32CBB5D0956C /* LittleSaverTests */,
 				B67ED84B06A00E61442714BB /* LittleSaverCore */,
 				DF75112C6B5500D36C1AF3F6 /* DataControllerPlatformAdapter.swift */,
+				A40000000000000000000004 /* MutationSubmission.swift */,
 				329B7657D145B325A292BC20 /* IntentPeriodAdapter.swift */,
 			);
 			sourceTree = "<group>";
@@ -760,6 +765,7 @@
 				5327D2AC287C6AD200F76ADF /* DataController.swift */,
 				A20000000000000000000002 /* PersistenceReads.swift */,
 				A30000000000000000000002 /* LedgerMaintenance.swift */,
+				A40000000000000000000002 /* LedgerCommands.swift */,
 				53980E5B28A77B62009CC4E2 /* Helper.swift */,
 				4039E770B84C2C977C944AC3 /* CSVImport.swift */,
 				DA6A00002F4A000100000001 /* AppIdentifiers.swift */,
@@ -1053,6 +1059,7 @@
 				B2674D8B32FE64F22038F181 /* DataController.swift in Sources */,
 				A20000000000000000000001 /* PersistenceReads.swift in Sources */,
 				A30000000000000000000001 /* LedgerMaintenance.swift in Sources */,
+				A40000000000000000000001 /* LedgerCommands.swift in Sources */,
 				2C50B7E3FE22D07311A0910E /* Helper.swift in Sources */,
 				F0F2539C2687B8E67DC1E20E /* CSVImport.swift in Sources */,
 				EDE51A15B41C67DF9B8BDB35 /* AppIdentifiers.swift in Sources */,
@@ -1095,6 +1102,7 @@
 				53D6BDCE2AF73BDA00F5728E /* SettingsWeekStartView.swift in Sources */,
 				538A32AA2A505AC6008AEF8C /* BottomSheet.swift in Sources */,
 				5327D2D9287C6B5F00F76ADF /* HomeView.swift in Sources */,
+				A40000000000000000000003 /* MutationSubmission.swift in Sources */,
 				53D6BDCC2AF73BC800F5728E /* SettingsCurrencyView.swift in Sources */,
 				53B907992AE817EA0001F496 /* DonutSemicircle.swift in Sources */,
 				53B9079F2AE818B90001F496 /* Ring.swift in Sources */,

@@ -8,6 +8,13 @@
 "welcome_subtitle_3" = "按类别和时间设定目标，控制支出";
 "Get Started" = "开始使用";
 
+"Please check the entered values." = "请检查输入的内容。";
+"This record is no longer available." = "此记录已不存在。";
+"This transaction cannot be restored because its schedule has changed." = "此交易的重复计划已更改，无法撤销删除。";
+"Another change is being saved. Please try again." = "另一项更改正在保存，请稍后重试。";
+"Unable to Save" = "无法保存";
+"OK" = "好";
+
 // 分类
 "Categories" = "分类";
 "no_income_categories" = "暂无收入分类，点击“新建”按钮添加";

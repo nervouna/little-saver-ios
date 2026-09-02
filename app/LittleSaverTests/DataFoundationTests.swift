@@ -5,6 +5,576 @@ import XCTest
 
 final class DataFoundationTests: XCTestCase {
     @MainActor
+    func testT4OrdinaryStaleUndoAndLateOriginalCannotResurrectDeletedIncarnations() async throws {
+        let controller = try DataController(configuration: .inMemory)
+        _ = try await controller.saveTransaction(TransactionInput(category: nil, note: "Ordinary", income: false, amount: 8, date: date(2099, 1, 1)))
+        let context = controller.container.viewContext
+        let original = try XCTUnwrap(context.fetch(Transaction.fetchRequest()).first)
+        let originalValues = original.dictionaryWithValues(forKeys: Array(original.entity.attributesByName.keys))
+        let businessID = original.id
+        let firstDeletion = try await controller.deleteTransaction(LedgerReference(original))
+        try await controller.restoreTransaction(firstDeletion)
+        let restored = try XCTUnwrap(context.fetch(Transaction.fetchRequest()).first)
+        let restoredValues = restored.dictionaryWithValues(forKeys: Array(restored.entity.attributesByName.keys))
+        let firstSuccessorKey = restored.occurrenceKey
+        let secondDeletion = try await controller.deleteTransaction(LedgerReference(restored))
+        do { try await controller.restoreTransaction(firstDeletion); XCTFail("A deleted successor must not be restored from its predecessor snapshot") } catch {}
+        for values in [originalValues, restoredValues] {
+            Transaction(context: context).setValuesForKeys(values)
+        }
+        try context.save()
+        try await controller.catchUpRecurringTransactions()
+        XCTAssertEqual(try context.count(for: Transaction.fetchRequest()), 0)
+        try await controller.restoreTransaction(secondDeletion)
+        try await controller.catchUpRecurringTransactions()
+        let second = try XCTUnwrap(context.fetch(Transaction.fetchRequest()).first)
+        XCTAssertEqual(try context.count(for: Transaction.fetchRequest()), 1)
+        XCTAssertEqual(second.id, businessID)
+        XCTAssertEqual(second.note, "Ordinary")
+        XCTAssertEqual(second.amount, 8)
+        XCTAssertNotEqual(second.occurrenceKey, firstSuccessorKey)
+        XCTAssertEqual(try context.count(for: RecurringSeries.fetchRequest()), 0)
+        XCTAssertEqual(try context.count(for: RecurringSuppression.fetchRequest()), 2)
+    }
+
+    @MainActor
+    func testT4ConcurrentOrdinaryUndoConvergesWithLateCopiesAndReopen() async throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        let entities = ["Transaction", "RecurringSeries", "RecurringSuppression"]
+        let source = try DataController(configuration: .inMemory)
+        _ = try await source.saveTransaction(TransactionInput(category: nil, note: "Ordinary", income: false, amount: 12.5, date: date(2099, 1, 1)))
+        let original = try ledgerAttributes(from: source.container.viewContext, entities: entities)
+        let businessID = try XCTUnwrap(source.results(for: Transaction.fetchRequest()).first?.id)
+        XCTAssertNil(source.results(for: Transaction.fetchRequest()).first?.occurrenceKey)
+        var shared = original
+        var lateCopies = [original]
+        for cycle in 1...2 {
+            var peerSnapshots: [[String: [[String: Any]]]] = []
+            var keys: [String] = []
+            var tokens: [String] = []
+            for _ in 0..<2 {
+                let peer = try DataController(configuration: .inMemory)
+                let context = peer.container.viewContext
+                importLedgerAttributes(shared, into: context)
+                try context.save()
+                let row = try XCTUnwrap(context.fetch(Transaction.fetchRequest()).first)
+                let deletion = try await peer.deleteTransaction(LedgerReference(row))
+                try await peer.restoreTransaction(deletion)
+                try await peer.catchUpRecurringTransactions()
+                let restored = try XCTUnwrap(context.fetch(Transaction.fetchRequest()).first)
+                keys.append(restored.occurrenceKey ?? "missing")
+                tokens.append(try XCTUnwrap(restored.deduplicationToken))
+                XCTAssertNotNil(restored.occurrenceKey)
+                peerSnapshots.append(try ledgerAttributes(from: context, entities: entities))
+            }
+            XCTAssertEqual(Set(keys).count, 1)
+            XCTAssertEqual(Set(tokens).count, 2)
+            for (orderIndex, order) in [peerSnapshots, peerSnapshots.reversed().map { $0 }].enumerated() {
+                let url = directory.appendingPathComponent("ordinary-\(cycle)-\(orderIndex).sqlite")
+                let configuration = DataController.Configuration(mode: .sharedLocal, modelName: AppIdentifiers.persistentModel, storeURL: url, reloadWidgetsAfterSave: false)
+                let merged = try DataController(configuration: configuration)
+                try await merged.waitUntilReady()
+                let context = merged.container.viewContext
+                for copy in lateCopies { importLedgerAttributes(copy, into: context) }
+                for snapshot in order { importLedgerAttributes(snapshot, into: context) }
+                // Exercise both late original rows with nil keys and older restored rows.
+                for copy in lateCopies.reversed() { importLedgerAttributes(copy, into: context) }
+                try context.save()
+                for _ in 0..<3 { try await merged.catchUpRecurringTransactions() }
+                let rows = try context.fetch(Transaction.fetchRequest())
+                XCTAssertEqual(rows.count, 1)
+                XCTAssertEqual(rows.map(\.amount).reduce(0, +), 12.5)
+                XCTAssertEqual(rows.first?.id, businessID)
+                XCTAssertEqual(rows.first?.recurringType, 0)
+                let canonical = try ledgerAttributes(from: context, entities: entities)
+                // Reopen through an independent coordinator. Do not detach a store
+                // still owned by asynchronous history/maintenance callbacks.
+                let reopened = try DataController(configuration: configuration)
+                try await reopened.waitUntilReady()
+                let reopenedRows = reopened.results(for: Transaction.fetchRequest())
+                XCTAssertEqual(reopenedRows.count, 1)
+                XCTAssertEqual(reopenedRows.first?.id, businessID)
+                XCTAssertEqual(reopenedRows.map(\.amount).reduce(0, +), 12.5)
+                if cycle == 2 {
+                    let restored = try XCTUnwrap(reopenedRows.first)
+                    _ = try await reopened.saveTransaction(TransactionInput(reference: LedgerReference(restored), category: nil, note: "Ordinary", income: false, amount: 12.5, date: date(2099, 1, 1), repeatType: 1))
+                    try await reopened.catchUpRecurringTransactions(now: date(2099, 1, 2, 12))
+                    let recurring = reopened.results(for: Transaction.fetchRequest())
+                    XCTAssertEqual(recurring.count, 2)
+                    XCTAssertEqual(recurring.filter { $0.occurrenceIndex == 1 }.count, 1)
+                    XCTAssertEqual(recurring.filter { $0.recurringType > 0 }.count, 1)
+                    XCTAssertEqual(reopened.results(for: RecurringSeries.fetchRequest()).filter { $0.stoppedAt == nil }.count, 1)
+                }
+                if orderIndex == 0 { shared = canonical }
+            }
+            lateCopies.append(peerSnapshots[0])
+        }
+    }
+
+    @MainActor
+    func testT4ConcurrentUndoIncarnationsConvergeAcrossExchangeOrderAndReopen() async throws {
+        for occurrenceIndex in 0...1 {
+            try await assertConcurrentUndoConverges(occurrenceIndex: Int64(occurrenceIndex))
+        }
+    }
+
+    @MainActor
+    private func assertConcurrentUndoConverges(occurrenceIndex: Int64) async throws {
+        let now = date(2099, 1, 1 + Int(occurrenceIndex), 12)
+        let expectedCount = 1 + Int(occurrenceIndex)
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        // Retain fixtures until process teardown; history callbacks can outlive the test.
+        let entities = ["Transaction", "RecurringSeries", "RecurringSuppression"]
+        let source = try DataController(configuration: .inMemory)
+        let sourceContext = source.container.viewContext
+        let seed = Transaction(context: sourceContext)
+        seed.id = UUID()
+        seed.note = "Shared occurrence"
+        seed.amount = 12.5
+        seed.date = date(2099, 1, 1)
+        seed.day = seed.date
+        seed.recurringType = 1
+        seed.recurringCoefficient = 1
+        try LedgerMaintenance.attachSeries(to: seed, logicalID: "shared-series", in: sourceContext)
+        try LedgerMaintenance.materialize(in: sourceContext, now: now)
+        try sourceContext.save()
+        var shared = try ledgerAttributes(from: sourceContext, entities: entities)
+        let target = try XCTUnwrap(sourceContext.fetch(Transaction.fetchRequest()).first { $0.occurrenceIndex == occurrenceIndex })
+        let businessID = target.id
+
+        for cycle in 1...2 {
+            var peerSnapshots: [[String: [[String: Any]]]] = []
+            var keys: [String] = []
+            var physicalTokens: [String] = []
+            for _ in 0..<2 {
+                let peer = try DataController(configuration: .inMemory)
+                let context = peer.container.viewContext
+                importLedgerAttributes(shared, into: context)
+                try context.save()
+                let row = try XCTUnwrap(context.fetch(Transaction.fetchRequest()).first { $0.id == businessID })
+                let predecessor = try XCTUnwrap(row.occurrenceKey)
+                let previousToken = row.deduplicationToken
+                let deletion = try await peer.deleteTransaction(LedgerReference(row))
+                try await peer.restoreTransaction(deletion)
+                try await peer.catchUpRecurringTransactions(now: now)
+                let restored = try XCTUnwrap(context.fetch(Transaction.fetchRequest()).first { $0.id == businessID })
+                keys.append(try XCTUnwrap(restored.occurrenceKey))
+                physicalTokens.append(try XCTUnwrap(restored.deduplicationToken))
+                XCTAssertNotEqual(restored.deduplicationToken, previousToken)
+                XCTAssertTrue(try context.fetch(RecurringSuppression.fetchRequest()).contains { $0.occurrenceKey == predecessor })
+                peerSnapshots.append(try ledgerAttributes(from: context, entities: entities))
+            }
+            XCTAssertEqual(Set(keys).count, 1, "The same predecessor must have one successor identity")
+            XCTAssertEqual(Set(physicalTokens).count, 2, "Distinct physical records need distinct tie breakers")
+
+            for (orderIndex, order) in [peerSnapshots, peerSnapshots.reversed().map { $0 }].enumerated() {
+                let url = directory.appendingPathComponent("cycle-\(cycle)-order-\(orderIndex).sqlite")
+                let configuration = DataController.Configuration(mode: .sharedLocal, modelName: AppIdentifiers.persistentModel, storeURL: url, reloadWidgetsAfterSave: false)
+                let merged = try DataController(configuration: configuration)
+                try await merged.waitUntilReady()
+                let context = merged.container.viewContext
+                for snapshot in order { importLedgerAttributes(snapshot, into: context) }
+                try context.save()
+                for _ in 0..<3 { try await merged.catchUpRecurringTransactions(now: now) }
+                let transactions = try context.fetch(Transaction.fetchRequest())
+                XCTAssertEqual(transactions.count, expectedCount)
+                XCTAssertEqual(transactions.filter { $0.id == businessID }.count, 1)
+                XCTAssertEqual(transactions.map(\.amount).reduce(0, +), 12.5 * Double(expectedCount))
+                XCTAssertEqual(transactions.first { $0.id == businessID }?.id, businessID)
+                XCTAssertEqual(transactions.first { $0.id == businessID }?.recurringType, 1)
+                XCTAssertEqual(try context.fetch(RecurringSeries.fetchRequest()).filter { $0.stoppedAt == nil }.count, 1)
+                let canonical = try ledgerAttributes(from: context, entities: entities)
+                // Reopen through an independent coordinator. Do not detach a store
+                // still owned by asynchronous history/maintenance callbacks.
+                let reopened = try DataController(configuration: configuration)
+                try await reopened.waitUntilReady()
+                try await reopened.catchUpRecurringTransactions(now: now)
+                let reopenedRows = reopened.results(for: Transaction.fetchRequest())
+                XCTAssertEqual(reopenedRows.count, expectedCount)
+                XCTAssertEqual(reopenedRows.filter { $0.id == businessID }.count, 1)
+                XCTAssertEqual(reopenedRows.map(\.amount).reduce(0, +), 12.5 * Double(expectedCount))
+                XCTAssertEqual(reopenedRows.first { $0.id == businessID }?.id, businessID)
+                XCTAssertEqual(reopened.results(for: RecurringSeries.fetchRequest()).filter { $0.stoppedAt == nil }.count, 1)
+                if cycle == 2 {
+                    try await reopened.catchUpRecurringTransactions(now: date(2099, 1, 2 + Int(occurrenceIndex), 12))
+                    let dueRows = reopened.results(for: Transaction.fetchRequest())
+                    XCTAssertEqual(dueRows.count, expectedCount + 1)
+                    XCTAssertEqual(dueRows.filter { $0.occurrenceIndex == occurrenceIndex + 1 }.count, 1)
+                    XCTAssertEqual(dueRows.filter { $0.recurringType > 0 }.count, 1)
+                }
+                if orderIndex == 0 { shared = canonical }
+            }
+        }
+    }
+
+    @MainActor
+    func testT4StaleUndoCannotReviveAnAlreadyDeletedSuccessor() async throws {
+        let controller = try DataController(configuration: .inMemory)
+        let context = controller.container.viewContext
+        let seed = Transaction(context: context)
+        seed.id = UUID()
+        seed.date = date(2099, 1, 1)
+        seed.day = seed.date
+        seed.amount = 10
+        seed.recurringType = 1
+        seed.recurringCoefficient = 1
+        try LedgerMaintenance.attachSeries(to: seed, in: context)
+        try LedgerMaintenance.materialize(in: context, now: date(2099, 1, 3, 12))
+        try context.save()
+        let oldOccurrence = try XCTUnwrap(context.fetch(Transaction.fetchRequest()).first { $0.occurrenceIndex == 1 })
+        let businessID = oldOccurrence.id
+        let firstDeletion = try await controller.deleteTransaction(LedgerReference(oldOccurrence))
+        try await controller.restoreTransaction(firstDeletion)
+        let restored = try XCTUnwrap(context.fetch(Transaction.fetchRequest()).first { $0.id == businessID })
+        let firstSuccessorKey = restored.occurrenceKey
+        let secondDeletion = try await controller.deleteTransaction(LedgerReference(restored))
+        do { try await controller.restoreTransaction(firstDeletion); XCTFail("Stale Undo must not revive a deleted successor") } catch {}
+        XCTAssertFalse(try context.fetch(Transaction.fetchRequest()).contains { $0.id == businessID })
+        try await controller.restoreTransaction(secondDeletion)
+        try await controller.catchUpRecurringTransactions(now: date(2099, 1, 3, 12))
+        let secondSuccessor = try XCTUnwrap(context.fetch(Transaction.fetchRequest()).first { $0.id == businessID })
+        XCTAssertNotEqual(secondSuccessor.occurrenceKey, firstSuccessorKey)
+        XCTAssertEqual(try context.count(for: Transaction.fetchRequest()), 3)
+        XCTAssertEqual(try context.fetch(Transaction.fetchRequest()).filter { $0.recurringType > 0 }.count, 1)
+    }
+
+    @MainActor
+    func testT4ConflictingPeerSaveFailsInsteadOfSilentlyDiscardingCommand() async throws {
+        let configuration = DataController.Configuration(mode: .inMemory, modelName: AppIdentifiers.persistentModel, storeURL: nil, reloadWidgetsAfterSave: true)
+        let controller = try DataController(configuration: configuration)
+        let reference = try await controller.saveCategory(CategoryInput(name: "Food", emoji: "F", colour: "#123456", income: false))
+        var reloads = 0
+        controller.reloadWidgets = { reloads += 1 }
+        let peer = controller.container.newBackgroundContext()
+        controller.commandSave = { commandContext in
+            try peer.performAndWait {
+                let category = try XCTUnwrap(peer.fetch(LittleSaverCore.Category.fetchRequest()).first)
+                category.name = "Peer edit"
+                try peer.save()
+            }
+            try commandContext.save()
+        }
+        do {
+            _ = try await controller.saveCategory(CategoryInput(reference: reference, name: "Local edit", emoji: "F", colour: "#123456", income: false))
+            XCTFail("Optimistic locking conflict must not report a discarded command as success")
+        } catch {}
+        let names = try await controller.performBackgroundRead { context in
+            try context.fetch(LittleSaverCore.Category.fetchRequest()).compactMap(\.name)
+        }
+        XCTAssertEqual(names, ["Peer edit"])
+        XCTAssertEqual(reloads, 0)
+    }
+
+    @MainActor
+    func testT4UndoFailureRetainsSnapshotAndSuccessPreservesUnrelatedCommittedEdit() async throws {
+        let controller = try DataController(configuration: .inMemory)
+        let category = try await controller.saveCategory(CategoryInput(name: "Food", emoji: "F", colour: "#123456", income: false))
+        let when = date(2099, 1, 1)
+        for note in ["Deleted", "Unrelated"] {
+            _ = try await controller.saveTransaction(TransactionInput(category: category, note: note, income: false, amount: 12.5, date: when))
+        }
+        let context = controller.container.viewContext
+        let row = try XCTUnwrap(context.fetch(Transaction.fetchRequest()).first { $0.note == "Deleted" })
+        let original = row.dictionaryWithValues(forKeys: Array(row.entity.attributesByName.keys))
+        var pendingUndo: TransactionDeletionSnapshot? = try await controller.deleteTransaction(LedgerReference(row))
+        let other = try XCTUnwrap(context.fetch(Transaction.fetchRequest()).first)
+        _ = try await controller.saveTransaction(TransactionInput(reference: LedgerReference(other), category: category, note: "Committed independently", income: false, amount: 99, date: when))
+        controller.commandSave = { _ in throw NSError(domain: "InjectedCommitFailure", code: 1) }
+        let state = MutationSubmissionState()
+        var successes = 0
+        let failed = state.submit(operation: {
+            try await controller.restoreTransaction(pendingUndo!)
+        }, success: { pendingUndo = nil; successes += 1 }, failure: { _ in })
+        await failed?.value
+        XCTAssertNotNil(pendingUndo)
+        XCTAssertEqual(successes, 0)
+        XCTAssertEqual(try context.count(for: Transaction.fetchRequest()), 1)
+        XCTAssertEqual(other.note, "Committed independently")
+        controller.commandSave = { try $0.save() }
+        let successful = state.submit(operation: {
+            try await controller.restoreTransaction(pendingUndo!)
+        }, success: {
+            XCTAssertTrue(state.pending)
+            XCTAssertEqual(controller.results(for: Transaction.fetchRequest()).count, 2)
+            pendingUndo = nil
+            successes += 1
+        }, failure: { error in XCTFail(error.localizedDescription) })
+        await successful?.value
+        XCTAssertEqual(successes, 1)
+        XCTAssertNil(pendingUndo)
+        XCTAssertFalse(state.pending)
+        let restored = try XCTUnwrap(context.fetch(Transaction.fetchRequest()).first { $0.note == "Deleted" })
+        let identityKeys: Set<String> = ["deduplicationToken", "occurrenceKey"]
+        let businessKeys = restored.entity.attributesByName.keys.filter { !identityKeys.contains($0) }
+        XCTAssertTrue(NSDictionary(dictionary: original.filter { !identityKeys.contains($0.key) }).isEqual(to: restored.dictionaryWithValues(forKeys: businessKeys)))
+        XCTAssertNotEqual(restored.deduplicationToken, original["deduplicationToken"] as? String)
+        XCTAssertNotNil(restored.occurrenceKey)
+        XCTAssertEqual(other.note, "Committed independently")
+        XCTAssertEqual(other.amount, 99)
+    }
+
+    @MainActor
+    func testT4EveryCommandRollsBackInjectedSaveFailure() async throws {
+        let controller = try DataController(configuration: .inMemory)
+        let first = try await controller.saveCategory(CategoryInput(name: "Food", emoji: "F", colour: "#123456", income: false))
+        let second = try await controller.saveCategory(CategoryInput(name: "Travel", emoji: "T", colour: "#654321", income: false))
+        let when = date(2099, 1, 1)
+        try await controller.saveTemplate(TransactionInput(category: first, note: "Template", income: false, amount: 4, date: when), order: 0)
+        try await controller.saveBudget(category: first, amount: 100, startDate: when, type: 2)
+        try await controller.upsertMainBudget(amount: 200, startDate: when, type: 2)
+        _ = try await controller.saveTransaction(TransactionInput(category: first, note: "Repeat", income: false, amount: 10, date: when, repeatType: 1))
+        try await controller.catchUpRecurringTransactions(now: when)
+        let context = controller.container.viewContext
+        let transaction = LedgerReference(try XCTUnwrap(context.fetch(Transaction.fetchRequest()).first))
+        let template = LedgerReference(try XCTUnwrap(context.fetch(TemplateTransaction.fetchRequest()).first))
+        let budget = LedgerReference(try XCTUnwrap(context.fetch(Budget.fetchRequest()).first))
+        let entities = ["Category", "Transaction", "TemplateTransaction", "Budget", "MainBudget", "RecurringSeries", "RecurringSuppression"]
+        let baseline = try ledgerAttributes(from: context, entities: entities)
+        var attempts = 0
+        controller.commandSave = { privateContext in
+            XCTAssertTrue(privateContext.hasChanges)
+            attempts += 1
+            throw NSError(domain: "InjectedCommitFailure", code: 1)
+        }
+        let commands: [() async throws -> Void] = [
+            { _ = try await controller.saveCategory(CategoryInput(reference: first, name: "Edited", emoji: "E", colour: "#000000", income: false)) },
+            { try await controller.deleteCategories([first, second]) },
+            { try await controller.reorderCategories([second, first]) },
+            { try await controller.saveTemplate(TransactionInput(reference: template, category: second, note: "Edited", income: false, amount: 6, date: when), order: 0) },
+            { try await controller.deleteTemplate(template) },
+            { try await controller.reorderTemplates([(template, 2)]) },
+            { try await controller.saveBudget(reference: budget, category: second, amount: 50, startDate: when, type: 1) },
+            { try await controller.deleteBudget(budget) },
+            { try await controller.upsertMainBudget(amount: 300, startDate: when, type: 3) },
+            { try await controller.deleteMainBudget() },
+            { _ = try await controller.saveTransaction(TransactionInput(reference: transaction, category: second, note: "Edited", income: false, amount: 5, date: when, repeatType: 2)) },
+            { try await controller.stopRecurringTransaction(transaction) },
+            { _ = try await controller.deleteTransaction(transaction) },
+            { _ = try await controller.newTemplateTransaction(order: 0) },
+            { _ = try await CSVTransactionImporter.importRows([["Food", "CSV", "2099-01-01", "12"]], mapping: CSVImportMapping(categoryColumn: 0, noteColumn: 1, dateColumn: 2, amountColumn: 3), dateFormat: "yyyy-MM-dd", categoriesByName: ["Food": first], into: controller) }
+        ]
+        for command in commands {
+            do { try await command(); XCTFail("Injected save failure must propagate") } catch {}
+            let actual = try ledgerAttributes(from: context, entities: entities)
+            XCTAssertTrue(NSDictionary(dictionary: baseline).isEqual(to: actual))
+        }
+        XCTAssertEqual(attempts, commands.count)
+    }
+
+    @MainActor
+    func testT4CommandsAwaitReadinessAndPropagateLoadFailure() async throws {
+        var finishLoading: (() -> Void)?
+        let delayed = try DataController(configuration: .inMemory) { container, completion in
+            finishLoading = { container.loadPersistentStores(completionHandler: completion) }
+        }
+        var completed = false
+        let pending = Task { @MainActor in
+            _ = try await delayed.saveCategory(CategoryInput(name: "Food", emoji: "F", colour: "#123456", income: false))
+            completed = true
+        }
+        await Task.yield()
+        XCTAssertFalse(completed)
+        finishLoading?()
+        try await pending.value
+        XCTAssertTrue(completed)
+        let failed = try DataController(configuration: .inMemory) { _, completion in
+            completion(NSPersistentStoreDescription(), NSError(domain: "LoadFailure", code: 1))
+        }
+        do { try await failed.deleteAll(); XCTFail("Failed readiness must throw") }
+        catch { guard case .failed = error as? DataController.PersistentStoreAccessError else { return XCTFail("Unexpected error") } }
+    }
+
+    @MainActor
+    func testT4SuccessfulCommandsKeepSingletonAndUnrelatedEditorState() async throws {
+        let controller = try DataController(configuration: .inMemory)
+        let first = try await controller.saveCategory(CategoryInput(name: "Food", emoji: "F", colour: "#123456", income: false))
+        let second = try await controller.saveCategory(CategoryInput(name: "Travel", emoji: "T", colour: "#654321", income: false))
+        let context = controller.container.viewContext
+        let editor = try XCTUnwrap(context.fetch(LittleSaverCore.Category.fetchRequest()).first { $0.name == "Food" })
+        editor.name = "Unrelated draft"
+        _ = try await controller.saveCategory(CategoryInput(reference: second, name: "Transit", emoji: "T", colour: "#654321", income: false))
+        XCTAssertEqual(editor.name, "Unrelated draft")
+        XCTAssertTrue(editor.hasChanges)
+        try await controller.reorderCategories([second, first])
+        XCTAssertEqual(editor.name, "Unrelated draft")
+        let when = date(2099, 1, 1)
+        try await controller.upsertMainBudget(amount: 100, startDate: when, type: 2)
+        try await controller.upsertMainBudget(amount: 200, startDate: when, type: 3)
+        XCTAssertEqual(try LedgerMaintenance.currentMainBudget(in: context)?.amount, 200)
+        try await controller.deleteMainBudget()
+        XCTAssertNil(try LedgerMaintenance.currentMainBudget(in: context))
+        XCTAssertEqual(try context.count(for: MainBudget.fetchRequest()), 3)
+        try await controller.saveBudget(category: second, amount: 50, startDate: when, type: 1)
+        try await controller.saveTemplate(TransactionInput(category: second, note: "Ride", income: false, amount: 8, date: when), order: 0)
+        _ = try await controller.saveTransaction(TransactionInput(category: second, note: "Ride", income: false, amount: 8, date: when))
+        try await controller.deleteCategories([second])
+        XCTAssertEqual(try context.count(for: Budget.fetchRequest()), 0)
+        XCTAssertEqual(try context.count(for: TemplateTransaction.fetchRequest()), 0)
+        XCTAssertEqual(try context.count(for: Transaction.fetchRequest()), 0)
+        XCTAssertEqual(editor.name, "Unrelated draft")
+    }
+
+    @MainActor
+    func testT4AppCSVAndIntentCommandsReloadExactlyOnceAfterMergedCommit() async throws {
+        let configuration = DataController.Configuration(mode: .inMemory, modelName: AppIdentifiers.persistentModel, storeURL: nil, reloadWidgetsAfterSave: true)
+        let controller = try DataController(configuration: configuration)
+        let category = try await controller.saveCategory(CategoryInput(name: "Food", emoji: "F", colour: "#123456", income: false))
+        try await controller.catchUpRecurringTransactions()
+        var reloads = 0
+        controller.reloadWidgets = { reloads += 1 }
+        _ = try await controller.saveTransaction(TransactionInput(category: category, note: "App", income: false, amount: 10, date: self.date(2099, 1, 1)))
+        XCTAssertEqual(controller.results(for: Transaction.fetchRequest()).count, 1)
+        try await controller.catchUpRecurringTransactions()
+        XCTAssertEqual(reloads, 1)
+        _ = try await CSVTransactionImporter.importRows([["Food", "CSV", "2099-01-01", "12"]], mapping: CSVImportMapping(categoryColumn: 0, noteColumn: 1, dateColumn: 2, amountColumn: 3), dateFormat: "yyyy-MM-dd", categoriesByName: ["Food": category], into: controller)
+        try await controller.catchUpRecurringTransactions()
+        XCTAssertEqual(reloads, 2)
+        let id = try XCTUnwrap(controller.results(for: LittleSaverCore.Category.fetchRequest()).first?.id)
+        let result = try await controller.saveTransaction(TransactionInput(category: .category(id), note: "Intent", income: false, amount: 13, date: self.date(2099, 1, 1)))
+        XCTAssertEqual(result.note, "Intent")
+        try await controller.catchUpRecurringTransactions()
+        XCTAssertEqual(reloads, 3)
+        controller.commandSave = { _ in throw NSError(domain: "InjectedCommitFailure", code: 1) }
+        do {
+            _ = try await controller.saveTransaction(TransactionInput(category: category, note: "Failed", income: false, amount: 14, date: self.date(2099, 1, 1)))
+            XCTFail("Commit failure must escape")
+        } catch {}
+        try await controller.catchUpRecurringTransactions()
+        XCTAssertEqual(reloads, 3)
+        XCTAssertEqual(controller.results(for: Transaction.fetchRequest()).count, 3)
+    }
+
+    @MainActor
+    func testT4InjectedSaveFailureRollsBackEveryEraseEntityAndPreservesEditor() async throws {
+        let controller = try DataController(configuration: .inMemory)
+        let context = controller.container.viewContext
+        for entity in ["RecurringSeries", "RecurringSuppression", "Transaction", "TemplateTransaction", "Budget", "MainBudget", "Category"] {
+            _ = NSEntityDescription.insertNewObject(forEntityName: entity, into: context)
+        }
+        try context.save()
+        let category = try XCTUnwrap(context.fetch(LittleSaverCore.Category.fetchRequest()).first)
+        category.name = "Unsaved editor text"
+        var attempted = false
+        controller.commandSave = { privateContext in
+            attempted = true
+            XCTAssertGreaterThan(privateContext.deletedObjects.count, 0)
+            throw NSError(domain: "InjectedCommitFailure", code: 1)
+        }
+        do { try await controller.deleteAll(); XCTFail("Save must fail") } catch {}
+        XCTAssertTrue(attempted)
+        XCTAssertEqual(category.name, "Unsaved editor text")
+        XCTAssertTrue(context.hasChanges)
+        let counts = try await controller.performBackgroundRead { context in
+            try context.persistentStoreCoordinator!.managedObjectModel.entities.map { try context.count(for: NSFetchRequest<NSManagedObject>(entityName: $0.name!)) }
+        }
+        XCTAssertTrue(counts.allSatisfy { $0 == 1 })
+        controller.commandSave = { try $0.save() }
+        try await controller.deleteAll()
+        let remaining = try await controller.performBackgroundRead { context in
+            try context.persistentStoreCoordinator!.managedObjectModel.entities.map { try context.count(for: NSFetchRequest<NSManagedObject>(entityName: $0.name!)) }
+        }
+        XCTAssertTrue(remaining.allSatisfy { $0 == 0 })
+    }
+
+    @MainActor
+    func testT4SubmissionRetainsStateOnFailureAndRejectsDuplicateExplicitly() async throws {
+        let state = MutationSubmissionState()
+        var editor = "Keep this"
+        var successes = 0
+        var failures = 0
+        let task = state.submit(operation: { () async throws -> Void in
+            await Task.yield()
+            throw NSError(domain: "InjectedCommitFailure", code: 1)
+        }, success: { editor = ""; successes += 1 }, failure: { _ in failures += 1 })
+        XCTAssertTrue(state.pending)
+        let duplicate = state.submit(operation: {}, success: { successes += 1 }, failure: { _ in failures += 1 })
+        XCTAssertNil(duplicate)
+        await task?.value
+        XCTAssertEqual(editor, "Keep this")
+        XCTAssertEqual(successes, 0)
+        XCTAssertEqual(failures, 2)
+        XCTAssertFalse(state.pending)
+        XCTAssertNotNil(state.error)
+    }
+
+    @MainActor
+    func testT4UndoActiveOccurrenceSurvivesMaintenanceAndLateSuppression() async throws {
+        let controller = try DataController(configuration: .inMemory)
+        let context = controller.container.viewContext
+        let seed = Transaction(context: context)
+        seed.id = UUID(); seed.date = date(2099, 1, 1); seed.day = seed.date
+        seed.amount = 10; seed.recurringType = 1; seed.recurringCoefficient = 1
+        try LedgerMaintenance.attachSeries(to: seed, in: context)
+        try LedgerMaintenance.materialize(in: context, now: date(2099, 1, 2, 12))
+        try LedgerMaintenance.reconcile(in: context)
+        try context.save()
+        let active = try XCTUnwrap(context.fetch(Transaction.fetchRequest()).first { $0.recurringType > 0 })
+        let oldKey = try XCTUnwrap(active.occurrenceKey)
+        let originalID = active.id
+        let snapshot = try await controller.deleteTransaction(LedgerReference(active))
+        let lateStoppedSeries = try ledgerAttributes(from: context, entities: ["RecurringSeries"])
+        try await controller.restoreTransaction(snapshot)
+        importLedgerAttributes(lateStoppedSeries, into: context)
+        let late = RecurringSuppression(context: context)
+        late.occurrenceKey = oldKey
+        try context.save()
+        try await controller.catchUpRecurringTransactions(now: date(2099, 1, 2, 12))
+        let restored = try XCTUnwrap(context.fetch(Transaction.fetchRequest()).first { $0.id == originalID })
+        XCTAssertEqual(restored.recurringType, 1)
+        XCTAssertNotNil(restored.nextScheduledDate)
+        XCTAssertNotEqual(restored.occurrenceKey, oldKey)
+        XCTAssertEqual(restored.occurrenceIndex, 1)
+        try await controller.catchUpRecurringTransactions(now: date(2099, 1, 3, 12))
+        XCTAssertEqual(try context.count(for: Transaction.fetchRequest()), 3)
+        XCTAssertEqual(try context.fetch(Transaction.fetchRequest()).filter { $0.occurrenceIndex == 2 }.count, 1)
+        let restoredValues = restored.dictionaryWithValues(forKeys: Array(restored.entity.attributesByName.keys))
+        _ = try await controller.deleteTransaction(LedgerReference(restored))
+        let lateRestoredCopy = Transaction(context: context)
+        lateRestoredCopy.setValuesForKeys(restoredValues)
+        try context.save()
+        try await controller.catchUpRecurringTransactions(now: date(2099, 1, 3, 12))
+        XCTAssertFalse(try context.fetch(Transaction.fetchRequest()).contains { $0.id == originalID })
+        XCTAssertEqual(try context.count(for: Transaction.fetchRequest()), 2)
+    }
+
+    @MainActor
+    func testT4UndoDoesNotOverrideIndependentScheduleEdit() async throws {
+        let controller = try DataController(configuration: .inMemory)
+        let when = date(2099, 1, 1)
+        _ = try await controller.saveTransaction(TransactionInput(category: nil, note: "Seed", income: false, amount: 10, date: when, repeatType: 1))
+        try await controller.catchUpRecurringTransactions(now: date(2099, 1, 2, 12))
+        let context = controller.container.viewContext
+        let rows = try context.fetch(Transaction.fetchRequest())
+        let active = try XCTUnwrap(rows.first { $0.recurringType > 0 })
+        let seed = try XCTUnwrap(rows.first { $0.occurrenceIndex == 0 })
+        let snapshot = try await controller.deleteTransaction(LedgerReference(active))
+        _ = try await controller.saveTransaction(TransactionInput(reference: LedgerReference(seed), category: nil, note: "Independent weekly edit", income: false, amount: 15, date: when, repeatType: 2))
+        do { try await controller.restoreTransaction(snapshot); XCTFail("Undo must not override the newer schedule decision") } catch {}
+        try await controller.catchUpRecurringTransactions(now: date(2099, 1, 2, 12))
+        let live = try context.fetch(RecurringSeries.fetchRequest()).filter { $0.stoppedAt == nil }
+        XCTAssertEqual(live.count, 1)
+        XCTAssertEqual(live.first?.type, 2)
+        XCTAssertEqual(live.first?.amount, 15)
+    }
+
+    @MainActor
+    func testReadingTemplateOrderNeverDeletesCollidingTemplates() throws {
+        let controller = try DataController(configuration: .inMemory)
+        let context = controller.container.viewContext
+        for _ in 0..<2 {
+            let template = TemplateTransaction(context: context)
+            template.id = UUID()
+            template.order = 1
+        }
+        try context.save()
+        XCTAssertNotNil(controller.getTemplateTransaction(order: 1))
+        XCTAssertEqual(try context.count(for: TemplateTransaction.fetchRequest()), 2)
+        XCTAssertFalse(context.hasChanges)
+    }
+
+    @MainActor
     func testSiblingReplacementOccurrencesConvergeAcrossImportOrdersAndReopen() async throws {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
@@ -448,7 +1018,7 @@ final class DataFoundationTests: XCTestCase {
         budget.startDate = Date()
         budget.type = 2
         budget.amount = 100
-        controller.save()
+        try! controller.container.viewContext.save()
         let uuid = budget.id!.uuidString
         let legacy = budget.objectID.uriRepresentation().absoluteString
         let snapshots = try await controller.categorySnapshots(income: false)
@@ -487,7 +1057,7 @@ final class DataFoundationTests: XCTestCase {
         overall.startDate = Date()
         overall.type = 2
         overall.amount = .infinity
-        controller.save()
+        try! controller.container.viewContext.save()
         let id = budget.id!.uuidString
         let categoryValue = try await controller.budgetSnapshot(identifier: id)
         let overallValue = try await controller.mainBudgetSnapshot()
@@ -798,7 +1368,7 @@ final class DataFoundationTests: XCTestCase {
         let captured = controller!
         let pending = Task { try await captured.catchUpRecurringTransactions(now: date(2027, 1, 1)) }
         await Task.yield()
-        captured.deleteAll()
+        try await captured.deleteAll()
         try await pending.value
         try await captured.catchUpRecurringTransactions(now: date(2027, 1, 1))
         let counts = try await captured.performBackgroundRead { context in
@@ -930,7 +1500,7 @@ final class DataFoundationTests: XCTestCase {
 
     func testInMemoryCRUDAndCascadeRelationship() throws {
         let category = makeCategory(name: "Food")
-        let transaction = controller.newTransaction(
+        let transaction = fixtureTransaction(
             note: "Lunch",
             category: category,
             income: false,
@@ -946,7 +1516,7 @@ final class DataFoundationTests: XCTestCase {
         XCTAssertEqual(controller.results(for: Transaction.fetchRequest()).count, 1)
 
         controller.container.viewContext.delete(category)
-        controller.save()
+        try! controller.container.viewContext.save()
         XCTAssertTrue(controller.results(for: Transaction.fetchRequest()).isEmpty)
     }
 
@@ -959,18 +1529,18 @@ final class DataFoundationTests: XCTestCase {
         budget.startDate = date(2026, 1, 10)
         budget.type = 2
         budget.category = category
-        controller.save()
+        try! controller.container.viewContext.save()
 
         XCTAssertEqual(category.budget, budget)
         XCTAssertEqual(controller.results(for: Budget.fetchRequest()).count, 1)
 
         budget.amount = 250
-        controller.save()
+        try! controller.container.viewContext.save()
         XCTAssertEqual(controller.results(for: Budget.fetchRequest()).first?.amount, 250)
 
-        _ = controller.newTransaction(note: "Before", category: category, income: false, amount: 10, date: date(2026, 1, 9), repeatType: 0, repeatCoefficient: 1, delay: false)
-        _ = controller.newTransaction(note: "Inside", category: category, income: false, amount: 25, date: date(2026, 1, 12), repeatType: 0, repeatCoefficient: 1, delay: false)
-        _ = controller.newTransaction(note: "Income", category: category, income: true, amount: 100, date: date(2026, 1, 12), repeatType: 0, repeatCoefficient: 1, delay: false)
+        _ = fixtureTransaction(note: "Before", category: category, income: false, amount: 10, date: date(2026, 1, 9), repeatType: 0, repeatCoefficient: 1, delay: false)
+        _ = fixtureTransaction(note: "Inside", category: category, income: false, amount: 25, date: date(2026, 1, 12), repeatType: 0, repeatCoefficient: 1, delay: false)
+        _ = fixtureTransaction(note: "Income", category: category, income: true, amount: 100, date: date(2026, 1, 12), repeatType: 0, repeatCoefficient: 1, delay: false)
 
         let windowTransactions = controller.results(for: controller.fetchRequestForBudgetTransactions(budget: budget))
         XCTAssertEqual(windowTransactions.map(\.wrappedNote), ["Inside"])
@@ -986,7 +1556,7 @@ final class DataFoundationTests: XCTestCase {
         )
 
         controller.container.viewContext.delete(budget)
-        controller.save()
+        try! controller.container.viewContext.save()
         XCTAssertTrue(controller.results(for: Budget.fetchRequest()).isEmpty)
         XCTAssertNil(category.budget)
     }
@@ -995,7 +1565,7 @@ final class DataFoundationTests: XCTestCase {
         let budget = Budget(context: controller.container.viewContext)
         budget.category = makeCategory(name: "Food")
         budget.startDate = nil
-        controller.save()
+        try! controller.container.viewContext.save()
 
         XCTAssertTrue(controller.results(for: controller.fetchRequestForBudgetTransactions(budget: budget)).isEmpty)
         XCTAssertFalse(BudgetValidation.isUsable(startDate: nil, hasCategory: true))
@@ -1005,7 +1575,7 @@ final class DataFoundationTests: XCTestCase {
 
     func testBackgroundReadMapsManagedObjectsToValuesOnContextQueue() {
         let category = makeCategory(name: "Food")
-        _ = controller.newTransaction(note: "Lunch", category: category, income: false, amount: 12, date: date(2026, 1, 12), repeatType: 0, repeatCoefficient: 1, delay: false)
+        _ = fixtureTransaction(note: "Lunch", category: category, income: false, amount: 12, date: date(2026, 1, 12), repeatType: 0, repeatCoefficient: 1, delay: false)
         let expectation = expectation(description: "background read")
 
         DispatchQueue.global(qos: .userInitiated).async {
@@ -1079,10 +1649,10 @@ final class DataFoundationTests: XCTestCase {
     func testFixedClockDayFilterAndNetSummary() {
         let expense = makeCategory(name: "Food", income: false)
         let income = makeCategory(name: "Salary", income: true)
-        _ = controller.newTransaction(note: "Yesterday", category: expense, income: false, amount: 100, date: date(2026, 3, 9, 23), repeatType: 0, repeatCoefficient: 1, delay: false)
-        _ = controller.newTransaction(note: "Lunch", category: expense, income: false, amount: 30, date: date(2026, 3, 10, 10), repeatType: 0, repeatCoefficient: 1, delay: false)
-        _ = controller.newTransaction(note: "Pay", category: income, income: true, amount: 80, date: date(2026, 3, 10, 11), repeatType: 0, repeatCoefficient: 1, delay: false)
-        _ = controller.newTransaction(note: "Future", category: income, income: true, amount: 999, date: date(2026, 3, 10, 13), repeatType: 0, repeatCoefficient: 1, delay: false)
+        _ = fixtureTransaction(note: "Yesterday", category: expense, income: false, amount: 100, date: date(2026, 3, 9, 23), repeatType: 0, repeatCoefficient: 1, delay: false)
+        _ = fixtureTransaction(note: "Lunch", category: expense, income: false, amount: 30, date: date(2026, 3, 10, 10), repeatType: 0, repeatCoefficient: 1, delay: false)
+        _ = fixtureTransaction(note: "Pay", category: income, income: true, amount: 80, date: date(2026, 3, 10, 11), repeatType: 0, repeatCoefficient: 1, delay: false)
+        _ = fixtureTransaction(note: "Future", category: income, income: true, amount: 999, date: date(2026, 3, 10, 13), repeatType: 0, repeatCoefficient: 1, delay: false)
 
         let request = controller.fetchRequestForLogView(
             type: 1,
@@ -1105,30 +1675,35 @@ final class DataFoundationTests: XCTestCase {
         XCTAssertThrowsError(try CSVDocumentParser.parse("Food,\"closed\"suffix,1"))
     }
 
-    func testCSVImportIsAllOrNothing() throws {
+    @MainActor
+    func testCSVImportIsAllOrNothing() async throws {
         let category = makeCategory(name: "Food")
         let rows = [
             ["Food", "Lunch", "2026-01-02", "12.50"],
             ["Food", "Broken", "not-a-date", "7"]
         ]
-        XCTAssertThrowsError(try CSVTransactionImporter.importRows(
+        do {
+            _ = try await CSVTransactionImporter.importRows(
             rows,
             mapping: CSVImportMapping(categoryColumn: 0, noteColumn: 1, dateColumn: 2, amountColumn: 3),
             dateFormat: "yyyy-MM-dd",
-            categoriesByName: ["Food": category],
+            categoriesByName: ["Food": LedgerReference(category)],
             into: controller,
             timeZone: calendar.timeZone
-        ))
+            )
+            XCTFail("Invalid rows must fail")
+        } catch {}
         XCTAssertTrue(controller.results(for: Transaction.fetchRequest()).isEmpty)
     }
 
-    func testCSVImportCommitsValidatedRows() throws {
+    @MainActor
+    func testCSVImportCommitsValidatedRows() async throws {
         let category = makeCategory(name: "Food")
-        let count = try CSVTransactionImporter.importRows(
+        let count = try await CSVTransactionImporter.importRows(
             [["Food", "Lunch, cafe", "2026-01-02", "12.50"]],
             mapping: CSVImportMapping(categoryColumn: 0, noteColumn: 1, dateColumn: 2, amountColumn: 3),
             dateFormat: "yyyy-MM-dd",
-            categoriesByName: ["Food": category],
+            categoriesByName: ["Food": LedgerReference(category)],
             into: controller,
             timeZone: calendar.timeZone
         )
@@ -1193,6 +1768,19 @@ final class DataFoundationTests: XCTestCase {
         )
     }
 
+    // Fixture-only direct writes never form a supported application mutation path.
+    private func fixtureTransaction(note: String, category: LittleSaverCore.Category?, income: Bool, amount: Double, date: Date, repeatType: Int, repeatCoefficient: Int, delay: Bool) -> Transaction {
+        let context = controller.container.viewContext
+        let row = Transaction(context: context)
+        row.id = UUID(); row.note = note; row.category = category; row.income = income
+        row.amount = amount; row.date = date; row.day = calendar.startOfDay(for: date)
+        row.month = calendar.date(from: calendar.dateComponents([.year, .month], from: date))
+        row.recurringType = Int16(repeatType); row.recurringCoefficient = Int16(repeatCoefficient)
+        if repeatType > 0 { try! LedgerMaintenance.attachSeries(to: row, in: context) }
+        try! context.save()
+        return row
+    }
+
     private func makeCategory(name: String, income: Bool = false) -> LittleSaverCore.Category {
         let category = LittleSaverCore.Category(context: controller.container.viewContext)
         category.id = UUID()
@@ -1201,7 +1789,7 @@ final class DataFoundationTests: XCTestCase {
         category.colour = "#FFFFFF"
         category.income = income
         category.dateCreated = date(2026, 1, 1)
-        controller.save()
+        try! controller.container.viewContext.save()
         return category
     }
 
