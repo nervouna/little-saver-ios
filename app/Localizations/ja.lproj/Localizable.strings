@@ -341,7 +341,7 @@
 
 "Import Data" = "データを読み込む";
 "Import transactions" = "取引を読み込む";
-"Begin by adding a CSV file with 4 columns: amount, note, date, and category." = "まず、金額、メモ、日付、カテゴリーの4列を含むCSVファイルを追加します。";
+"Choose a LittleSaver export or a CSV file for manual column mapping." = "LittleSaver の書き出しファイル、または列を手動で割り当てる CSV ファイルを選択してください。";
 "Assign category column" = "カテゴリー列を指定";
 "Select a column from your import that corresponds to the categories of your transactions." = "読み込みデータから取引カテゴリーに対応する列を選択します。";
 "Assign note column" = "メモ列を指定";
@@ -452,7 +452,7 @@
 "Spent/Day" = "1日の支出";
 "Ensure that the values in the 'Amount' column do not contain any currency symbols." = "「金額」列の値に通貨記号を含めないでください。";
 "All dates should be of a consistent, recognizable format. If no timestamps are provided, the time of transaction will default to 12:00 am." = "すべての日付は一貫した認識可能な形式にしてください。時刻がない場合、取引時刻は午前0:00になります。";
-"Remove all commas in the 'Note' and 'Category' columns as they would disrupt the parsing of your file." = "ファイルの解析を妨げるため、「メモ」と「カテゴリー」列のカンマを削除してください。";
+"Keep commas and line breaks inside quoted CSV fields. Escape a quote by writing it twice." = "カンマや改行を含む CSV フィールドは引用符で囲んでください。フィールド内の引用符は二重に記述してください。";
 
 // ウィジェットとショートカット
 "ADD\nBUDGET" = "予算を\n追加";
@@ -518,3 +518,14 @@
 "Budget unavailable. Edit this budget to repair its settings." = "予算を表示できません。予算を編集して設定を修正してください。";
 "widget.budget.percentage.spent" = "%@使用済み";
 "Retry" = "再試行";
+"Select a different valid column for each field." = "各項目には異なる有効な列を選択してください。";
+"Row %lld has conflicting Date and DateReferenceSeconds values." = "%lld 行目の Date と DateReferenceSeconds が一致しません。";
+"Row %lld has an invalid type: %@." = "%lld 行目の種別が無効です：%@。";
+"Row %lld has an ambiguous category: %@." = "%lld 行目のカテゴリーを一意に特定できません：%@。";
+"Row %lld cannot be exported without changing its %@ field." = "%lld 行目は %@ 項目を変更せずに書き出せません。";
+"Export Failed" = "書き出しに失敗しました";
+"Ready to Import" = "読み込みの準備完了";
+"The Date, Note, Amount, Category and Type columns were recognized. Review the sample before importing." = "Date、Note、Amount、Category、Type の列を認識しました。読み込む前にサンプルを確認してください。";
+"Category names and Income or Expense must match existing categories. An empty category remains unclassified." = "カテゴリー名と Income（収入）または Expense（支出）は既存のカテゴリーと一致する必要があります。空のカテゴリーは未分類のままになります。";
+"%lld transactions" = "%lld 件の取引";
+"First row contains column names" = "先頭行に列名が含まれている";

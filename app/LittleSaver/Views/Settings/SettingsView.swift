@@ -114,6 +114,7 @@ struct SettingsView: View {
   // popups
 
   @State var showImportGuide = false
+  @StateObject private var exportPreparation = CSVExportPreparation()
 
   @EnvironmentObject var tabBarManager: TabBarManager
 
@@ -319,10 +320,14 @@ struct SettingsView: View {
               }
 
               Button {
-                exportData()
+                Task { await exportPreparation.prepare { try await CSVExportFile.prepare(read: dataController.csvExportText) } }
               } label: {
                 SettingsRowView(
                   systemImage: "square.and.arrow.up.fill", title: "Export Data", colour: 113)
+              }
+              .disabled(exportPreparation.isPreparing)
+              .overlay(alignment: .trailing) {
+                if exportPreparation.isPreparing { ProgressView().padding(.trailing, 12) }
               }
 
               NavigationLink(destination: SettingsEraseView()) {
@@ -410,6 +415,12 @@ struct SettingsView: View {
       .fullScreenCover(isPresented: $showImportGuide) {
         ImportDataView()
       }
+      .sheet(isPresented: Binding(get: { exportPreparation.url != nil }, set: { if !$0 { exportPreparation.clear() } })) {
+        if let url = exportPreparation.url { ActivityViewController(activityItems: [url]) }
+      }
+      .alert("Export Failed", isPresented: Binding(get: { exportPreparation.error != nil }, set: { if !$0 { exportPreparation.clear() } })) {
+        Button("OK") { exportPreparation.clear() }
+      } message: { Text(exportPreparation.error ?? "") }
     }
   }
 
@@ -453,48 +464,6 @@ struct SettingsView: View {
     .frame(maxWidth: .infinity)
   }
 
-  func exportData() {
-    let fetchRequest = dataController.fetchRequestForExport()
-    let transactions = dataController.results(for: fetchRequest)
-
-    let fileName = "export.csv"
-    let path = NSURL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent(fileName)
-    var csvText = "Date,Note,Amount,Category,Type\n"
-
-    for transaction in transactions {
-      var string = transaction.wrappedNote
-      let type: String
-
-      if transaction.income {
-        type = "Income"
-      } else {
-        type = "Expense"
-      }
-
-      string.removeAll(where: { $0 == "," })
-
-      csvText +=
-        "\(transaction.wrappedDate),\(string),\(String(format: "%.2f", transaction.wrappedAmount)),\(transaction.category?.wrappedName ?? ""),\(type)\n"
-    }
-
-    do {
-      try csvText.write(to: path!, atomically: true, encoding: String.Encoding.utf8)
-    } catch {
-      print("\(error)")
-    }
-
-    var filesToShare = [Any]()
-    filesToShare.append(path!)
-
-    let av = UIActivityViewController(activityItems: filesToShare, applicationActivities: nil)
-
-    let allScenes = UIApplication.shared.connectedScenes
-    let scene = allScenes.first { $0.activationState == .foregroundActive }
-
-    if let windowScene = scene as? UIWindowScene {
-      windowScene.keyWindow?.rootViewController?.present(av, animated: true, completion: nil)
-    }
-  }
 }
 
 struct SettingsRowView: View {

@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+        A70000000000000000000001 /* CSVTransferTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A70000000000000000000002; };
         A60000000000000000000005 /* AnalyticsPresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = A60000000000000000000006; };
         A60000000000000000000001 /* AnalyticsSnapshots.swift in Sources */ = {isa = PBXBuildFile; fileRef = A60000000000000000000002; };
         A60000000000000000000003 /* AnalyticsSnapshotTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A60000000000000000000004; };
@@ -253,6 +254,7 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+        A70000000000000000000002 /* CSVTransferTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CSVTransferTests.swift; sourceTree = "<group>"; };
         A60000000000000000000006 /* AnalyticsPresentation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = AnalyticsPresentation.swift; path = LittleSaver/Utilities/AnalyticsPresentation.swift; sourceTree = "<group>"; };
         A60000000000000000000002 /* AnalyticsSnapshots.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnalyticsSnapshots.swift; sourceTree = "<group>"; };
         A60000000000000000000004 /* AnalyticsSnapshotTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnalyticsSnapshotTests.swift; sourceTree = "<group>"; };
@@ -736,6 +738,7 @@
 				ED2430264B59FBBBA80D6358 /* DataFoundationTests.swift */,
                 A50000000000000000000002 /* BudgetCalendarMoneyTests.swift */,
                 A60000000000000000000004 /* AnalyticsSnapshotTests.swift */,
+                A70000000000000000000002 /* CSVTransferTests.swift */,
 			);
 			name = LittleSaverTests;
 			path = LittleSaverTests;
@@ -1226,6 +1229,7 @@
 				00A5C7C03012A0534736DF47 /* DataFoundationTests.swift in Sources */,
                 A50000000000000000000001 /* BudgetCalendarMoneyTests.swift in Sources */,
                 A60000000000000000000003 /* AnalyticsSnapshotTests.swift in Sources */,
+                A70000000000000000000001 /* CSVTransferTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

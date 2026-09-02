@@ -46,6 +46,10 @@ struct ImportDataView: View {
     @State private var importing = false
 
     @State private var data = ""
+    @State private var previewSelection: CSVImportPreviewSelection?
+    private var skipHeader: Bool { previewSelection?.skipsHeader ?? false }
+    @State private var canonicalMapping: CSVImportMapping?
+    @State private var readingFile = false
     @State private var rows = [[String]]()
     @State private var numberOfRows: Int = 0
     @State private var displayedColumns = [[String]]()
@@ -109,7 +113,7 @@ struct ImportDataView: View {
     }
 
     var instructions: [InstructionHeadings] { [
-        InstructionHeadings(title: String(localized: "Import transactions"), subtitle: String(localized: "Begin by adding a CSV file with 4 columns: amount, note, date, and category.")),
+        InstructionHeadings(title: String(localized: "Import transactions"), subtitle: String(localized: "Choose a LittleSaver export or a CSV file for manual column mapping.")),
         InstructionHeadings(title: String(localized: "Assign category column"), subtitle: String(localized: "Select a column from your import that corresponds to the categories of your transactions.")),
         InstructionHeadings(title: String(localized: "Assign note column"), subtitle: String(localized: "Select a column from your import that corresponds to the notes/subtitles of your transactions.")),
         InstructionHeadings(title: String(localized: "Assign date column"), subtitle: String(localized: "Select a column from your import that corresponds to the dates of your transactions.")),
@@ -126,7 +130,7 @@ struct ImportDataView: View {
         ColumnLabel(image: "dollarsign.circle.fill", label: "Amount")
     ]
 
-    let pointers = ["Ensure that the values in the 'Amount' column do not contain any currency symbols.", "All dates should be of a consistent, recognizable format. If no timestamps are provided, the time of transaction will default to 12:00 am.", "Remove all commas in the 'Note' and 'Category' columns as they would disrupt the parsing of your file."]
+    let pointers = ["Ensure that the values in the 'Amount' column do not contain any currency symbols.", "All dates should be of a consistent, recognizable format. If no timestamps are provided, the time of transaction will default to 12:00 am.", "Keep commas and line breaks inside quoted CSV fields. Escape a quote by writing it twice."]
 
     var incomeCategories: [Category] {
         dataController.getAllCategories(income: true)
@@ -136,7 +140,46 @@ struct ImportDataView: View {
         dataController.getAllCategories(income: false)
     }
 
-    var body: some View { content.modifier(MutationPendingModifier()) }
+    var body: some View {
+        Group {
+            if let mapping = canonicalMapping, progress < 8 { canonicalPreview(mapping) }
+            else { content }
+        }
+        .modifier(MutationPendingModifier())
+        .overlay { if readingFile { ProgressView().padding().background(Color.PrimaryBackground) } }
+        .disabled(readingFile)
+        .onChange(of: processingState) { newValue in
+            if newValue == .success {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { dismiss() }
+            }
+        }
+        .confettiCannon(counter: $confettiNumber, num: 50, openingAngle: Angle(degrees: 0), closingAngle: Angle(degrees: 360), radius: 200)
+    }
+
+    private func canonicalPreview(_ mapping: CSVImportMapping) -> some View {
+        VStack(alignment: .leading, spacing: 20) {
+            Button("Close") { dismiss() }
+            Text("Ready to Import").font(.system(.title2, design: .rounded).weight(.semibold))
+            Text("The Date, Note, Amount, Category and Type columns were recognized. Review the sample before importing.")
+            Text("Category names and Income or Expense must match existing categories. An empty category remains unclassified.")
+                .font(.callout).foregroundColor(Color.SubtitleText)
+            Text("\(rows.count) transactions")
+            ScrollView {
+                VStack(alignment: .leading, spacing: 14) {
+                    ForEach(Array(rows.prefix(8).enumerated()), id: \.offset) { _, row in
+                        Text(row.joined(separator: " · ")).font(.callout).textSelection(.enabled)
+                    }
+                }
+            }
+            Button("Import Data") {
+                processingState = .loading; progress = 8
+                importCanonical(mapping)
+            }
+            .buttonStyle(.borderedProminent)
+        }
+        .padding(25).frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .background(Color.PrimaryBackground)
+    }
 
     @ViewBuilder private var content: some View {
         VStack(spacing: 0) {
@@ -188,6 +231,8 @@ struct ImportDataView: View {
 
 //                            .font(.system(size: 15, weight: .medium, design: .rounded))
                             .foregroundColor(Color.SubtitleText)
+                        Button("Back") { processingState = .loading; progress = canonicalMapping == nil ? 7 : 2 }
+                        Button("Close") { dismiss() }
                     }
                 }
                 .frame(maxHeight: .infinity)
@@ -356,6 +401,9 @@ struct ImportDataView: View {
                     }
                 } else if progress < 6 {
                     VStack(spacing: 10) {
+                        if progress == 2 {
+                            Toggle("First row contains column names", isOn: Binding(get: { skipHeader }, set: selectHeader))
+                        }
                         Text("Sampled Rows from Import CSV")
                             .font(.system(.subheadline, design: .rounded).weight(.semibold))
 
@@ -781,25 +829,19 @@ struct ImportDataView: View {
         ) { result in
             switch result {
             case let .success(file):
-                do {
-                    if file.startAccessingSecurityScopedResource() {
-                        guard let message = try String(data: Data(contentsOf: file), encoding: .utf8) else {
-                            showToast = true
-                            toastMessage = String(localized: "Invalid File")
-                            return
-                        }
-
-                        data = message
-
+                Task {
+                    guard !readingFile else { return }
+                    readingFile = true
+                    defer { readingFile = false }
+                    do {
+                        data = try await CSVImportFile.read(file)
                         processCSV()
-
-                        do {
-                            file.stopAccessingSecurityScopedResource()
-                        }
+                    } catch {
+                        showToast = true; toastMessage = error.localizedDescription
                     }
-                } catch {}
+                }
             case let .failure(error):
-                print(error.localizedDescription)
+                showToast = true; toastMessage = error.localizedDescription
             }
         }
         .sheet(isPresented: $exportSample) {
@@ -823,105 +865,87 @@ struct ImportDataView: View {
                 }
             }
         }
-        .onChange(of: processingState) { newValue in
-            if newValue == .success {
-                DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
-                    dismiss()
-                }
-            }
-        }
-        .confettiCannon(counter: $confettiNumber, num: 50, openingAngle: Angle(degrees: 0), closingAngle: Angle(degrees: 360), radius: 200)
     }
 
     func validateDoubles(strings: [String]) -> Bool {
-        for string in strings {
-            if let _ = Double(string) {
-                // Valid double
-            } else {
-                return false // Invalid double found
-            }
-        }
-        return true // All strings are valid doubles
+        strings.allSatisfy { Double($0).flatMap(MoneyAmount.init) != nil }
     }
 
     func processCSV() {
-        guard data.containsDigits else {
-            showToast = true
-            toastMessage = String(localized: "Invalid File")
-            return
-        }
-
-        var values: [[String]]
         do {
-            values = try CSVDocumentParser.parse(data)
-        } catch {
-            showToast = true
-            toastMessage = error.localizedDescription
-            return
-        }
-
-        if let first = values.first, !first.joined().containsDigits {
-            values.removeFirst()
-        }
-
-        guard !values.isEmpty else {
-            showToast = true
-            toastMessage = String(localized: "Invalid File")
-            return
-        }
-
-        rows = values
-
-        // Transpose rows to columns
-        let maxColumnCount = values.map { $0.count }.max() ?? 0
-//
-        guard maxColumnCount > 3 else {
-            showToast = true
-            toastMessage = String(localized: "Invalid File")
-            return
-        }
-
-        var holdingColumns: [[String]] = Array(repeating: [], count: maxColumnCount)
-
-        for row in values {
-            for (index, value) in row.enumerated() {
-                holdingColumns[index].append(value)
+            let values = try CSVDocumentParser.parse(data)
+            guard let first = values.first else { throw CSVImportError.emptyDocument }
+            let declared = try CSVImportMapping.recognizedHeader(first)
+            let isCanonical = declared?.isCanonical == true
+            let selection = isCanonical ? nil : try CSVImportPreviewSelection(rows: values, skipsHeader: declared != nil)
+            if isCanonical, values.count <= 1 { throw CSVImportError.emptyDocument }
+            canonicalMapping = isCanonical ? declared : nil
+            previewSelection = selection
+            selectedColumns = []; remainingColumns = []; uniqueCategories = []
+            sampleDateString = ""; dateFormatString = ""; validDateFormatString = false
+            columnSelectionCompleted = false; selectedColumn = 0; pageIndex = 0
+            if canonicalMapping != nil {
+                rows = Array(values.dropFirst())
+                guard !rows.isEmpty else { throw CSVImportError.emptyDocument }
+                progress = 2
+            } else {
+                applyPreview()
+                progress = 2
             }
-        }
-
-        columns = holdingColumns
-
-        displayedColumns = holdingColumns.map { $0.prefix(8).map { $0 } }
-
-        numberOfRows = displayedColumns[0].count
-
-        remainingColumns = Array(0 ..< maxColumnCount)
-
-        withAnimation {
-            progress += 1
+        } catch {
+            canonicalMapping = nil
+            showToast = true; toastMessage = error.localizedDescription
         }
     }
 
-    func importData() {
-        let categoryColumnIndex = selectedColumns[0]
-        let noteColumnIndex = selectedColumns[1]
-        let dateColumnIndex = selectedColumns[2]
-        let amountColumnIndex = selectedColumns[3]
+    private func applyPreview() {
+        guard let table = previewSelection?.table else { return }
+        rows = table.rows; columns = table.columns
+        displayedColumns = columns.map { Array($0.prefix(8)) }
+        numberOfRows = min(rows.count, 8)
+        remainingColumns = Array(columns.indices)
+        selectedColumns = []; selectedColumn = 0
+    }
 
+    private func selectHeader(_ value: Bool) {
+        do { try previewSelection?.setSkippingHeader(value); applyPreview() }
+        catch { showToast = true; toastMessage = error.localizedDescription }
+    }
+
+    private func importCanonical(_ mapping: CSVImportMapping) {
+        let importedRows = rows
+        dataController.submitMutation({
+            try await CSVTransactionImporter.importRows(importedRows, mapping: mapping, dateFormat: "yyyy-MM-dd HH:mm:ss Z", categoriesByName: [:], into: dataController)
+        }, success: { _ in
+            processingState = .success; confettiNumber += 1
+        }, failure: { error in
+            processingState = .error; errorMessage = error.localizedDescription
+        })
+    }
+
+    func importData() {
+        guard selectedColumns.count == 4 else {
+            processingState = .error; errorMessage = CSVImportError.invalidMapping.localizedDescription
+            return
+        }
         let categoryDictionary = Dictionary(uniqueKeysWithValues: uniqueCategories.compactMap { item in
             item.category.map { (item.excelValue, LedgerReference($0)) }
         })
         let importedRows = rows
-        let mapping = CSVImportMapping(categoryColumn: categoryColumnIndex, noteColumn: noteColumnIndex, dateColumn: dateColumnIndex, amountColumn: amountColumnIndex)
+        let header = skipHeader ? previewSelection?.originalRows.first ?? [] : []
+        guard header.filter({ $0 == "Type" }).count <= 1, header.filter({ $0 == "DateReferenceSeconds" }).count <= 1 else {
+            processingState = .error; errorMessage = CSVImportError.invalidMapping.localizedDescription
+            return
+        }
+        let mapping = CSVImportMapping(categoryColumn: selectedColumns[0], noteColumn: selectedColumns[1], dateColumn: selectedColumns[2], amountColumn: selectedColumns[3], typeColumn: header.firstIndex(of: "Type"), exactDateColumn: header.firstIndex(of: "DateReferenceSeconds"))
         let format = dateFormatString
+        processingState = .loading
         dataController.submitMutation({
             try await CSVTransactionImporter.importRows(importedRows, mapping: mapping, dateFormat: format, categoriesByName: categoryDictionary, into: dataController)
         }, success: { _ in
-            processingState = .success
-            confettiNumber += 1
+            processingState = .success; confettiNumber += 1
         }, failure: { error in
-            processingState = .error
-            errorMessage = error.localizedDescription
+            processingState = .error; errorMessage = error.localizedDescription
         })
     }
 
@@ -975,6 +999,25 @@ struct ImportDataView: View {
                 .foregroundColor(Color.PrimaryText)
                 .frame(maxWidth: .infinity, alignment: .leading)
         }
+    }
+}
+
+enum CSVImportFile {
+    static func read(
+        _ url: URL,
+        acquire: @escaping @Sendable (URL) -> Bool = { $0.startAccessingSecurityScopedResource() },
+        release: @escaping @Sendable (URL) -> Void = { $0.stopAccessingSecurityScopedResource() },
+        load: @escaping @Sendable (URL) throws -> Data = { try Data(contentsOf: $0) }
+    ) async throws -> String {
+        try await Task.detached(priority: .userInitiated) {
+            guard acquire(url) else { throw CocoaError(.fileReadNoPermission) }
+            defer { release(url) }
+            try Task.checkCancellation()
+            let bytes = try load(url)
+            guard let text = String(data: bytes, encoding: .utf8) else { throw CocoaError(.fileReadInapplicableStringEncoding) }
+            try Task.checkCancellation()
+            return text
+        }.value
     }
 }
 

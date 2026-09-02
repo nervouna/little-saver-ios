@@ -341,7 +341,7 @@
 
 "Import Data" = "导入数据";
 "Import transactions" = "导入交易";
-"Begin by adding a CSV file with 4 columns: amount, note, date, and category." = "请先添加包含金额、备注、日期和分类四列的 CSV 文件。";
+"Choose a LittleSaver export or a CSV file for manual column mapping." = "请选择 LittleSaver 导出文件，或需要手动映射列的 CSV 文件。";
 "Assign category column" = "指定分类列";
 "Select a column from your import that corresponds to the categories of your transactions." = "选择导入文件中对应交易分类的列。";
 "Assign note column" = "指定备注列";
@@ -452,7 +452,7 @@
 "Spent/Day" = "每日支出";
 "Ensure that the values in the 'Amount' column do not contain any currency symbols." = "确保“金额”列的值不包含任何货币符号。";
 "All dates should be of a consistent, recognizable format. If no timestamps are provided, the time of transaction will default to 12:00 am." = "所有日期应使用一致且可识别的格式。如果未提供时间，交易时间默认为 00:00。";
-"Remove all commas in the 'Note' and 'Category' columns as they would disrupt the parsing of your file." = "请删除“备注”和“分类”列中的逗号，以免影响文件解析。";
+"Keep commas and line breaks inside quoted CSV fields. Escape a quote by writing it twice." = "含逗号或换行的 CSV 字段应使用双引号括起。字段内的双引号请连续写两次。";
 
 // 小组件与快捷指令
 "ADD\nBUDGET" = "添加\n预算";
@@ -518,3 +518,14 @@
 "Budget unavailable. Edit this budget to repair its settings." = "预算不可用，请编辑此预算以修复设置。";
 "widget.budget.percentage.spent" = "已用%@";
 "Retry" = "重试";
+"Select a different valid column for each field." = "请为每个字段选择不同的有效列。";
+"Row %lld has conflicting Date and DateReferenceSeconds values." = "第 %lld 行的 Date 与 DateReferenceSeconds 不一致。";
+"Row %lld has an invalid type: %@." = "第 %lld 行的类型无效：%@。";
+"Row %lld has an ambiguous category: %@." = "第 %lld 行的分类无法唯一确定：%@。";
+"Row %lld cannot be exported without changing its %@ field." = "第 %lld 行无法在不改变 %@ 字段的情况下导出。";
+"Export Failed" = "导出失败";
+"Ready to Import" = "准备导入";
+"The Date, Note, Amount, Category and Type columns were recognized. Review the sample before importing." = "已识别 Date、Note、Amount、Category 和 Type 列。导入前请检查样本。";
+"Category names and Income or Expense must match existing categories. An empty category remains unclassified." = "分类名称以及 Income（收入）或 Expense（支出）必须与现有分类一致。空分类将保持未分类状态。";
+"%lld transactions" = "%lld 笔交易";
+"First row contains column names" = "首行包含列名";

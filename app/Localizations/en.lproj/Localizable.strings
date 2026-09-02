@@ -348,7 +348,7 @@
 
 "Import Data" = "Import Data";
 "Import transactions" = "Import transactions";
-"Begin by adding a CSV file with 4 columns: amount, note, date, and category." = "Begin by adding a CSV file with 4 columns: amount, note, date, and category.";
+"Choose a LittleSaver export or a CSV file for manual column mapping." = "Choose a LittleSaver export or a CSV file for manual column mapping.";
 "Assign category column" = "Assign category column";
 "Select a column from your import that corresponds to the categories of your transactions." = "Select a column from your import that corresponds to the categories of your transactions.";
 "Assign note column" = "Assign note column";
@@ -459,7 +459,7 @@
 "Spent/Day" = "Spent/day";
 "Ensure that the values in the 'Amount' column do not contain any currency symbols." = "Ensure that the values in the 'Amount' column do not contain any currency symbols.";
 "All dates should be of a consistent, recognizable format. If no timestamps are provided, the time of transaction will default to 12:00 am." = "All dates should use one consistent, recognizable format. If no times are provided, transactions default to 12:00 AM.";
-"Remove all commas in the 'Note' and 'Category' columns as they would disrupt the parsing of your file." = "Remove commas from the 'Note' and 'Category' columns because they can disrupt file parsing.";
+"Keep commas and line breaks inside quoted CSV fields. Escape a quote by writing it twice." = "Keep commas and line breaks inside quoted CSV fields. Escape a quote by writing it twice.";
 
 // Widgets and Shortcuts
 "ADD\nBUDGET" = "ADD\nBUDGET";
@@ -534,3 +534,14 @@
 "Budget unavailable. Edit this budget to repair its settings." = "Budget unavailable. Edit this budget to repair its settings.";
 "widget.budget.percentage.spent" = "%@ spent";
 "Retry" = "Retry";
+"Select a different valid column for each field." = "Select a different valid column for each field.";
+"Row %lld has conflicting Date and DateReferenceSeconds values." = "Row %lld has conflicting Date and DateReferenceSeconds values.";
+"Row %lld has an invalid type: %@." = "Row %lld has an invalid type: %@.";
+"Row %lld has an ambiguous category: %@." = "Row %lld has an ambiguous category: %@.";
+"Row %lld cannot be exported without changing its %@ field." = "Row %lld cannot be exported without changing its %@ field.";
+"Export Failed" = "Export Failed";
+"Ready to Import" = "Ready to Import";
+"The Date, Note, Amount, Category and Type columns were recognized. Review the sample before importing." = "The Date, Note, Amount, Category and Type columns were recognized. Review the sample before importing.";
+"Category names and Income or Expense must match existing categories. An empty category remains unclassified." = "Category names and Income or Expense must match existing categories. An empty category remains unclassified.";
+"%lld transactions" = "%lld transactions";
+"First row contains column names" = "First row contains column names";
