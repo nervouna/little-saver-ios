@@ -751,7 +751,7 @@ struct TransactionView: View {
 
                             withAnimation {
                                 if let itemToDelete = toDelete {
-                                    moc.delete(itemToDelete)
+                                    dataController.deleteTransaction(itemToDelete)
                                 }
                                 dataController.save()
                             }
@@ -1031,7 +1031,11 @@ struct TransactionView: View {
 
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
                 withAnimation(.easeInOut(duration: 0.5)) {
+                    LedgerMaintenance.markUserEdit(editedTransaction)
                     editedTransaction.amount = price
+                    if editedTransaction.seriesID != nil && editedTransaction.date != date {
+                        editedTransaction.scheduleDateOverridden = true
+                    }
                     editedTransaction.date = date
                     editedTransaction.income = income
 
@@ -1051,6 +1055,7 @@ struct TransactionView: View {
 
                         dataController.updateRecurringTransaction(transaction: editedTransaction)
                     } else {
+                        if editedTransaction.recurringType > 0 { dataController.stopRecurringTransaction(editedTransaction) }
                         editedTransaction.onceRecurring = false
                         editedTransaction.recurringType = Int16(repeatType)
                         editedTransaction.recurringCoefficient = Int16(repeatCoefficient)
@@ -1098,7 +1103,7 @@ struct TransactionView: View {
             dataController.updateRecurringTransaction(transaction: transaction)
         }
 
-        try? moc.save()
+        dataController.save()
 
         dismiss()
     }

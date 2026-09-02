@@ -40,7 +40,9 @@ public enum RecurringSchedule {
             throw RecurringScheduleError.invalidType(type)
         }
 
-        guard let result = calendar.date(byAdding: component, value: value, to: date) else {
+        guard date.timeIntervalSince1970.isFinite,
+              let result = calendar.date(byAdding: component, value: value, to: date),
+              result.timeIntervalSince1970.isFinite, result > date else {
             throw RecurringScheduleError.dateCalculationFailed
         }
         return result
@@ -69,7 +71,7 @@ public extension Transaction {
     }
 
     var nextTransactionDate: Date {
-        (try? RecurringSchedule.nextDate(
+        nextScheduledDate ?? (try? RecurringSchedule.nextDate(
             after: day ?? date ?? Date.now,
             type: recurringType,
             coefficient: recurringCoefficient,

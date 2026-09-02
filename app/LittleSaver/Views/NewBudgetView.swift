@@ -778,11 +778,13 @@ struct BrandNewBudgetView: View {
             return
         }
 
-        if let unwrappedEditedMainBudget = toEditMainBudget {
-            unwrappedEditedMainBudget.startDate = startDate
-            unwrappedEditedMainBudget.amount = price
-            unwrappedEditedMainBudget.type = Int16(budgetType)
-
+        if toEditMainBudget != nil {
+            do { try dataController.upsertMainBudget(amount: price, startDate: startDate, type: Int16(budgetType)) }
+            catch {
+                toastMessage = error.localizedDescription
+                showToast = true
+                return
+            }
             dataController.save()
 
             dismiss()
@@ -803,10 +805,12 @@ struct BrandNewBudgetView: View {
             newBudget.type = Int16(budgetType)
             newBudget.id = UUID()
         } else {
-            let newBudget = MainBudget(context: moc)
-            newBudget.startDate = startDate
-            newBudget.amount = price
-            newBudget.type = Int16(budgetType)
+            do { try dataController.upsertMainBudget(amount: price, startDate: startDate, type: Int16(budgetType)) }
+            catch {
+                toastMessage = error.localizedDescription
+                showToast = true
+                return
+            }
         }
 
         dataController.save()

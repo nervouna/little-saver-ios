@@ -13,7 +13,10 @@ import SwiftUI
 struct BudgetView: View {
     @FetchRequest(sortDescriptors: []) private var categories: FetchedResults<Category>
     @FetchRequest(sortDescriptors: []) private var budgets: FetchedResults<Budget>
-    @FetchRequest(sortDescriptors: []) private var mainBudget: FetchedResults<MainBudget>
+    @FetchRequest(sortDescriptors: []) private var mainBudgetCandidates: FetchedResults<MainBudget>
+    private var mainBudget: [MainBudget] {
+        LedgerMaintenance.currentMainBudget(from: Array(mainBudgetCandidates)).map { [$0] } ?? []
+    }
 
     var body: some View {
         if categories.isEmpty && budgets.isEmpty && mainBudget.isEmpty {
@@ -54,7 +57,10 @@ struct ActualBudgetView: View {
     @FetchRequest(sortDescriptors: [
         SortDescriptor(\.dateCreated)
     ]) private var budgets: FetchedResults<Budget>
-    @FetchRequest(sortDescriptors: []) private var mainBudget: FetchedResults<MainBudget>
+    @FetchRequest(sortDescriptors: []) private var mainBudgetCandidates: FetchedResults<MainBudget>
+    private var mainBudget: [MainBudget] {
+        LedgerMaintenance.currentMainBudget(from: Array(mainBudgetCandidates)).map { [$0] } ?? []
+    }
     @Environment(\.managedObjectContext) var moc
     @EnvironmentObject var dataController: DataController
     @EnvironmentObject var tabBarManager: TabBarManager
@@ -1182,11 +1188,12 @@ struct DeleteMainBudgetAlert: View {
                     .padding(.bottom, 25)
 
                 Button {
-                    dismiss()
-
-                    withAnimation {
-                        moc.delete(toDelete)
+                    do {
+                        try dataController.deleteMainBudget()
                         dataController.save()
+                        dismiss()
+                    } catch {
+                        NSLog("Main budget deletion failed: %@", error.localizedDescription)
                     }
 
                 } label: {
@@ -1313,7 +1320,14 @@ struct DetailedMainBudgetView: View {
     @Environment(\.presentationMode) var presentationMode: Binding<PresentationMode>
     @Environment(\.managedObjectContext) var moc
     @EnvironmentObject var dataController: DataController
-    let budget: MainBudget
+    @FetchRequest(sortDescriptors: []) private var mainBudgetCandidates: FetchedResults<MainBudget>
+    private let initialBudget: MainBudget
+    private var currentBudget: MainBudget? {
+        LedgerMaintenance.currentMainBudget(from: Array(mainBudgetCandidates))
+    }
+    private var budget: MainBudget { currentBudget ?? initialBudget }
+
+    init(budget: MainBudget) { initialBudget = budget }
 
     @State private var toDelete: MainBudget?
 
@@ -1354,6 +1368,7 @@ struct DetailedMainBudgetView: View {
             .padding(.horizontal, 20)
 
             TimeMainBudgetView(budget: budget)
+                .id(budget.objectID)
         }
         .padding(.vertical, 15)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
@@ -1361,6 +1376,13 @@ struct DetailedMainBudgetView: View {
         .navigationBarTitle("")
         .navigationBarHidden(true)
         .background(Color.PrimaryBackground)
+        .opacity(currentBudget == nil ? 0 : 1)
+        .onChange(of: currentBudget?.objectID) { identity in
+            if identity == nil { presentationMode.wrappedValue.dismiss() }
+        }
+        .onAppear {
+            if currentBudget == nil { presentationMode.wrappedValue.dismiss() }
+        }
         .fullScreenCover(item: $toEdit, onDismiss: {
             toEdit = nil
         }) { budget in

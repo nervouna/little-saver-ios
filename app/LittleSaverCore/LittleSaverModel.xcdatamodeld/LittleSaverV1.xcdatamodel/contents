@@ -10,6 +10,7 @@
         <relationship name="category" optional="YES" maxCount="1" deletionRule="Nullify" destinationEntity="Category" inverseName="budget" inverseEntity="Category"/>
     </entity>
     <entity name="Category" representedClassName="Category" syncable="YES">
+        <relationship name="recurringSeries" optional="YES" toMany="YES" deletionRule="Cascade" destinationEntity="RecurringSeries" inverseName="category" inverseEntity="RecurringSeries"/>
         <attribute name="colour" optional="YES" attributeType="String"/>
         <attribute name="dateCreated" optional="YES" attributeType="Date" usesScalarValueType="NO"/>
         <attribute name="emoji" optional="YES" attributeType="String"/>
@@ -22,6 +23,10 @@
         <relationship name="transactions" optional="YES" toMany="YES" deletionRule="Cascade" destinationEntity="Transaction" inverseName="category" inverseEntity="Transaction"/>
     </entity>
     <entity name="MainBudget" representedClassName="MainBudget" syncable="YES">
+        <attribute name="revision" optional="YES" attributeType="Integer 64" defaultValueString="0" usesScalarValueType="YES"/>
+        <attribute name="isDeletion" optional="YES" attributeType="Boolean" defaultValueString="NO" usesScalarValueType="YES"/>
+        <attribute name="singletonKey" optional="YES" attributeType="String"/>
+        <attribute name="deduplicationToken" optional="YES" attributeType="String"/>
         <attribute name="amount" optional="YES" attributeType="Double" defaultValueString="0" usesScalarValueType="YES"/>
         <attribute name="dateCreated" optional="YES" attributeType="Date" usesScalarValueType="NO"/>
         <attribute name="green" optional="YES" attributeType="Boolean" usesScalarValueType="YES"/>
@@ -39,6 +44,16 @@
         <relationship name="category" optional="YES" maxCount="1" deletionRule="Nullify" destinationEntity="Category" inverseName="templates" inverseEntity="Category"/>
     </entity>
     <entity name="Transaction" representedClassName="Transaction" syncable="YES">
+        <attribute name="materializedGenerationID" optional="YES" attributeType="String"/>
+        <attribute name="normalizedGenerationID" optional="YES" attributeType="String"/>
+        <attribute name="userEditedAt" optional="YES" attributeType="Date" usesScalarValueType="NO"/>
+        <attribute name="userEditToken" optional="YES" attributeType="String"/>
+        <attribute name="occurrenceIndex" optional="YES" attributeType="Integer 64" defaultValueString="0" usesScalarValueType="YES"/>
+        <attribute name="scheduleDateOverridden" optional="YES" attributeType="Boolean" defaultValueString="NO" usesScalarValueType="YES"/>
+        <attribute name="nextScheduledDate" optional="YES" attributeType="Date" usesScalarValueType="NO"/>
+        <attribute name="seriesID" optional="YES" attributeType="String"/>
+        <attribute name="occurrenceKey" optional="YES" attributeType="String"/>
+        <attribute name="deduplicationToken" optional="YES" attributeType="String"/>
         <attribute name="amount" attributeType="Double" defaultValueString="0.0" usesScalarValueType="YES"/>
         <attribute name="date" optional="YES" attributeType="Date" usesScalarValueType="NO"/>
         <attribute name="day" optional="YES" attributeType="Date" usesScalarValueType="NO"/>
@@ -50,5 +65,28 @@
         <attribute name="recurringCoefficient" optional="YES" attributeType="Integer 16" defaultValueString="0" usesScalarValueType="YES"/>
         <attribute name="recurringType" optional="YES" attributeType="Integer 16" defaultValueString="0" usesScalarValueType="YES"/>
         <relationship name="category" optional="YES" maxCount="1" deletionRule="Nullify" destinationEntity="Category" inverseName="transactions" inverseEntity="Category"/>
+    </entity>
+    <entity name="RecurringSeries" representedClassName="RecurringSeries" syncable="YES">
+        <attribute name="sourceIndex" optional="YES" attributeType="Integer 64" defaultValueString="0" usesScalarValueType="YES"/>
+        <attribute name="sourceOccurrenceKey" optional="YES" attributeType="String"/>
+        <attribute name="sourceTransactionID" optional="YES" attributeType="UUID" usesScalarValueType="NO"/>
+        <attribute name="logicalID" optional="YES" attributeType="String"/>
+        <attribute name="familyID" optional="YES" attributeType="String"/>
+        <attribute name="deduplicationToken" optional="YES" attributeType="String"/>
+        <attribute name="timeZoneID" optional="YES" attributeType="String"/>
+        <attribute name="createdAt" optional="YES" attributeType="Date" usesScalarValueType="NO"/>
+        <attribute name="stoppedAt" optional="YES" attributeType="Date" usesScalarValueType="NO"/>
+        <attribute name="anchorDate" optional="YES" attributeType="Date" usesScalarValueType="NO"/>
+        <attribute name="nextDate" optional="YES" attributeType="Date" usesScalarValueType="NO"/>
+        <attribute name="nextIndex" optional="YES" attributeType="Integer 64" defaultValueString="1" usesScalarValueType="YES"/>
+        <attribute name="type" optional="YES" attributeType="Integer 16" defaultValueString="0" usesScalarValueType="YES"/>
+        <attribute name="coefficient" optional="YES" attributeType="Integer 16" defaultValueString="0" usesScalarValueType="YES"/>
+        <attribute name="amount" optional="YES" attributeType="Double" defaultValueString="0" usesScalarValueType="YES"/>
+        <attribute name="income" optional="YES" attributeType="Boolean" defaultValueString="NO" usesScalarValueType="YES"/>
+        <attribute name="note" optional="YES" attributeType="String"/>
+        <relationship name="category" optional="YES" maxCount="1" deletionRule="Nullify" destinationEntity="Category" inverseName="recurringSeries" inverseEntity="Category"/>
+    </entity>
+    <entity name="RecurringSuppression" representedClassName="RecurringSuppression" syncable="YES">
+        <attribute name="occurrenceKey" optional="YES" attributeType="String"/>
     </entity>
 </model>

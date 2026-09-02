@@ -144,6 +144,7 @@
 		B20000012F51000100000001 /* AppShortcuts.strings in Resources */ = {isa = PBXBuildFile; fileRef = B20000012F51000100000005 /* AppShortcuts.strings */; };
 		B2674D8B32FE64F22038F181 /* DataController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5327D2AC287C6AD200F76ADF /* DataController.swift */; };
 		A20000000000000000000001 /* PersistenceReads.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000002 /* PersistenceReads.swift */; };
+		A30000000000000000000001 /* LedgerMaintenance.swift in Sources */ = {isa = PBXBuildFile; fileRef = A30000000000000000000002 /* LedgerMaintenance.swift */; };
 		B9B7257188666CC152EFF151 /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 4BF6FA7B68582D466CA0C692 /* Foundation.framework */; };
 		C23017E8D0FF86FC3C3733F6 /* DataControllerPlatformAdapter.swift in Sources */ = {isa = PBXBuildFile; fileRef = DF75112C6B5500D36C1AF3F6 /* DataControllerPlatformAdapter.swift */; };
 		D63B204A2D8728C300CAFB20 /* Localizable.strings in Resources */ = {isa = PBXBuildFile; fileRef = D63B20462D8728C300CAFB20 /* Localizable.strings */; };
@@ -271,6 +272,7 @@
 		5327D294287C698900F76ADF /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		5327D2AC287C6AD200F76ADF /* DataController.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = DataController.swift; sourceTree = "<group>"; };
 		A20000000000000000000002 /* PersistenceReads.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PersistenceReads.swift; sourceTree = "<group>"; };
+		A30000000000000000000002 /* LedgerMaintenance.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LedgerMaintenance.swift; sourceTree = "<group>"; };
 		5327D2AF287C6AFB00F76ADF /* Authentication.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Authentication.swift; sourceTree = "<group>"; };
 		5327D2B0287C6AFB00F76ADF /* KeyboardHeightHelper.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = KeyboardHeightHelper.swift; sourceTree = "<group>"; };
 		5327D2B3287C6AFB00F76ADF /* ViewExtension.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ViewExtension.swift; sourceTree = "<group>"; };
@@ -757,6 +759,7 @@
 			children = (
 				5327D2AC287C6AD200F76ADF /* DataController.swift */,
 				A20000000000000000000002 /* PersistenceReads.swift */,
+				A30000000000000000000002 /* LedgerMaintenance.swift */,
 				53980E5B28A77B62009CC4E2 /* Helper.swift */,
 				4039E770B84C2C977C944AC3 /* CSVImport.swift */,
 				DA6A00002F4A000100000001 /* AppIdentifiers.swift */,
@@ -1049,6 +1052,7 @@
 			files = (
 				B2674D8B32FE64F22038F181 /* DataController.swift in Sources */,
 				A20000000000000000000001 /* PersistenceReads.swift in Sources */,
+				A30000000000000000000001 /* LedgerMaintenance.swift in Sources */,
 				2C50B7E3FE22D07311A0910E /* Helper.swift in Sources */,
 				F0F2539C2687B8E67DC1E20E /* CSVImport.swift in Sources */,
 				EDE51A15B41C67DF9B8BDB35 /* AppIdentifiers.swift in Sources */,

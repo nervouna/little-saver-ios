@@ -262,7 +262,7 @@ public extension DataController {
 
     func mainBudgetSnapshot() async throws -> BudgetReadSnapshot? {
         try await performBackgroundRead { context in
-            guard let budget = try context.fetch(self.fetchRequestForMainBudget()).first,
+            guard let budget = try LedgerMaintenance.currentMainBudget(in: context),
                   let start = budget.startDate, (1...4).contains(budget.type) else { return nil }
             let spent = try context.fetch(self.fetchRequestForMainBudgetTransactions(budget: budget)).reduce(0) { $0 + $1.amount }
             guard spent.isFinite, budget.amount.isFinite else { return nil }

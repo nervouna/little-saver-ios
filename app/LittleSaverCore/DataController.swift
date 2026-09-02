@@ -127,7 +127,20 @@ public final class DataController: ObservableObject {
     }()
 
     /// Installed by the executable's WidgetKit adapter; Core has no platform dependency.
-    public var reloadWidgets: () -> Void = {}
+    private let widgetCallbackLock = NSLock()
+    private var widgetCallback: () -> Void = {}
+    public var reloadWidgets: () -> Void {
+        get {
+            widgetCallbackLock.lock()
+            defer { widgetCallbackLock.unlock() }
+            return widgetCallback
+        }
+        set {
+            widgetCallbackLock.lock()
+            widgetCallback = newValue
+            widgetCallbackLock.unlock()
+        }
+    }
 
     public let container: NSPersistentCloudKitContainer
     public let configuration: Configuration?
@@ -135,6 +148,10 @@ public final class DataController: ObservableObject {
     private let readiness = PersistenceReadiness()
     private let historyConsumer = PersistentHistoryConsumer()
     private var remoteChangeObserver: NSObjectProtocol?
+    private let maintenanceContext: NSManagedObjectContext
+    private let continuationLock = NSLock()
+    private var continuationRunning = false
+    private var continuationRequested = false
 
     private init(configurationError error: Error) {
         configuration = nil
@@ -142,6 +159,8 @@ public final class DataController: ObservableObject {
             name: AppIdentifiers.persistentModel,
             managedObjectModel: NSManagedObjectModel()
         )
+        maintenanceContext = NSManagedObjectContext(concurrencyType: .privateQueueConcurrencyType)
+        maintenanceContext.persistentStoreCoordinator = container.persistentStoreCoordinator
         persistentStoreState = .failed(error.localizedDescription)
         readiness.resolve(.failed(error.localizedDescription))
     }
@@ -160,6 +179,10 @@ public final class DataController: ObservableObject {
             name: configuration.modelName,
             managedObjectModel: model
         )
+        maintenanceContext = NSManagedObjectContext(concurrencyType: .privateQueueConcurrencyType)
+        maintenanceContext.persistentStoreCoordinator = container.persistentStoreCoordinator
+        maintenanceContext.transactionAuthor = configuration.transactionAuthor
+        maintenanceContext.mergePolicy = NSMergeByPropertyStoreTrumpMergePolicy
 
         let description = NSPersistentStoreDescription()
 
@@ -221,7 +244,17 @@ public final class DataController: ObservableObject {
                 self.container.viewContext.transactionAuthor = configuration.transactionAuthor
             }
             if configuration.mode == .inMemory {
-                self.publishPersistentStoreState(.loaded)
+                do {
+                    try self.maintenanceContext.performAndWait {
+                        try LedgerMaintenance.backfill(in: self.maintenanceContext)
+                        try LedgerMaintenance.reconcile(in: self.maintenanceContext)
+                        try LedgerMaintenance.materialize(in: self.maintenanceContext)
+                        if self.maintenanceContext.hasChanges { try self.maintenanceContext.save() }
+                    }
+                    self.publishPersistentStoreState(.loaded)
+                } catch {
+                    self.publishPersistentStoreState(.failed(error.localizedDescription))
+                }
             } else {
                 Task {
                     do {
@@ -258,7 +291,14 @@ public final class DataController: ObservableObject {
     /// Startup maintenance must finish before publishing readiness. Future migrations and
     /// reconciliation belong here, not in a SwiftUI view lifecycle.
     private func prepareStoreForUse() async throws {
+        let context = maintenanceContext
+        try await context.perform {
+            try LedgerMaintenance.backfill(in: context)
+            if context.hasChanges { try context.save() }
+        }
         try await historyConsumer.consume(container: container, configuration: configuration)
+        let more = try await maintenanceBatch(now: Date())
+        if more { continueMaintenance() }
     }
 
     public func waitUntilReady(timeout: TimeInterval = 10) async throws {
@@ -268,6 +308,65 @@ public final class DataController: ObservableObject {
     public func refreshPersistentHistory() async throws {
         try await waitUntilReady()
         try await historyConsumer.consume(container: container, configuration: configuration)
+        let more = try await maintenanceBatch(now: Date())
+        if more { continueMaintenance() }
+    }
+
+    private func maintenanceBatch(now: Date) async throws -> Bool {
+        let context = maintenanceContext
+        let result = try await context.perform {
+            context.reset()
+            do {
+                try LedgerMaintenance.backfill(in: context)
+                try LedgerMaintenance.reconcile(in: context)
+                try LedgerMaintenance.materialize(in: context, now: now)
+                let changed = context.hasChanges
+                if changed { try context.save() }
+                return (try LedgerMaintenance.hasDueWork(in: context, now: now), changed)
+            } catch {
+                context.rollback()
+                throw error
+            }
+        }
+        if result.1 && configuration?.reloadWidgetsAfterSave == true {
+            DispatchQueue.main.async(execute: DispatchWorkItem(block: reloadWidgets))
+        }
+        return result.0
+    }
+
+    /// Serial queue-confined batches yield between passes. Callers may also await full catch-up.
+    public func catchUpRecurringTransactions(now: Date = Date()) async throws {
+        try await waitUntilReady()
+        while try await maintenanceBatch(now: now) {
+            try Task.checkCancellation()
+            await Task.yield()
+        }
+    }
+
+    private func continueMaintenance() {
+        continuationLock.lock()
+        guard !continuationRunning else {
+            continuationRequested = true
+            continuationLock.unlock()
+            return
+        }
+        continuationRunning = true
+        continuationLock.unlock()
+        Task { [weak self] in
+            guard let self else { return }
+            defer { self.finishContinuation() }
+            do { try await self.catchUpRecurringTransactions() }
+            catch { NSLog("Ledger maintenance failed: %@", error.localizedDescription) }
+        }
+    }
+
+    private func finishContinuation() {
+        continuationLock.lock()
+        continuationRunning = false
+        let requested = continuationRequested
+        continuationRequested = false
+        continuationLock.unlock()
+        if requested { continueMaintenance() }
     }
 
     public func performBackgroundRead<T: Sendable>(
@@ -295,116 +394,64 @@ public final class DataController: ObservableObject {
 
     public func deleteAll() {
         guard persistentStoreState == .loaded else { return }
-        let fetchRequest1: NSFetchRequest<NSFetchRequestResult> = Transaction.fetchRequest()
-        let batchDeleteRequest1 = NSBatchDeleteRequest(fetchRequest: fetchRequest1)
-        _ = try? container.viewContext.executeAndMergeChanges(using: batchDeleteRequest1)
-
-        let fetchRequest2: NSFetchRequest<NSFetchRequestResult> = Category.fetchRequest()
-        let batchDeleteRequest2 = NSBatchDeleteRequest(fetchRequest: fetchRequest2)
-        _ = try? container.viewContext.executeAndMergeChanges(using: batchDeleteRequest2)
-
-        let fetchRequest3: NSFetchRequest<NSFetchRequestResult> = Budget.fetchRequest()
-        let batchDeleteRequest3 = NSBatchDeleteRequest(fetchRequest: fetchRequest3)
-        _ = try? container.viewContext.executeAndMergeChanges(using: batchDeleteRequest3)
-
-        let fetchRequest4: NSFetchRequest<NSFetchRequestResult> = MainBudget.fetchRequest()
-        let batchDeleteRequest4 = NSBatchDeleteRequest(fetchRequest: fetchRequest4)
-        _ = try? container.viewContext.executeAndMergeChanges(using: batchDeleteRequest4)
+        // Share the maintenance queue so an in-flight materializer cannot recreate erased rows.
+        let context = maintenanceContext
+        do {
+            try context.performAndWait {
+                context.reset()
+                do {
+                    for entity in ["RecurringSeries", "RecurringSuppression", "Transaction", "TemplateTransaction", "Budget", "MainBudget", "Category"] {
+                        for object in try context.fetch(NSFetchRequest<NSManagedObject>(entityName: entity)) { context.delete(object) }
+                    }
+                    if context.hasChanges { try context.save() }
+                } catch {
+                    context.rollback()
+                    throw error
+                }
+            }
+            container.viewContext.reset()
+            if configuration?.reloadWidgetsAfterSave == true { reloadWidgets() }
+        } catch { NSLog("Ledger erase failed: %@", error.localizedDescription) }
     }
 
     public func save() {
         guard persistentStoreState == .loaded else { return }
         if container.viewContext.hasChanges {
-            try? container.viewContext.save()
-            if configuration?.reloadWidgetsAfterSave == true {
-                reloadWidgets()
-            }
+            do {
+                try container.viewContext.save()
+                if configuration?.reloadWidgetsAfterSave == true { reloadWidgets() }
+                continueMaintenance()
+            } catch { NSLog("Ledger save failed: %@", error.localizedDescription) }
         }
     }
 
     public func updateRecurringTransaction(transaction: Transaction) {
-        if transaction.nextTransactionDate < Calendar.current.startOfDay(for: Date.now) {
-            var holdingDate = transaction.nextTransactionDate
-
-            while holdingDate <= Calendar.current.startOfDay(for: Date.now) {
-                let newTransaction = Transaction(context: container.viewContext)
-                newTransaction.note = transaction.wrappedNote
-                newTransaction.category = transaction.category
-                newTransaction.amount = transaction.wrappedAmount
-                newTransaction.date = holdingDate
-                newTransaction.id = UUID()
-                newTransaction.income = transaction.income
-                newTransaction.day = holdingDate
-
-                let calendar = Calendar(identifier: .gregorian)
-
-                let dateComponents = calendar.dateComponents([.month, .year], from: holdingDate)
-
-                newTransaction.month = calendar.date(from: dateComponents)!
-
-                newTransaction.onceRecurring = true
-
-                guard let newDate = try? RecurringSchedule.nextDate(
-                    after: holdingDate,
-                    type: transaction.recurringType,
-                    coefficient: transaction.recurringCoefficient,
-                    calendar: .current
-                ) else {
-                    transaction.recurringType = 0
-                    break
-                }
-
-                if newDate > Calendar.current.startOfDay(for: Date.now) {
-                    newTransaction.recurringType = transaction.recurringType
-                    newTransaction.recurringCoefficient = transaction.recurringCoefficient
-                } else {
-                    newTransaction.recurringType = 0
-                }
-
-                holdingDate = newDate
-            }
-
-            transaction.recurringType = 0
-
-            save()
-
-        } else if Calendar.current.isDateInToday(transaction.nextTransactionDate) {
-            let newTransaction = Transaction(context: container.viewContext)
-            newTransaction.note = transaction.wrappedNote
-            newTransaction.category = transaction.category
-            newTransaction.amount = transaction.wrappedAmount
-            newTransaction.date = transaction.nextTransactionDate
-            newTransaction.id = UUID()
-            newTransaction.income = transaction.income
-            newTransaction.day = transaction.nextTransactionDate
-
-            let calendar = Calendar(identifier: .gregorian)
-
-            let dateComponents = calendar.dateComponents([.month, .year], from: transaction.nextTransactionDate)
-
-            newTransaction.month = calendar.date(from: dateComponents)!
-
-            newTransaction.onceRecurring = true
-            newTransaction.recurringType = transaction.recurringType
-            newTransaction.recurringCoefficient = transaction.recurringCoefficient
-
-            transaction.recurringType = 0
-
-            save()
-        }
+        do { try LedgerMaintenance.replaceSeries(for: transaction, in: container.viewContext) }
+        catch { NSLog("Recurring schedule update failed: %@", error.localizedDescription) }
     }
 
-    public func updateRecurringTransactions() {
-        let recurringTransactions = results(for: fetchRequestForRecurringTransactions())
+    public func stopRecurringTransaction(_ transaction: Transaction) {
+        do { try LedgerMaintenance.stopSeries(for: transaction, in: container.viewContext) }
+        catch { NSLog("Recurring schedule stop failed: %@", error.localizedDescription) }
+    }
 
-        recurringTransactions.forEach { transaction in
-            updateRecurringTransaction(transaction: transaction)
-        }
+    public func deleteTransaction(_ transaction: Transaction) {
+        do { try LedgerMaintenance.deleteTransaction(transaction, in: container.viewContext) }
+        catch { NSLog("Recurring transaction deletion failed: %@", error.localizedDescription) }
+    }
+
+    @discardableResult
+    public func upsertMainBudget(amount: Double, startDate: Date, type: Int16) throws -> MainBudget {
+        try LedgerMaintenance.upsertMainBudget(in: container.viewContext, amount: amount, startDate: startDate, type: type)
+    }
+
+    public func deleteMainBudget() throws {
+        try LedgerMaintenance.deleteMainBudget(in: container.viewContext)
     }
 
     public func updateBudgetDates() {
         let budgets = results(for: fetchRequestForBudgets())
-        let mainBudget = results(for: fetchRequestForMainBudget())
+        let mainBudget = LedgerMaintenance.currentMainBudget(from: results(for: fetchRequestForMainBudget()))
 
         budgets.forEach { budget in
             while budget.endDate <= Date.now {
@@ -412,9 +459,18 @@ public final class DataController: ObservableObject {
             }
         }
 
-        mainBudget.forEach { budget in
-            while budget.endDate <= Date.now {
-                budget.startDate = budget.endDate
+        if let budget = mainBudget, let original = budget.startDate, (1...4).contains(budget.type) {
+            var start = original
+            let component: Calendar.Component = budget.type < 3 ? .day : budget.type == 3 ? .month : .year
+            let value = budget.type == 2 ? 7 : 1
+            for _ in 0..<4096 {
+                guard let next = Calendar.current.date(byAdding: component, value: value, to: start), next > start, next <= Date() else { break }
+                start = next
+            }
+            if start != original {
+                // A derived period cursor is not a newer user budget decision. T5 replaces
+                // this compatibility update with a read-time period projection.
+                budget.startDate = start
             }
         }
 
@@ -1839,7 +1895,7 @@ public final class DataController: ObservableObject {
     public func fetchRequestForMainBudgetWidget() -> (found: Bool, totalSpent: Double, budgetAmount: Double, percentage: Double, type: Int, startDate: Date) {
         do {
             return try performViewContextRead { context in
-                guard let budget = try context.fetch(fetchRequestForMainBudget()).first,
+                guard let budget = try LedgerMaintenance.currentMainBudget(in: context),
                       let startDate = budget.startDate else {
                     return (false, 0, 0, 0, 0, Date.now)
                 }

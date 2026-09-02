@@ -13,7 +13,6 @@ import Popovers
 import SwiftUI
 
 struct LogView: View {
-    @State var updatedRecurring = false
 
     @FetchRequest(sortDescriptors: []) private var transactions: FetchedResults<Transaction>
 
@@ -264,24 +263,8 @@ struct LogView: View {
             .fullScreenCover(isPresented: $searchMode) {
                 SearchView()
             }
-            .onReceive(NotificationCenter.default.publisher(for: UIApplication.willEnterForegroundNotification)) { _ in
-                if !updatedRecurring {
-                    dataController.updateRecurringTransactions()
-                    updatedRecurring = true
-
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 60) {
-                        updatedRecurring = false
-                    }
-                }
-            }
             .onChange(of: launchSearch) { _ in
                 searchMode = true
-            }
-            .onAppear {
-                if !updatedRecurring {
-                    dataController.updateRecurringTransactions()
-                    updatedRecurring = true
-                }
             }
 //            .animation(.spring(duration: 0.5), value: released)
 //            .animation(.spring(response: 0.4, dampingFraction: 0.6), value: pullStatus)
@@ -1283,7 +1266,7 @@ struct SingleTransactionView: View {
             .contextMenu {
                 if transaction.recurringType > 0 {
                     Button {
-                        transaction.recurringType = 0
+                        dataController.stopRecurringTransaction(transaction)
                         dataController.save()
                     } label: {
                         Label("Stop Recurring", systemImage: "xmark")
@@ -1346,14 +1329,14 @@ struct SingleTransactionView: View {
                         if future, transaction.wrappedDate < Date.now, transaction.recurringType > 0 {
                             DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
                                 withAnimation(.easeInOut(duration: 0.5)) {
-                                    transaction.recurringType = 0
+                                    dataController.stopRecurringTransaction(transaction)
                                     dataController.save()
                                 }
                             }
                         } else {
                             DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
                                 withAnimation {
-                                    moc.delete(transaction)
+                                    dataController.deleteTransaction(transaction)
                                     transactionManager.showToast = true
                                     transactionManager.toDelete = transaction
 //                                    transactionManager.future = future
@@ -1513,13 +1496,13 @@ struct DeleteTransactionAlert: View {
 
                     if stopRecurring {
                         withAnimation(.easeInOut(duration: 0.5)) {
-                            unwrappedToDelete.recurringType = 0
+                            dataController.stopRecurringTransaction(unwrappedToDelete)
                             dataController.save()
                         }
                     } else {
                         withAnimation(.easeInOut(duration: 0.5)) {
                             //                            moc.delete(toDelete)
-                            moc.delete(unwrappedToDelete)
+                            dataController.deleteTransaction(unwrappedToDelete)
                             transactionManager.showToast = true
                         }
                     }
