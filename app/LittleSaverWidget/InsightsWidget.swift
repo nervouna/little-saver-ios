@@ -300,22 +300,18 @@ struct InsightsWidgetEntryView: View {
 
     let numberArray = [1, 8, 15, 22, 29]
     let monthNumberArray = [1, 4, 7, 10]
-    let monthNames: [Int: String] = [1: "Jan", 4: "Apr", 7: "Jul", 10: "Oct"]
+    var monthNames: [Int: String] {
+        let symbols = DateFormatter().shortMonthSymbols ?? []
+        guard symbols.count == 12 else { return [:] }
+        return [1: symbols[0], 4: symbols[3], 7: symbols[6], 10: symbols[9]]
+    }
 
     @AppStorage("firstDayOfMonth", store: UserDefaults(suiteName: AppIdentifiers.appGroup)) var firstDayOfMonth: Int = 1
     @AppStorage("currency", store: UserDefaults(suiteName: AppIdentifiers.appGroup)) var currency: String = Locale.current.currencyCode!
-    var currencySymbol: String {
-        return Locale.current.localizedCurrencySymbol(forCurrencyCode: currency)!
-    }
-
     @AppStorage("showCents", store: UserDefaults(suiteName: AppIdentifiers.appGroup)) var showCents: Bool = true
 
-    var dollarText: String {
-        if entry.amount < 10000 && showCents {
-            return "\(String(format: "%.2f", entry.amount))"
-        } else {
-            return "\(NumericSafety.roundedInt(entry.amount))"
-        }
+    var amountText: String {
+        localizedCurrencyAmount(entry.amount, currencyCode: currency, showCents: showCents)
     }
 
     var subtitleText: String {
@@ -346,12 +342,16 @@ struct InsightsWidgetEntryView: View {
         }
     }
 
-    var verbText: String {
+    var insightTypeText: String {
         if entry.income {
-            return String(localized: "EARNED ").uppercased()
+            return String(localized: "Earned").uppercased()
         } else {
-            return String(localized: "SPENT ").uppercased()
+            return String(localized: "Spent").uppercased()
         }
+    }
+
+    var summaryText: String {
+        localizedFormat("widget.insights.summary", arguments: [insightTypeText, subtitleText])
     }
 
     var body: some View {
@@ -360,11 +360,11 @@ struct InsightsWidgetEntryView: View {
                 HStack(spacing: 0) {
                     VStack(spacing: 8) {
                         VStack(alignment: .leading, spacing: -1) {
-                            Text(verbText + subtitleText)
+                            Text(summaryText)
                                 .font(.system(size: 10, weight: .semibold, design: .rounded))
                                 .foregroundColor(Color.SubtitleText)
 
-                            InsightsWidgetDollarView(currencySymbol: currencySymbol, dollarText: dollarText)
+                            InsightsWidgetDollarView(amountText: amountText)
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
 
@@ -446,7 +446,7 @@ struct InsightsWidgetEntryView: View {
                                                         .frame(height: getBarHeight(point: entry.dictionary[day]!, size: proxy.size))
                                                         .overlay(alignment: .bottom) {
                                                             if monthNumberArray.contains((entry.dates.firstIndex(of: day) ?? -1) + 1) {
-                                                                Text(LocalizedStringKey(monthNames[(entry.dates.firstIndex(of: day)! + 1)] ?? ""))
+                                                                Text(monthNames[(entry.dates.firstIndex(of: day)! + 1)] ?? "")
                                                                     .font(.system(size: 8, weight: .bold, design: .rounded))
                                                                     .foregroundColor(Color.SubtitleText)
                                                                     .frame(width: 20, alignment: .center)
@@ -505,11 +505,11 @@ struct InsightsWidgetEntryView: View {
                 HStack(spacing: 0) {
                     VStack(spacing: 8) {
                         VStack(alignment: .leading, spacing: -1) {
-                            Text(verbText + subtitleText)
+                            Text(summaryText)
                                 .font(.system(size: 10, weight: .semibold, design: .rounded))
                                 .foregroundColor(Color.SubtitleText)
 
-                            InsightsWidgetDollarView(currencySymbol: currencySymbol, dollarText: dollarText)
+                            InsightsWidgetDollarView(amountText: amountText)
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
 
@@ -591,7 +591,7 @@ struct InsightsWidgetEntryView: View {
                                                         .frame(height: getBarHeight(point: entry.dictionary[day]!, size: proxy.size))
                                                         .overlay(alignment: .bottom) {
                                                             if monthNumberArray.contains((entry.dates.firstIndex(of: day) ?? -1) + 1) {
-                                                                Text(LocalizedStringKey(monthNames[(entry.dates.firstIndex(of: day)! + 1)] ?? ""))
+                                                                Text(monthNames[(entry.dates.firstIndex(of: day)! + 1)] ?? "")
                                                                     .font(.system(size: 8, weight: .bold, design: .rounded))
                                                                     .foregroundColor(Color.SubtitleText)
                                                                     .frame(width: 20, alignment: .center)
@@ -763,22 +763,12 @@ struct HorizontalBarGraph: View {
 }
 
 struct InsightsWidgetDollarView: View {
-    let currencySymbol: String
-    let dollarText: String
+    let amountText: String
 
     var body: some View {
-        HStack(alignment: .lastTextBaseline, spacing: 1.3) {
-            Group {
-                Text(currencySymbol)
-                    .font(.system(.subheadline, design: .rounded).weight(.medium))
-                    .foregroundColor(Color.SubtitleText) +
-
-                Text(dollarText)
-                    .font(.system(.title3, design: .rounded).weight(.medium))
-                    .foregroundColor(Color.PrimaryText)
-            }
-
-        }
+        Text(amountText)
+            .font(.system(.title3, design: .rounded).weight(.medium))
+            .foregroundColor(Color.PrimaryText)
         .minimumScaleFactor(0.5)
         .lineLimit(1)
     }
@@ -830,7 +820,7 @@ struct InsightsWidgetCategoryBreakdownView: View {
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
             } else {
-                Text("NO TRANSACTIONS\n\(subtitleText1)")
+                Text(localizedFormat("widget.insights.no.transactions.period", arguments: [subtitleText1]))
                     .font(.system(size: 10,
                                   weight: .medium, design: .rounded))
                     .multilineTextAlignment(.center)

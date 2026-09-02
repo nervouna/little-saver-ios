@@ -150,11 +150,14 @@
 		A10000012F50000100000005 /* InfoPlist.strings in Resources */ = {isa = PBXBuildFile; fileRef = A10000012F50000100000020 /* InfoPlist.strings */; };
 		A10000012F50000100000006 /* InfoPlist.strings in Resources */ = {isa = PBXBuildFile; fileRef = A10000012F50000100000024 /* InfoPlist.strings */; };
 		A10000012F50000100000007 /* LocalizationContractTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000012F50000100000028 /* LocalizationContractTests.swift */; };
+		B20000012F51000100000001 /* AppShortcuts.strings in Resources */ = {isa = PBXBuildFile; fileRef = B20000012F51000100000005 /* AppShortcuts.strings */; };
 		D6A4DE202D61744400F7F751 /* SwiftUIIntrospect in Frameworks */ = {isa = PBXBuildFile; productRef = D6A4DE1F2D61744400F7F751 /* SwiftUIIntrospect */; };
 		DA6A00012F4A000100000001 /* AppIdentifiers.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA6A00002F4A000100000001 /* AppIdentifiers.swift */; };
 		DA6A00022F4A000100000001 /* AppIdentifiers.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA6A00002F4A000100000001 /* AppIdentifiers.swift */; };
 		DA6A00032F4A000100000001 /* AppIdentifiers.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA6A00002F4A000100000001 /* AppIdentifiers.swift */; };
 		DA6A00042F4A000100000001 /* AppIdentifiers.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA6A00002F4A000100000001 /* AppIdentifiers.swift */; };
+		B30000012F4B000100000001 /* LocalizedFormatting.swift in Sources */ = {isa = PBXBuildFile; fileRef = B30000002F4B000100000001 /* LocalizedFormatting.swift */; };
+		B30000022F4B000100000001 /* LocalizedFormatting.swift in Sources */ = {isa = PBXBuildFile; fileRef = B30000002F4B000100000001 /* LocalizedFormatting.swift */; };
 		F0E07000B0EF84FDD756310E /* DeepLink.swift in Sources */ = {isa = PBXBuildFile; fileRef = EEE9670EB054D671FFFED1D5 /* DeepLink.swift */; };
 		F0E07001B0EF84FDD756310E /* DeepLink.swift in Sources */ = {isa = PBXBuildFile; fileRef = EEE9670EB054D671FFFED1D5 /* DeepLink.swift */; };
 /* End PBXBuildFile section */
@@ -339,7 +342,11 @@
 		A10000012F50000100000026 /* zh-Hans */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = "zh-Hans"; path = "zh-Hans.lproj/WidgetConfiguration.strings"; sourceTree = "<group>"; };
 		A10000012F50000100000027 /* ja */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = ja; path = ja.lproj/WidgetConfiguration.strings; sourceTree = "<group>"; };
 		A10000012F50000100000028 /* LocalizationContractTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = LocalizationContractTests.swift; sourceTree = "<group>"; };
+		B20000012F51000100000002 /* en */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = en; path = Localizations/en.lproj/AppShortcuts.strings; sourceTree = "<group>"; };
+		B20000012F51000100000003 /* zh-Hans */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = "zh-Hans"; path = "Localizations/zh-Hans.lproj/AppShortcuts.strings"; sourceTree = "<group>"; };
+		B20000012F51000100000004 /* ja */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = ja; path = Localizations/ja.lproj/AppShortcuts.strings; sourceTree = "<group>"; };
 		DA6A00002F4A000100000001 /* AppIdentifiers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppIdentifiers.swift; sourceTree = "<group>"; };
+		B30000002F4B000100000001 /* LocalizedFormatting.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalizedFormatting.swift; sourceTree = "<group>"; };
 		DA7B00112F4B000100000001 /* CloudKitSyncMonitor.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = CloudKitSyncMonitor.txt; sourceTree = "<group>"; };
 		DA7B00122F4B000100000001 /* ConfettiSwiftUI.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = ConfettiSwiftUI.txt; sourceTree = "<group>"; };
 		DA7B00132F4B000100000001 /* Popovers.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = Popovers.txt; sourceTree = "<group>"; };
@@ -431,6 +438,7 @@
 		5327D27A287C697400F76ADF = {
 			isa = PBXGroup;
 			children = (
+				B20000012F51000100000005 /* AppShortcuts.strings */,
 				D63B20462D8728C300CAFB20 /* Localizable.strings */,
 				D63B20482D8728C300CAFB20 /* Localizable.stringsdict */,
 				53EB931028A65F670026BE28 /* LittleSaverWidget.entitlements */,
@@ -502,6 +510,7 @@
 		5327D296287C69A400F76ADF /* Utilities */ = {
 			isa = PBXGroup;
 			children = (
+				B30000002F4B000100000001 /* LocalizedFormatting.swift */,
 				DA6A00002F4A000100000001 /* AppIdentifiers.swift */,
 				5358E9182AC885E3003E8CA9 /* AlertToast.swift */,
 				53A839C028D732E1006F227C /* TabBarHiding.swift */,
@@ -878,6 +887,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				B20000012F51000100000001 /* AppShortcuts.strings in Resources */,
 				A10000012F50000100000003 /* InfoPlist.strings in Resources */,
 				DA7B00012F4B000100000001 /* CloudKitSyncMonitor.txt in Resources */,
 				DA7B00022F4B000100000001 /* ConfettiSwiftUI.txt in Resources */,
@@ -943,6 +953,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				B30000012F4B000100000001 /* LocalizedFormatting.swift in Sources */,
 				DA6A00012F4A000100000001 /* AppIdentifiers.swift in Sources */,
 				536A2A152A59C47400D81E02 /* Wiggle.swift in Sources */,
 				AEADEF742AE94DC3006EB614 /* ToolbarButton.swift in Sources */,
@@ -1033,6 +1044,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				B30000022F4B000100000001 /* LocalizedFormatting.swift in Sources */,
 				F0E07001B0EF84FDD756310E /* DeepLink.swift in Sources */,
 				DA6A00022F4A000100000001 /* AppIdentifiers.swift in Sources */,
 				53B907A32AE81A080001F496 /* DonutSemicircle.swift in Sources */,
@@ -1096,6 +1108,16 @@
 /* End PBXTargetDependency section */
 
 /* Begin PBXVariantGroup section */
+		B20000012F51000100000005 /* AppShortcuts.strings */ = {
+			isa = PBXVariantGroup;
+			children = (
+				B20000012F51000100000002 /* en */,
+				B20000012F51000100000003 /* zh-Hans */,
+				B20000012F51000100000004 /* ja */,
+			);
+			name = AppShortcuts.strings;
+			sourceTree = "<group>";
+		};
 		5311A22F29F04EF300A5BE20 /* WidgetConfiguration.intentdefinition */ = {
 			isa = PBXVariantGroup;
 			children = (

@@ -143,49 +143,46 @@ struct ShortcutInsightsView: View {
 
     @AppStorage("currency", store: UserDefaults(suiteName: AppIdentifiers.appGroup)) var currency: String = Locale.current.currencyCode!
 
-    var leftText: String {
+    var insightTypeText: String {
         switch type {
         case .net:
-            return "Net total"
+            return String(localized: "Net total")
         case .income:
-            return "Earned"
+            return String(localized: "Earned")
         case .spent:
-            return "Spent"
+            return String(localized: "Spent")
         }
     }
 
-    var rightText: String {
+    var timeframeText: String {
         switch timeframe {
         case .day:
-            return "today"
+            return String(localized: "today")
         case .week:
-            return "this week"
+            return String(localized: "this week")
         case .month:
-            return "this month"
+            return String(localized: "this month")
         case .year:
-            return "this year"
+            return String(localized: "this year")
         case .all:
-            return "all time"
+            return String(localized: "all time")
         }
     }
 
     var amountString: String {
-        let numberFormatter = NumberFormatter()
-        numberFormatter.numberStyle = .currency
-        numberFormatter.currencyCode = currency
+        localizedCurrencyAmount(amount, currencyCode: currency, showCents: showCents)
+    }
 
-        if showCents {
-            numberFormatter.maximumFractionDigits = 2
-        } else {
-            numberFormatter.maximumFractionDigits = 0
-        }
-
-        return numberFormatter.string(from: NSNumber(value: amount)) ?? "$0"
+    var summaryText: String {
+        localizedFormat(
+            "shortcut.insights.summary",
+            arguments: [insightTypeText, timeframeText]
+        )
     }
 
     var body: some View {
         VStack(spacing: 2) {
-            Text(leftText + " " + rightText)
+            Text(summaryText)
                 .font(.system(size: 17, weight: .medium, design: .rounded))
                 .foregroundColor(Color.SubtitleText)
 

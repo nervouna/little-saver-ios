@@ -150,11 +150,33 @@ struct LittleSaverWidgetEntryView: View {
     let entry: Provider.Entry
 
     @AppStorage("currency", store: UserDefaults(suiteName: AppIdentifiers.appGroup)) var currency: String = Locale.current.currencyCode!
-    var currencySymbol: String {
-        return Locale.current.localizedCurrencySymbol(forCurrencyCode: currency)!
+    @AppStorage("showCents", store: UserDefaults(suiteName: AppIdentifiers.appGroup)) var showCents: Bool = true
+
+    var summaryText: String {
+        localizedFormat("widget.recent.summary", arguments: [typeText, inlineSubtitleText])
     }
 
-    @AppStorage("showCents", store: UserDefaults(suiteName: AppIdentifiers.appGroup)) var showCents: Bool = true
+    var displayEntryAmount: Double {
+        entry.type == .net ? entry.amount : abs(entry.amount)
+    }
+
+    var signedInlineAmount: Double {
+        switch entry.type {
+        case .net: return entry.amount
+        case .income: return abs(entry.amount)
+        case .expense: return -abs(entry.amount)
+        case .unknown: return entry.amount
+        }
+    }
+
+    func transactionAmount(_ transaction: HoldingTransaction) -> String {
+        localizedCurrencyAmount(
+            transaction.income ? abs(transaction.amount) : -abs(transaction.amount),
+            currencyCode: currency,
+            showCents: showCents,
+            showPositiveSign: transaction.income
+        )
+    }
 
     var inlineSubtitleText: String {
         switch entry.duration {
@@ -188,31 +210,13 @@ struct LittleSaverWidgetEntryView: View {
         }
     }
 
-    var positivityText: String {
-        switch entry.type {
-        case .unknown:
-            return ""
-        case .net:
-            if entry.amount > 0 {
-                return "+"
-            } else {
-                return "-"
-            }
-        case .income:
-            return "+"
-        case .expense:
-            return "-"
-        }
-    }
-
     var body: some View {
         switch widgetFamily {
         case .accessoryInline:
-            if entry.amount == 0 {
-                Text("\(currencySymbol)0 \(typeText) \(inlineSubtitleText)")
-            } else {
-                Text("\(positivityText)\(currencySymbol)\(abs(entry.amount), specifier: (showCents && entry.amount < 1000) ? "%.2f" : "%.0f") \(inlineSubtitleText)")
-            }
+            Text(localizedFormat(
+                "widget.recent.inline.summary",
+                arguments: [localizedCurrencyAmount(signedInlineAmount, currencyCode: currency, showCents: showCents, showPositiveSign: signedInlineAmount > 0), typeText, inlineSubtitleText]
+            ))
         case .accessoryRectangular:
             if #available(iOS 17.0, *) {
                 if entry.transactions.count == 0 {
@@ -230,7 +234,7 @@ struct LittleSaverWidgetEntryView: View {
                                         .lineLimit(1)
                                         .frame(maxWidth: .infinity, alignment: .leading)
 
-                                    Text("\(transaction.income ? "+" : "-")\(currencySymbol)\(transaction.amount, specifier: (showCents && transaction.amount < 100) ? "%.2f" : "%.0f")")
+                                    Text(transactionAmount(transaction))
                                         .fontWeight(.regular)
                                         .layoutPriority(1)
                                         .lineLimit(1)
@@ -258,7 +262,7 @@ struct LittleSaverWidgetEntryView: View {
                                         .lineLimit(1)
                                         .frame(maxWidth: .infinity, alignment: .leading)
 
-                                    Text("\(transaction.income ? "+" : "-")\(currencySymbol)\(transaction.amount, specifier: (showCents && transaction.amount < 100) ? "%.2f" : "%.0f")")
+                                    Text(transactionAmount(transaction))
                                         .fontWeight(.regular)
                                         .layoutPriority(1)
                                         .lineLimit(1)
@@ -276,11 +280,11 @@ struct LittleSaverWidgetEntryView: View {
                 GeometryReader { proxy in
                     VStack(spacing: 0) {
                         VStack(spacing: 0) {
-                            Text((typeText + " " + inlineSubtitleText).uppercased())
+                            Text(summaryText.uppercased())
                                 .font(.system(size: 9, weight: .semibold, design: .rounded))
                                 .foregroundColor(Color.SubtitleText)
 
-                            RecentTransactionsDollarView(amount: entry.amount, showCents: showCents, net: entry.type == .net, bigger: true)
+                            RecentTransactionsDollarView(amount: displayEntryAmount, currencyCode: currency, showCents: showCents, showPositiveSign: entry.type == .net, bigger: true)
                             .frame(maxWidth: .infinity)
                             .frame(height: proxy.size.height * 0.27)
                         }
@@ -327,13 +331,13 @@ struct LittleSaverWidgetEntryView: View {
                                             .frame(maxWidth: .infinity, alignment: .leading)
 
                                         if transaction.income {
-                                            Text("+\(currencySymbol)\(transaction.amount, specifier: (showCents && transaction.amount < 100) ? "%.2f" : "%.0f")")
+                                            Text(transactionAmount(transaction))
                                                 .font(.system(size: 13, weight: .regular, design: .rounded))
                                                 .foregroundColor(Color.IncomeGreen)
                                                 .lineLimit(1)
                                                 .layoutPriority(1)
                                         } else {
-                                            Text("-\(currencySymbol)\(transaction.amount, specifier: (showCents && transaction.amount < 100) ? "%.2f" : "%.0f")")
+                                            Text(transactionAmount(transaction))
                                                 .font(.system(size: 13, weight: .regular, design: .rounded))
                                                 .foregroundColor(Color.SubtitleText)
                                                 .lineLimit(1)
@@ -372,11 +376,11 @@ struct LittleSaverWidgetEntryView: View {
                 GeometryReader { proxy in
                     VStack(spacing: 0) {
                         VStack(spacing: 0) {
-                            Text((typeText + " " + inlineSubtitleText).uppercased())
+                            Text(summaryText.uppercased())
                                 .font(.system(size: 9, weight: .semibold, design: .rounded))
                                 .foregroundColor(Color.SubtitleText)
 
-                            RecentTransactionsDollarView(amount: entry.amount, showCents: showCents, net: entry.type == .net)
+                            RecentTransactionsDollarView(amount: displayEntryAmount, currencyCode: currency, showCents: showCents, showPositiveSign: entry.type == .net)
                             .frame(maxWidth: .infinity)
                             .frame(height: proxy.size.height * 0.2)
                         }
@@ -423,13 +427,13 @@ struct LittleSaverWidgetEntryView: View {
                                             .frame(maxWidth: .infinity, alignment: .leading)
 
                                         if transaction.income {
-                                            Text("+\(currencySymbol)\(transaction.amount, specifier: (showCents && transaction.amount < 100) ? "%.2f" : "%.0f")")
+                                            Text(transactionAmount(transaction))
                                                 .font(.system(size: 13, weight: .regular, design: .rounded))
                                                 .foregroundColor(Color.IncomeGreen)
                                                 .lineLimit(1)
                                                 .layoutPriority(1)
                                         } else {
-                                            Text("-\(currencySymbol)\(transaction.amount, specifier: (showCents && transaction.amount < 100) ? "%.2f" : "%.0f")")
+                                            Text(transactionAmount(transaction))
                                                 .font(.system(size: 13, weight: .regular, design: .rounded))
                                                 .foregroundColor(Color.SubtitleText)
                                                 .lineLimit(1)
@@ -470,11 +474,11 @@ struct LittleSaverWidgetEntryView: View {
                 GeometryReader { _ in
                     VStack(spacing: 0) {
                         VStack(spacing: 0) {
-                            Text((typeText + " " + inlineSubtitleText).uppercased())
+                            Text(summaryText.uppercased())
                                 .font(.system(size: 12, weight: .semibold, design: .rounded))
                                 .foregroundColor(Color.SubtitleText)
 
-                            RecentTransactionsDollarView(amount: entry.amount, showCents: showCents, net: entry.type == .net)
+                            RecentTransactionsDollarView(amount: displayEntryAmount, currencyCode: currency, showCents: showCents, showPositiveSign: entry.type == .net)
                                 .frame(maxWidth: .infinity)
                         }
                         .frame(maxWidth: .infinity)
@@ -524,13 +528,13 @@ struct LittleSaverWidgetEntryView: View {
                                             .frame(maxWidth: .infinity, alignment: .leading)
 
                                         if transaction.income {
-                                            Text("+\(currencySymbol)\(transaction.amount, specifier: (showCents && transaction.amount < 100) ? "%.2f" : "%.0f")")
+                                            Text(transactionAmount(transaction))
                                                 .font(.system(size: 16, weight: .regular, design: .rounded))
                                                 .foregroundColor(Color.IncomeGreen)
                                                 .lineLimit(1)
                                                 .layoutPriority(1)
                                         } else {
-                                            Text("-\(currencySymbol)\(transaction.amount, specifier: (showCents && transaction.amount < 100) ? "%.2f" : "%.0f")")
+                                            Text(transactionAmount(transaction))
                                                 .font(.system(size: 16, weight: .regular, design: .rounded))
                                                 .foregroundColor(Color.SubtitleText)
                                                 .lineLimit(1)
@@ -577,12 +581,7 @@ struct LittleSaverWidgetEntryView: View {
         while fontSize > 12 {
             var max = 0.0
             entry.transactions.forEach { transaction in
-                let amountText: String
-                if showCents && transaction.amount < 100 {
-                    amountText = currencySymbol + String(format: "%.2f", transaction.amount)
-                } else {
-                    amountText = currencySymbol + String(format: "%.0f", transaction.amount)
-                }
+                let amountText = transactionAmount(transaction)
 
                 let holding = transaction.note.widthOfRoundedString(size: fontSize, weight: .semibold) + amountText.widthOfRoundedString(size: fontSize, weight: .regular) + 8
 
@@ -604,36 +603,15 @@ struct LittleSaverWidgetEntryView: View {
 
 struct RecentTransactionsDollarView: View {
     var amount: Double
+    var currencyCode: String
     var showCents: Bool
-    var net: Bool
+    var showPositiveSign: Bool
     var bigger: Bool = false
 
-    @AppStorage("currency", store: UserDefaults(suiteName: AppIdentifiers.appGroup)) var currency: String = Locale.current.currencyCode!
-    var currencySymbol: String {
-        return Locale.current.localizedCurrencySymbol(forCurrencyCode: currency)!
-    }
-
-    var actualAmount: Double {
-        if net {
-            return abs(amount)
-        } else {
-            return amount
-        }
-    }
-
     var body: some View {
-        HStack(alignment: .lastTextBaseline, spacing: 1.3) {
-            Group {
-                Text(net ? "\(amount < 0 ? "-" : (amount == 0 ? "" : "+"))\(currencySymbol)" : currencySymbol)
-                    .font(.system(bigger ? .title3 : .subheadline, design: .rounded).weight(.medium))
-                    .foregroundColor(Color.SubtitleText) +
-
-                Text("\(actualAmount, specifier: showCents && actualAmount < 100  ? "%.2f" : "%.0f")")
-                    .font(.system(bigger ? .title : .title3, design: .rounded).weight(.medium))
-                    .foregroundColor(Color.PrimaryText)
-            }
-
-        }
+        Text(localizedCurrencyAmount(amount, currencyCode: currencyCode, showCents: showCents, showPositiveSign: showPositiveSign))
+            .font(.system(bigger ? .title : .title3, design: .rounded).weight(.medium))
+            .foregroundColor(Color.PrimaryText)
         .minimumScaleFactor(0.5)
         .lineLimit(1)
     }

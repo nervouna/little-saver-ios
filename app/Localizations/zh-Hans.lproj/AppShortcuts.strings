@@ -1,0 +1,3 @@
+"Log a new transaction in ${applicationName}" = "在${applicationName}中记录新交易";
+"Get insights in ${applicationName}" = "在${applicationName}中获取分析";
+"Extract leftover amount for your budgets in ${applicationName}" = "在${applicationName}中查询预算余额";

@@ -129,11 +129,11 @@ struct LockBudgetWidgetEntryView: View {
         case 4:
             return String(localized: "this year")
         default:
-            return "this week"
+            return String(localized: "this week")
         }
     }
 
-    var subtitle: String {
+    var statusText: String {
         if entry.budget.budgetAmount > entry.totalSpent {
             return String(localized: "left")
         } else {
@@ -158,11 +158,15 @@ struct LockBudgetWidgetEntryView: View {
     }
 
     @AppStorage("currency", store: UserDefaults(suiteName: AppIdentifiers.appGroup)) var currency: String = Locale.current.currencyCode!
-    var currencySymbol: String {
-        return Locale.current.localizedCurrencySymbol(forCurrencyCode: currency)!
+    @AppStorage("showCents", store: UserDefaults(suiteName: AppIdentifiers.appGroup)) var showCents: Bool = true
+
+    func currencyAmount(_ amount: Double) -> String {
+        localizedCurrencyAmount(amount, currencyCode: currency, showCents: showCents)
     }
 
-    @AppStorage("showCents", store: UserDefaults(suiteName: AppIdentifiers.appGroup)) var showCents: Bool = true
+    var budgetStatusText: String {
+        localizedFormat("widget.budget.amount.status.period", arguments: [currencyAmount(difference), statusText, budgetType])
+    }
 
     var body: some View {
         switch widgetFamily {
@@ -170,7 +174,7 @@ struct LockBudgetWidgetEntryView: View {
             if entry.configuration.budget == nil || entry.budget.emoji == "failed" {
                 Text("Select budget in widget options")
             } else {
-                Text("\(entry.budget.emoji) \(currencySymbol)\(difference, specifier: (showCents && difference < 100) ? "%.2f" : "%.0f") \(subtitle)")
+                Text(localizedFormat("widget.budget.inline.status", arguments: [entry.budget.emoji, currencyAmount(difference), statusText]))
                     .widgetURL(DeepLink.budget(name: entry.budget.name).url)
             }
 
@@ -246,7 +250,7 @@ struct LockBudgetWidgetEntryView: View {
                             }
                             .font(.system(size: 15, weight: .semibold, design: .rounded))
 
-                            Text("\(currencySymbol)\(difference, specifier: (showCents && difference < 100) ? "%.2f" : "%.0f") \(subtitle) \(budgetType)")
+                            Text(budgetStatusText)
                                 .font(.system(size: 14, weight: .regular, design: .rounded))
                                 .foregroundColor(Color.SubtitleText)
 
@@ -255,10 +259,10 @@ struct LockBudgetWidgetEntryView: View {
                             } currentValueLabel: {
                                 EmptyView()
                             } minimumValueLabel: {
-                                Text("\(entry.totalSpent, specifier: (showCents && entry.totalSpent < 100) ? "%.2f" : "%.0f")")
+                                Text(currencyAmount(entry.totalSpent))
                                     .font(.system(size: 10, weight: .regular, design: .rounded))
                             } maximumValueLabel: {
-                                Text("\(entry.budget.budgetAmount, specifier: (showCents && entry.budget.budgetAmount < 100) ? "%.2f" : "%.0f")")
+                                Text(currencyAmount(entry.budget.budgetAmount))
                                     .font(.system(size: 10, weight: .regular, design: .rounded))
                             }
                             .frame(height: 5)
@@ -289,7 +293,7 @@ struct LockBudgetWidgetEntryView: View {
                             }
                             .font(.system(size: 15, weight: .semibold, design: .rounded))
 
-                            Text("\(currencySymbol)\(difference, specifier: (showCents && difference < 100) ? "%.2f" : "%.0f") \(subtitle) \(budgetType)")
+                            Text(budgetStatusText)
                                 .font(.system(size: 14, weight: .regular, design: .rounded))
                                 .foregroundColor(Color.SubtitleText)
 
@@ -299,10 +303,10 @@ struct LockBudgetWidgetEntryView: View {
                                 } currentValueLabel: {
                                     EmptyView()
                                 } minimumValueLabel: {
-                                    Text("\(entry.totalSpent, specifier: (showCents && entry.totalSpent < 100) ? "%.2f" : "%.0f")")
+                                    Text(currencyAmount(entry.totalSpent))
                                         .font(.system(size: 10, weight: .regular, design: .rounded))
                                 } maximumValueLabel: {
-                                    Text("\(entry.budget.budgetAmount, specifier: (showCents && entry.budget.budgetAmount < 100) ? "%.2f" : "%.0f")")
+                                    Text(currencyAmount(entry.budget.budgetAmount))
                                         .font(.system(size: 10, weight: .regular, design: .rounded))
                                 }
                                 .frame(height: 5)

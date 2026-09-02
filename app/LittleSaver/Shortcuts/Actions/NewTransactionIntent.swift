@@ -207,17 +207,12 @@ struct ShortcutTransactionView: View {
     @AppStorage("currency", store: UserDefaults(suiteName: AppIdentifiers.appGroup)) var currency: String = Locale.current.currencyCode!
 
     var transactionAmountString: String {
-        let numberFormatter = NumberFormatter()
-        numberFormatter.numberStyle = .currency
-        numberFormatter.currencyCode = currency
-
-        if showCents {
-            numberFormatter.maximumFractionDigits = 2
-        } else {
-            numberFormatter.maximumFractionDigits = 0
-        }
-
-        return numberFormatter.string(from: NSNumber(value: transaction.amount)) ?? "$0"
+        localizedCurrencyAmount(
+            transaction.income ? abs(transaction.amount) : -abs(transaction.amount),
+            currencyCode: currency,
+            showCents: showCents,
+            showPositiveSign: transaction.income
+        )
     }
 
     var body: some View {
@@ -249,14 +244,14 @@ struct ShortcutTransactionView: View {
             }
             Spacer()
             if transaction.income {
-                Text("+\(transactionAmountString)")
+                Text(transactionAmountString)
                     .font(.system(size: 19, weight: .medium, design: .rounded))
                     .foregroundColor(Color.IncomeGreen)
                     .minimumScaleFactor(0.7)
                     .lineLimit(1)
                     .layoutPriority(1)
             } else {
-                Text("-\(transactionAmountString)")
+                Text(transactionAmountString)
                     .font(.system(size: 19, weight: .medium, design: .rounded))
                     .foregroundColor(Color.PrimaryText)
                     .minimumScaleFactor(0.7)

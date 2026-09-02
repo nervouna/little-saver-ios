@@ -107,22 +107,19 @@ struct ShortcutBudgetView: View {
         case 4:
             return String(localized: "this year")
         default:
-            return "this week"
+            return String(localized: "this week")
         }
     }
 
     var amountString: String {
-        let numberFormatter = NumberFormatter()
-        numberFormatter.numberStyle = .currency
-        numberFormatter.currencyCode = currency
+        localizedCurrencyAmount(abs(amount), currencyCode: currency, showCents: showCents)
+    }
 
-        if showCents {
-            numberFormatter.maximumFractionDigits = 2
-        } else {
-            numberFormatter.maximumFractionDigits = 0
-        }
-
-        return numberFormatter.string(from: NSNumber(value: abs(amount))) ?? "$0"
+    var statusText: String {
+        localizedFormat(
+            amount > 0 ? "shortcut.budget.left" : "shortcut.budget.over",
+            arguments: [budgetType]
+        )
     }
 
     var body: some View {
@@ -131,15 +128,9 @@ struct ShortcutBudgetView: View {
                 .font(.system(size: 32, weight: .medium, design: .rounded))
                 .lineLimit(1)
 
-            if amount > 0 {
-                Text("left \(budgetType)")
-                    .font(.system(size: 16, weight: .medium, design: .rounded))
-                    .foregroundColor(Color.SubtitleText)
-            } else {
-                Text("over \(budgetType)")
-                    .font(.system(size: 16, weight: .medium, design: .rounded))
-                    .foregroundColor(Color.SubtitleText)
-            }
+            Text(statusText)
+                .font(.system(size: 16, weight: .medium, design: .rounded))
+                .foregroundColor(Color.SubtitleText)
         }
         .padding(20)
     }

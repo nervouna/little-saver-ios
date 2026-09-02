@@ -1,0 +1,3 @@
+"Log a new transaction in ${applicationName}" = "${applicationName}で新しい取引を記録";
+"Get insights in ${applicationName}" = "${applicationName}で分析を取得";
+"Extract leftover amount for your budgets in ${applicationName}" = "${applicationName}で予算残額を取得";

@@ -11,20 +11,6 @@ import SwiftUIIntrospect
 import Popovers
 import SwiftUI
 
-func localizedCurrencyAmount(
-    _ amount: Double,
-    currencyCode: String,
-    showCents: Bool,
-    locale: Locale = .current
-) -> String {
-    let formatter = NumberFormatter()
-    formatter.locale = locale
-    formatter.numberStyle = .currency
-    formatter.currencyCode = currencyCode
-    formatter.maximumFractionDigits = showCents ? 2 : 0
-    return formatter.string(from: NSNumber(value: amount)) ?? "\(currencyCode) \(amount)"
-}
-
 struct LogView: View {
     @State var updatedRecurring = false
 

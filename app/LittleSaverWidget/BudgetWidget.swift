@@ -106,6 +106,9 @@ struct HoldingBudget {
 struct BudgetWidgetEntryView: View {
     let entry: BudgetWidgetProvider.Entry
 
+    @AppStorage("currency", store: UserDefaults(suiteName: AppIdentifiers.appGroup)) var currency: String = Locale.current.currencyCode!
+    @AppStorage("showCents", store: UserDefaults(suiteName: AppIdentifiers.appGroup)) var showCents: Bool = true
+
     var budgetType: String {
         switch entry.budget.type {
         case 1:
@@ -117,7 +120,7 @@ struct BudgetWidgetEntryView: View {
         case 4:
             return String(localized: "this year")
         default:
-            return "this week"
+            return String(localized: "this week")
         }
     }
 
@@ -134,11 +137,14 @@ struct BudgetWidgetEntryView: View {
     }
 
     var systemSmallWidgetText: String {
-        if entry.budget.budgetAmount >= entry.totalSpent {
-            return String(localized: "left \(budgetType)")
-        } else {
-            return String(localized: "over \(budgetType)")
-        }
+        localizedFormat(
+            entry.budget.budgetAmount >= entry.totalSpent ? "widget.budget.left.period" : "widget.budget.over.period",
+            arguments: [budgetType]
+        )
+    }
+
+    func currencyAmount(_ amount: Double) -> String {
+        localizedCurrencyAmount(amount, currencyCode: currency, showCents: showCents)
     }
 
     func showTimeFrame(size: CGFloat) -> Bool {
@@ -202,7 +208,7 @@ struct BudgetWidgetEntryView: View {
                             }
                             .foregroundColor(Color.PrimaryText)
 
-                            Text("SPENT: \(percentString1)")
+                            Text(localizedFormat("widget.budget.spent.percent", arguments: [percentString1]))
                                 .font(.system(size: 10, weight: .medium, design: .rounded))
                                 .foregroundColor(Color.SubtitleText)
                         }
@@ -256,16 +262,16 @@ struct BudgetWidgetEntryView: View {
 
                             HStack {
                                 if entry.totalSpent > 999.99 || entry.budget.budgetAmount > 999.99 {
-                                    Text("\(BudgetMath.roundedAmount(entry.totalSpent))")
+                                    Text(currencyAmount(entry.totalSpent))
                                         .frame(width: 50, alignment: .leading)
                                     Spacer()
-                                    Text("\(BudgetMath.roundedAmount(entry.budget.budgetAmount))")
+                                    Text(currencyAmount(entry.budget.budgetAmount))
                                         .frame(width: 50, alignment: .trailing)
                                 } else {
-                                    Text("\(entry.totalSpent, specifier: "%.2f")")
+                                    Text(currencyAmount(entry.totalSpent))
                                         .frame(width: 50, alignment: .leading)
                                     Spacer()
-                                    Text("\(entry.budget.budgetAmount, specifier: "%.2f")")
+                                    Text(currencyAmount(entry.budget.budgetAmount))
                                         .frame(width: 50, alignment: .trailing)
                                 }
                             }
@@ -294,7 +300,7 @@ struct BudgetWidgetEntryView: View {
                             }
                             .foregroundColor(Color.PrimaryText)
 
-                            Text("SPENT: \(percentString1)")
+                            Text(localizedFormat("widget.budget.spent.percent", arguments: [percentString1]))
                                 .font(.system(size: 10, weight: .medium, design: .rounded))
                                 .foregroundColor(Color.SubtitleText)
                         }
@@ -348,16 +354,16 @@ struct BudgetWidgetEntryView: View {
 
                             HStack {
                                 if entry.totalSpent > 999.99 || entry.budget.budgetAmount > 999.99 {
-                                    Text("\(BudgetMath.roundedAmount(entry.totalSpent))")
+                                    Text(currencyAmount(entry.totalSpent))
                                         .frame(width: 50, alignment: .leading)
                                     Spacer()
-                                    Text("\(BudgetMath.roundedAmount(entry.budget.budgetAmount))")
+                                    Text(currencyAmount(entry.budget.budgetAmount))
                                         .frame(width: 50, alignment: .trailing)
                                 } else {
-                                    Text("\(entry.totalSpent, specifier: "%.2f")")
+                                    Text(currencyAmount(entry.totalSpent))
                                         .frame(width: 50, alignment: .leading)
                                     Spacer()
-                                    Text("\(entry.budget.budgetAmount, specifier: "%.2f")")
+                                    Text(currencyAmount(entry.budget.budgetAmount))
                                         .frame(width: 50, alignment: .trailing)
                                 }
                             }
@@ -384,23 +390,11 @@ struct WidgetBudgetDollarView: View {
     var red: Bool
 
     @AppStorage("currency", store: UserDefaults(suiteName: AppIdentifiers.appGroup)) var currency: String = Locale.current.currencyCode!
-    var currencySymbol: String {
-        return Locale.current.localizedCurrencySymbol(forCurrencyCode: currency)!
-    }
 
     var body: some View {
-        HStack(alignment: .lastTextBaseline, spacing: 1.3) {
-            Group {
-                Text(currencySymbol)
-                    .font(.system(.subheadline, design: .rounded).weight(.medium))
-                    .foregroundColor(red ? Color("BudgetRed") : Color.SubtitleText) +
-
-                Text("\(amount, specifier: showCents && amount < 100  ? "%.2f" : "%.0f")")
-                    .font(.system(.title3, design: .rounded).weight(.medium))
-                    .foregroundColor(red ? Color("BudgetRed") : Color.PrimaryText)
-            }
-
-        }
+        Text(localizedCurrencyAmount(amount, currencyCode: currency, showCents: showCents))
+            .font(.system(.title3, design: .rounded).weight(.medium))
+            .foregroundColor(red ? Color("BudgetRed") : Color.PrimaryText)
         .minimumScaleFactor(0.5)
         .lineLimit(1)
     }
