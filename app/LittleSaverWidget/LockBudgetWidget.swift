@@ -26,7 +26,11 @@ struct LockBudgetWidget: Widget {
 
     var body: some WidgetConfiguration {
         IntentConfiguration(kind: kind, intent: BudgetWidgetConfigurationIntent.self, provider: LockBudgetWidgetProvider()) { entry in
-            LockBudgetWidgetEntryView(entry: entry)
+            if entry.readStatus.isUnavailable {
+                WidgetReadStatusView(status: entry.readStatus)
+            } else {
+                LockBudgetWidgetEntryView(entry: entry)
+            }
         }
         .configurationDisplayName("Budget")
         .description("Monitor how you are sticking to your budgets.")
@@ -36,73 +40,39 @@ struct LockBudgetWidget: Widget {
 
 struct LockBudgetWidgetProvider: IntentTimelineProvider {
     typealias Intent = BudgetWidgetConfigurationIntent
+    typealias Entry = LockBudgetWidgetEntry
 
-    public typealias Entry = LockBudgetWidgetEntry
-
-    func placeholder(in _: Context) -> LockBudgetWidgetEntry {
-        let loaded = loadData(budgetId: "")
-
-        return LockBudgetWidgetEntry(date: Date(), totalSpent: loaded.total, timeLeft: loaded.timeLeft, budget: loaded.budget, configuration: BudgetWidgetConfigurationIntent())
+    func placeholder(in _: Context) -> Entry {
+        empty(configuration: Intent(), status: .loading)
     }
 
-    func getSnapshot(for configuration: BudgetWidgetConfigurationIntent, in _: Context, completion: @escaping (LockBudgetWidgetEntry) -> Void) {
-        let loaded = loadData(budgetId: configuration.budget?.identifier ?? "")
-
-        let entry = LockBudgetWidgetEntry(date: Date(), totalSpent: loaded.total, timeLeft: loaded.timeLeft, budget: loaded.budget, configuration: configuration)
-        completion(entry)
+    func getSnapshot(for configuration: Intent, in _: Context, completion: @escaping (Entry) -> Void) {
+        Task { completion(await loadEntry(configuration: configuration)) }
     }
 
-    func getTimeline(for configuration: BudgetWidgetConfigurationIntent, in _: Context, completion: @escaping (Timeline<Entry>) -> Void) {
-        let loaded = loadData(budgetId: configuration.budget?.identifier ?? "")
-
-        let entry = LockBudgetWidgetEntry(date: Date(), totalSpent: loaded.total, timeLeft: loaded.timeLeft, budget: loaded.budget, configuration: configuration)
-
-        let timeline = Timeline(entries: [entry], policy: .atEnd)
-
-        completion(timeline)
+    func getTimeline(for configuration: Intent, in _: Context, completion: @escaping (Timeline<Entry>) -> Void) {
+        Task {
+            let entry = await loadEntry(configuration: configuration)
+            completion(Timeline(entries: [entry], policy: .after(entry.readStatus.nextRefresh(after: entry.date))))
+        }
     }
 
-    func loadData(budgetId: String) -> (total: Double, timeLeft: String, budget: HoldingBudget) {
-        let dataController = DataController.platformShared
+    private func empty(configuration: Intent, status: ExtensionReadStatus) -> Entry {
+        Entry(date: Date(), totalSpent: 0, timeLeft: "", budget: HoldingBudget(type: 1, emoji: "failed", name: "", colour: "", budgetAmount: 0), configuration: configuration, readStatus: status)
+    }
+
+    private func loadEntry(configuration: Intent) async -> Entry {
         do {
-            return try dataController.performViewContextRead { context in
-                guard let objectIDURL = URL(string: budgetId),
-                      let managedObjectID = dataController.container.persistentStoreCoordinator.managedObjectID(forURIRepresentation: objectIDURL),
-                      let budget = try context.existingObject(with: managedObjectID) as? Budget,
-                      BudgetValidation.isUsable(startDate: budget.startDate, hasCategory: budget.category != nil),
-                      let startDate = budget.startDate else {
-                    return (0, "", HoldingBudget(type: 1, emoji: "failed", name: "", colour: "", budgetAmount: 0))
-                }
-
-                let transactions = try context.fetch(dataController.fetchRequestForBudgetTransactions(budget: budget))
-                let total = transactions.reduce(0) { $0 + $1.wrappedAmount }
-                guard total.isFinite, budget.amount.isFinite else {
-                    return (0, "", HoldingBudget(type: 1, emoji: "failed", name: "", colour: "", budgetAmount: 0))
-                }
-                let holdingBudget = HoldingBudget(
-                    type: Int(budget.type),
-                    emoji: budget.wrappedEmoji,
-                    name: budget.wrappedName,
-                    colour: budget.wrappedColour,
-                    budgetAmount: budget.amount
-                )
-                let calendar = Calendar.current
-                let timeLeft: String
-                if budget.type == 1 {
-                    let elapsedHours = calendar.dateComponents([.hour], from: startDate, to: .now).hour ?? 0
-                    timeLeft = String(localized: "\(24 - elapsedHours) hours left")
-                } else if budget.type == 2 {
-                    let elapsedDays = calendar.dateComponents([.day], from: startDate, to: .now).day ?? 0
-                    timeLeft = String(localized: "\(7 - elapsedDays) days left")
-                } else {
-                    let totalDays = calendar.dateComponents([.day], from: startDate, to: budget.endDate).day ?? 0
-                    let elapsedDays = calendar.dateComponents([.day], from: startDate, to: .now).day ?? 0
-                    timeLeft = String(localized: "\(totalDays - elapsedDays) days left")
-                }
-                return (total, timeLeft, holdingBudget)
+            guard let snapshot = try await DataController.platformShared.budgetSnapshot(identifier: configuration.budget?.identifier ?? "") else {
+                return empty(configuration: configuration, status: .empty)
             }
+            let component: Calendar.Component = snapshot.type == 1 ? .hour : .day
+            let left = Calendar.current.dateComponents([component], from: .now, to: snapshot.endDate).value(for: component) ?? 0
+            let timeLeft = snapshot.type == 1 ? String(localized: "\(left) hours left") : String(localized: "\(left) days left")
+            let budget = HoldingBudget(type: snapshot.type, emoji: snapshot.emoji, name: snapshot.name, colour: snapshot.colour, budgetAmount: snapshot.amount)
+            return Entry(date: Date(), totalSpent: snapshot.spent, timeLeft: timeLeft, budget: budget, configuration: configuration)
         } catch {
-            return (0, "", HoldingBudget(type: 1, emoji: "failed", name: "", colour: "", budgetAmount: 0))
+            return empty(configuration: configuration, status: ExtensionReadStatus(error: error))
         }
     }
 }
@@ -113,6 +83,7 @@ struct LockBudgetWidgetEntry: TimelineEntry {
     let timeLeft: String
     let budget: HoldingBudget
     let configuration: BudgetWidgetConfigurationIntent
+    var readStatus: ExtensionReadStatus = .loaded
 }
 
 struct LockBudgetWidgetEntryView: View {

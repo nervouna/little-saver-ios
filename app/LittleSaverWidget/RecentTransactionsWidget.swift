@@ -33,7 +33,11 @@ struct RecentLittleSaverWidget: Widget {
 
     var body: some WidgetConfiguration {
         IntentConfiguration(kind: kind, intent: RecentWidgetConfigurationIntent.self, provider: Provider()) { entry in
-            LittleSaverWidgetEntryView(entry: entry)
+            if entry.readStatus.isUnavailable {
+                WidgetReadStatusView(status: entry.readStatus)
+            } else {
+                LittleSaverWidgetEntryView(entry: entry)
+            }
         }
         .configurationDisplayName("Recent Transactions")
         .description("View your latest expenses.")
@@ -43,90 +47,44 @@ struct RecentLittleSaverWidget: Widget {
 
 struct Provider: IntentTimelineProvider {
     typealias Intent = RecentWidgetConfigurationIntent
+    typealias Entry = RecentWidgetEntry
 
-    public typealias Entry = RecentWidgetEntry
-
-    func placeholder(in _: Context) -> RecentWidgetEntry {
-        RecentWidgetEntry(date: Date(), amount: loadAmount(type: .week, insightsType: .net), transactions: loadTransactions(type: .week, count: 9), duration: .week, type: .net)
+    func placeholder(in _: Context) -> Entry {
+        Entry(date: Date(), amount: 0, transactions: [], duration: .week, type: .net, readStatus: .loading)
     }
 
-    func getSnapshot(for configuration: RecentWidgetConfigurationIntent, in _: Context, completion: @escaping (RecentWidgetEntry) -> Void) {
-        let entry = RecentWidgetEntry(date: Date(), amount: loadAmount(type: configuration.duration, insightsType: configuration.insightsType), transactions: loadTransactions(type: configuration.duration, count: 9), duration: configuration.duration, type: configuration.insightsType)
-        completion(entry)
+    func getSnapshot(for configuration: Intent, in _: Context, completion: @escaping (Entry) -> Void) {
+        Task { completion(await loadEntry(configuration: configuration)) }
     }
 
-    func getTimeline(for configuration: RecentWidgetConfigurationIntent, in _: Context, completion: @escaping (Timeline<Entry>) -> Void) {
-        let entry = RecentWidgetEntry(date: Date(), amount: loadAmount(type: configuration.duration, insightsType: configuration.insightsType), transactions: loadTransactions(type: configuration.duration, count: 9), duration: configuration.duration, type: configuration.insightsType)
-
-        let timeline = Timeline(entries: [entry], policy: .atEnd)
-
-        completion(timeline)
-    }
-
-    func loadAmount(type: TimePeriod, insightsType: InsightsType) -> Double {
-        let dataController = DataController.platformShared
-
-        let timeframe: Int
-
-        switch type {
-        case .day:
-            timeframe = 1
-        case .week:
-            timeframe = 2
-        case .month:
-            timeframe = 3
-        case .year:
-            timeframe = 4
-        default:
-            timeframe = 0
-        }
-
-        do {
-            let amount: Double = try dataController.performViewContextRead { context in
-                let incomeFilter: Bool?
-                switch insightsType {
-                case .net:
-                    incomeFilter = nil
-                case .income:
-                    incomeFilter = true
-                case .expense:
-                    incomeFilter = false
-                default:
-                    return 0
-                }
-
-                let request = dataController.fetchRequestForLogView(
-                    type: timeframe,
-                    optionalIncome: incomeFilter
-                )
-                let transactions = try context.fetch(request)
-                if insightsType == .net {
-                    return TransactionSummary.net(transactions)
-                }
-                return transactions.reduce(0) { $0 + $1.amount }
-            }
-            return NumericSafety.finiteOrZero(amount)
-        } catch {
-            return 0
+    func getTimeline(for configuration: Intent, in _: Context, completion: @escaping (Timeline<Entry>) -> Void) {
+        Task {
+            let entry = await loadEntry(configuration: configuration)
+            completion(Timeline(entries: [entry], policy: .after(entry.readStatus.nextRefresh(after: entry.date))))
         }
     }
 
-    func loadTransactions(type: TimePeriod, count: Int) -> [HoldingTransaction] {
-        let dataController = DataController.platformShared
+    private func loadEntry(configuration: Intent) async -> Entry {
         do {
-            return try dataController.performViewContextRead { context in
-                let request = dataController.fetchRequestForRecentTransactionsWithCount(type: type.ledgerPeriod, count: count)
-                return try context.fetch(request).map { transaction in
-                    HoldingTransaction(
-                        colour: transaction.category?.wrappedColour ?? "",
-                        note: transaction.wrappedNote,
-                        amount: NumericSafety.finiteOrZero(transaction.wrappedAmount),
-                        income: transaction.income
-                    )
-                }
+            let controller = DataController.platformShared
+            let timeframe: Int
+            switch configuration.duration {
+            case .day: timeframe = 1
+            case .week: timeframe = 2
+            case .month: timeframe = 3
+            case .year: timeframe = 4
+            default: timeframe = 0
             }
+            let income: Bool? = configuration.insightsType == .net ? nil : configuration.insightsType == .income
+            let values = try await controller.transactionSnapshots(type: timeframe, income: income)
+            let amount = configuration.insightsType == .unknown ? 0 : NumericSafety.finiteOrZero(values.reduce(0) {
+                $0 + (configuration.insightsType == .net && !$1.income ? -$1.amount : $1.amount)
+            })
+            let recent = try await controller.recentTransactionSnapshots(period: configuration.duration.ledgerPeriod, count: 9)
+            let transactions = recent.map { HoldingTransaction(colour: $0.colour, note: $0.note, amount: NumericSafety.finiteOrZero($0.amount), income: $0.income) }
+            return Entry(date: Date(), amount: amount, transactions: transactions, duration: configuration.duration, type: configuration.insightsType, readStatus: transactions.isEmpty ? .empty : .loaded)
         } catch {
-            return []
+            return Entry(date: Date(), amount: 0, transactions: [], duration: configuration.duration, type: configuration.insightsType, readStatus: ExtensionReadStatus(error: error))
         }
     }
 }
@@ -137,9 +95,10 @@ struct RecentWidgetEntry: TimelineEntry {
     let transactions: [HoldingTransaction]
     let duration: TimePeriod
     let type: InsightsType
+    var readStatus: ExtensionReadStatus = .loaded
 }
 
-struct HoldingTransaction: Hashable {
+struct HoldingTransaction: Hashable, Sendable {
     let colour: String
     let note: String
     let amount: Double

@@ -150,6 +150,7 @@ struct ContentView: View {
                     appLockVM.isAppUnLocked = false
                 }
             } else if newPhase == .active {
+                Task { try? await dataController.refreshPersistentHistory() }
                 center.getNotificationSettings { settings in
                     if settings.authorizationStatus == .authorized {
                         if !showNotifications && notificationsEnabled == false {

@@ -13,27 +13,15 @@ class IntentHandler: INExtension, BudgetWidgetConfigurationIntentHandling {
     let dataController = DataController.platformShared
 
     func provideBudgetOptionsCollection(for _: BudgetWidgetConfigurationIntent, with completion: @escaping (INObjectCollection<WidgetBudget>?, Error?) -> Void) {
-        do {
-            let budgets: [WidgetBudget] = try dataController.performViewContextRead { context in
-                try context.fetch(dataController.fetchRequestForBudgets()).compactMap { budget -> WidgetBudget? in
-                    guard BudgetValidation.isUsable(
-                        startDate: budget.startDate,
-                        hasCategory: budget.category != nil
-                    ) else { return nil }
-                    return WidgetBudget(
-                        identifier: budget.objectID.uriRepresentation().absoluteString,
-                        display: budget.wrappedName
-                    )
+        Task {
+            do {
+                let budgets = try await dataController.budgetSnapshots().map {
+                    WidgetBudget(identifier: $0.identifier, display: $0.name)
                 }
+                completion(INObjectCollection(items: budgets), nil)
+            } catch {
+                completion(nil, error)
             }
-            completion(INObjectCollection(items: budgets), nil)
-        } catch {
-            let error = NSError(
-                domain: AppIdentifiers.intentBundle,
-                code: 1,
-                userInfo: [NSLocalizedDescriptionKey: error.localizedDescription]
-            )
-            completion(nil, error)
         }
     }
 

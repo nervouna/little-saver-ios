@@ -166,6 +166,7 @@ public enum CSVTransactionImporter {
         }
 
         let context = controller.container.newBackgroundContext()
+        context.transactionAuthor = controller.configuration?.transactionAuthor
         context.mergePolicy = NSMergeByPropertyObjectTrumpMergePolicy
         var result: Result<Int, Error>!
         context.performAndWait {

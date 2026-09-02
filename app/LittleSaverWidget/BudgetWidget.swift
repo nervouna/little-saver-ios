@@ -14,7 +14,11 @@ struct BudgetWidget: Widget {
 
     var body: some WidgetConfiguration {
         IntentConfiguration(kind: kind, intent: BudgetWidgetConfigurationIntent.self, provider: BudgetWidgetProvider()) { entry in
-            BudgetWidgetEntryView(entry: entry)
+            if entry.readStatus.isUnavailable {
+                WidgetReadStatusView(status: entry.readStatus)
+            } else {
+                BudgetWidgetEntryView(entry: entry)
+            }
         }
         .configurationDisplayName("Budget")
         .description("Monitor how you are sticking to your budgets.")
@@ -24,66 +28,37 @@ struct BudgetWidget: Widget {
 
 struct BudgetWidgetProvider: IntentTimelineProvider {
     typealias Intent = BudgetWidgetConfigurationIntent
+    typealias Entry = BudgetWidgetEntry
 
-    public typealias Entry = BudgetWidgetEntry
-
-    func placeholder(in _: Context) -> BudgetWidgetEntry {
-        let loaded = loadData(budgetId: "")
-
-        return BudgetWidgetEntry(date: Date(), totalSpent: loaded.total, percentageOfDays: loaded.percentage, budget: loaded.budget, configuration: BudgetWidgetConfigurationIntent())
+    func placeholder(in _: Context) -> Entry {
+        empty(configuration: Intent(), status: .loading)
     }
 
-    func getSnapshot(for configuration: BudgetWidgetConfigurationIntent, in _: Context, completion: @escaping (BudgetWidgetEntry) -> Void) {
-        let loaded = loadData(budgetId: configuration.budget?.identifier ?? "")
-
-        let entry = BudgetWidgetEntry(date: Date(), totalSpent: loaded.total, percentageOfDays: loaded.percentage, budget: loaded.budget, configuration: configuration)
-        completion(entry)
+    func getSnapshot(for configuration: Intent, in _: Context, completion: @escaping (Entry) -> Void) {
+        Task { completion(await loadEntry(configuration: configuration)) }
     }
 
-    func getTimeline(for configuration: BudgetWidgetConfigurationIntent, in _: Context, completion: @escaping (Timeline<Entry>) -> Void) {
-        let loaded = loadData(budgetId: configuration.budget?.identifier ?? "")
-
-        let entry = BudgetWidgetEntry(date: Date(), totalSpent: loaded.total, percentageOfDays: loaded.percentage, budget: loaded.budget, configuration: configuration)
-
-        let timeline = Timeline(entries: [entry], policy: .atEnd)
-
-        completion(timeline)
+    func getTimeline(for configuration: Intent, in _: Context, completion: @escaping (Timeline<Entry>) -> Void) {
+        Task {
+            let entry = await loadEntry(configuration: configuration)
+            completion(Timeline(entries: [entry], policy: .after(entry.readStatus.nextRefresh(after: entry.date))))
+        }
     }
 
-    func loadData(budgetId: String) -> (total: Double, percentage: Double, budget: HoldingBudget) {
-        let dataController = DataController.platformShared
+    private func empty(configuration: Intent, status: ExtensionReadStatus) -> Entry {
+        Entry(date: Date(), totalSpent: 0, percentageOfDays: 0, budget: HoldingBudget(type: 1, emoji: "failed", name: "", colour: "", budgetAmount: 0), configuration: configuration, readStatus: status)
+    }
+
+    private func loadEntry(configuration: Intent) async -> Entry {
         do {
-            return try dataController.performViewContextRead { context in
-                guard let objectIDURL = URL(string: budgetId),
-                      let managedObjectID = dataController.container.persistentStoreCoordinator.managedObjectID(forURIRepresentation: objectIDURL),
-                      let budget = try context.existingObject(with: managedObjectID) as? Budget,
-                      BudgetValidation.isUsable(startDate: budget.startDate, hasCategory: budget.category != nil),
-                      let startDate = budget.startDate else {
-                    return (0, 0, HoldingBudget(type: 1, emoji: "failed", name: "", colour: "", budgetAmount: 0))
-                }
-
-                let transactions = try context.fetch(dataController.fetchRequestForBudgetTransactions(budget: budget))
-                let total = transactions.reduce(0) { $0 + $1.wrappedAmount }
-                guard total.isFinite, budget.amount.isFinite else {
-                    return (0, 0, HoldingBudget(type: 1, emoji: "failed", name: "", colour: "", budgetAmount: 0))
-                }
-                let holdingBudget = HoldingBudget(
-                    type: Int(budget.type),
-                    emoji: budget.wrappedEmoji,
-                    name: budget.wrappedName,
-                    colour: budget.wrappedColour,
-                    budgetAmount: budget.amount
-                )
-                let percentage = BudgetWindow.progress(
-                    startDate: startDate,
-                    endDate: budget.endDate,
-                    now: .now,
-                    calendar: .current
-                )
-                return (total, percentage, holdingBudget)
+            guard let snapshot = try await DataController.platformShared.budgetSnapshot(identifier: configuration.budget?.identifier ?? "") else {
+                return empty(configuration: configuration, status: .empty)
             }
+
+            let budget = HoldingBudget(type: snapshot.type, emoji: snapshot.emoji, name: snapshot.name, colour: snapshot.colour, budgetAmount: snapshot.amount)
+            return Entry(date: Date(), totalSpent: snapshot.spent, percentageOfDays: snapshot.progress, budget: budget, configuration: configuration)
         } catch {
-            return (0, 0, HoldingBudget(type: 1, emoji: "failed", name: "", colour: "", budgetAmount: 0))
+            return empty(configuration: configuration, status: ExtensionReadStatus(error: error))
         }
     }
 }
@@ -94,14 +69,33 @@ struct BudgetWidgetEntry: TimelineEntry {
     let percentageOfDays: Double
     let budget: HoldingBudget
     let configuration: BudgetWidgetConfigurationIntent
+    var readStatus: ExtensionReadStatus = .loaded
 }
 
-struct HoldingBudget {
+struct HoldingBudget: Sendable {
     let type: Int
     let emoji: String
     let name: String
     let colour: String
     let budgetAmount: Double
+}
+
+/// Unavailable storage must not look like an empty ledger or a zero balance.
+struct WidgetReadStatusView: View {
+    let status: ExtensionReadStatus
+
+    private var message: String {
+        status == .loading ? String(localized: "Preparing data…") : String(localized: "Unable to Open Data")
+    }
+
+    var body: some View {
+        if #available(iOSApplicationExtension 17, *) {
+            Text(message)
+                .containerBackground(for: .widget) { Color.PrimaryBackground }
+        } else {
+            Text(message)
+        }
+    }
 }
 
 struct BudgetWidgetEntryView: View {

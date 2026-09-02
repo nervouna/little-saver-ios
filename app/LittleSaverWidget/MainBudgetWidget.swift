@@ -26,7 +26,11 @@ struct MainBudgetWidget: Widget {
 
     var body: some WidgetConfiguration {
         StaticConfiguration(kind: kind, provider: MainBudgetWidgetProvider()) { entry in
-            MainBudgetWidgetEntryView(entry: entry)
+            if entry.readStatus.isUnavailable {
+                WidgetReadStatusView(status: entry.readStatus)
+            } else {
+                MainBudgetWidgetEntryView(entry: entry)
+            }
         }
         .supportedFamilies(supportedFamilies)
         .configurationDisplayName("Overall Budget")
@@ -37,34 +41,30 @@ struct MainBudgetWidget: Widget {
 struct MainBudgetWidgetProvider: TimelineProvider {
     typealias Entry = MainBudgetWidgetEntry
 
-    func placeholder(in _: Context) -> MainBudgetWidgetEntry {
-        let loaded = loadData()
+    func placeholder(in _: Context) -> Entry { empty(status: .loading) }
 
-        return MainBudgetWidgetEntry(date: Date(), totalSpent: loaded.totalSpent, percentageOfDays: loaded.percentage, type: loaded.type, budgetAmount: loaded.budgetAmount, startDate: loaded.startDate, found: loaded.found)
+    func getSnapshot(in _: Context, completion: @escaping (Entry) -> Void) {
+        Task { completion(await loadEntry()) }
     }
 
-    func getSnapshot(in _: Context, completion: @escaping (MainBudgetWidgetEntry) -> Void) {
-        let loaded = loadData()
-
-        let entry = MainBudgetWidgetEntry(date: Date(), totalSpent: loaded.totalSpent, percentageOfDays: loaded.percentage, type: loaded.type, budgetAmount: loaded.budgetAmount, startDate: loaded.startDate, found: loaded.found)
-        completion(entry)
+    func getTimeline(in _: Context, completion: @escaping (Timeline<Entry>) -> Void) {
+        Task {
+            let entry = await loadEntry()
+            completion(Timeline(entries: [entry], policy: .after(entry.readStatus.nextRefresh(after: entry.date))))
+        }
     }
 
-    func getTimeline(in _: Context, completion: @escaping (Timeline<MainBudgetWidgetEntry>) -> Void) {
-        let loaded = loadData()
-
-        let entry = MainBudgetWidgetEntry(date: Date(), totalSpent: loaded.totalSpent, percentageOfDays: loaded.percentage, type: loaded.type, budgetAmount: loaded.budgetAmount, startDate: loaded.startDate, found: loaded.found)
-
-        let timeline = Timeline(entries: [entry], policy: .atEnd)
-
-        completion(timeline)
+    private func empty(status: ExtensionReadStatus) -> Entry {
+        Entry(date: Date(), totalSpent: 0, percentageOfDays: 0, type: 1, budgetAmount: 0, startDate: Date(), found: false, readStatus: status)
     }
 
-    func loadData() -> (found: Bool, totalSpent: Double, budgetAmount: Double, percentage: Double, type: Int, startDate: Date) {
-//        let dataController = DataController()
-        let dataController = DataController.platformShared
-
-        return dataController.fetchRequestForMainBudgetWidget()
+    private func loadEntry() async -> Entry {
+        do {
+            guard let snapshot = try await DataController.platformShared.mainBudgetSnapshot() else { return empty(status: .empty) }
+            return Entry(date: Date(), totalSpent: snapshot.spent, percentageOfDays: snapshot.progress, type: snapshot.type, budgetAmount: snapshot.amount, startDate: snapshot.startDate, found: true)
+        } catch {
+            return empty(status: ExtensionReadStatus(error: error))
+        }
     }
 }
 
@@ -76,6 +76,7 @@ struct MainBudgetWidgetEntry: TimelineEntry {
     let budgetAmount: Double
     let startDate: Date
     let found: Bool
+    var readStatus: ExtensionReadStatus = .loaded
 }
 
 struct MainBudgetWidgetEntryView: View {

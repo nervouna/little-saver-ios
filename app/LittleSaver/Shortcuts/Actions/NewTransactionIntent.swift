@@ -81,6 +81,7 @@ struct NewTransactionIntent: AppIntent {
             }
 
             let dataController = DataController.platformShared
+            try await dataController.waitUntilReady()
             let repeatType: Int
 
             if !recurringTransaction {
@@ -102,8 +103,9 @@ struct NewTransactionIntent: AppIntent {
 
                     let transaction = dataController.newTransaction(note: note ?? "", category: category, income: false, amount: amount, date: Date.now, repeatType: repeatType, repeatCoefficient: 1, delay: false)
 
+                    let snapshot = TransactionReadSnapshot(transaction: transaction)
                     return .result(dialog: "Expense successfully logged.") {
-                        ShortcutTransactionView(transaction: transaction)
+                        ShortcutTransactionView(transaction: snapshot)
                     }
                 } else {
                     throw $expenseCategory.needsValueError()
@@ -114,8 +116,9 @@ struct NewTransactionIntent: AppIntent {
 
                     let transaction = dataController.newTransaction(note: note ?? "", category: category, income: true, amount: amount, date: Date.now, repeatType: repeatType, repeatCoefficient: 1, delay: false)
 
+                    let snapshot = TransactionReadSnapshot(transaction: transaction)
                     return .result(dialog: "Income successfully logged.") {
-                        ShortcutTransactionView(transaction: transaction)
+                        ShortcutTransactionView(transaction: snapshot)
                     }
                 } else {
                     throw $incomeCategory.needsValueError()
@@ -201,7 +204,7 @@ extension RepeatType: AppEnum {
 }
 
 struct ShortcutTransactionView: View {
-    let transaction: Transaction
+    let transaction: TransactionReadSnapshot
 
     @AppStorage("showCents", store: UserDefaults(suiteName: AppIdentifiers.appGroup)) var showCents: Bool = true
 
@@ -218,8 +221,8 @@ struct ShortcutTransactionView: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            EmojiLogView(emoji: (transaction.category?.wrappedEmoji ?? ""),
-                         colour: (transaction.category?.wrappedColour ?? ""), future: false)
+            EmojiLogView(emoji: transaction.emoji,
+                         colour: transaction.colour, future: false)
                 .frame(width: 35, height: 35, alignment: .center)
                 .overlay(alignment: .bottomTrailing) {
                     if transaction.recurringType > 0 {
@@ -233,12 +236,12 @@ struct ShortcutTransactionView: View {
                 }
 
             VStack(alignment: .leading) {
-                Text(transaction.wrappedNote)
+                Text(transaction.note)
                     .font(.system(size: 16, weight: .medium, design: .rounded))
                     .foregroundColor(Color.PrimaryText)
                     .lineLimit(1)
 
-                Text(transaction.wrappedDate, format: .dateTime.hour().minute())
+                Text(transaction.date, format: .dateTime.hour().minute())
                     .font(.system(size: 12, weight: .medium, design: .rounded))
                     .foregroundColor(Color.SubtitleText)
                     .lineLimit(1)

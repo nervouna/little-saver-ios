@@ -4,6 +4,180 @@ import XCTest
 @testable import LittleSaver
 
 final class DataFoundationTests: XCTestCase {
+    @MainActor
+    func testControllerDelayedLoadAndFailureDoNotBecomeEmptyQueries() async throws {
+        var finishLoading: (() -> Void)?
+        let delayed = try DataController(configuration: .inMemory) { container, completion in
+            finishLoading = { container.loadPersistentStores(completionHandler: completion) }
+        }
+        XCTAssertEqual(delayed.persistentStoreState, .loading)
+        do {
+            try await delayed.waitUntilReady(timeout: 0.01)
+            XCTFail("Unloaded controller must not report ready")
+        } catch { XCTAssertEqual(error as? DataController.PersistentStoreAccessError, .loading) }
+        finishLoading?()
+        try await delayed.waitUntilReady()
+        let values = try await delayed.categorySnapshots(income: false)
+        XCTAssertTrue(values.isEmpty)
+
+        let failed = try DataController(configuration: .inMemory) { _, completion in
+            completion(NSPersistentStoreDescription(), NSError(domain: "Fixture", code: 1))
+        }
+        do {
+            _ = try await failed.categorySnapshots(income: false)
+            XCTFail("Store failure must propagate through DTO queries")
+        } catch {
+            guard case .failed = error as? DataController.PersistentStoreAccessError else {
+                return XCTFail("Unexpected error: \(error)")
+            }
+        }
+    }
+
+    @MainActor
+    func testPersistentHistoryMergesExternalStoreChangesAndReopensWithToken() async throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let storeURL = directory.appendingPathComponent("history.sqlite")
+        let config = DataController.Configuration(mode: .sharedLocal, modelName: AppIdentifiers.persistentModel,
+                                                   storeURL: storeURL, reloadWidgetsAfterSave: false, transactionAuthor: "history-reader")
+        let reader = try DataController(configuration: config)
+        try await reader.waitUntilReady()
+        let category = LittleSaverCore.Category(context: reader.container.viewContext)
+        category.id = UUID()
+        category.name = "Before"
+        category.income = false
+        try reader.container.viewContext.save()
+        let uri = category.objectID.uriRepresentation()
+        let writer = try DataController(configuration: .init(mode: .sharedLocal, modelName: AppIdentifiers.persistentModel,
+                                                            storeURL: storeURL, reloadWidgetsAfterSave: false, transactionAuthor: "history-writer"))
+        try await writer.waitUntilReady()
+        let context = writer.container.newBackgroundContext()
+        context.transactionAuthor = "external-test-writer"
+        try await context.perform {
+            let id = try XCTUnwrap(context.persistentStoreCoordinator?.managedObjectID(forURIRepresentation: uri))
+            let record = try context.existingObject(with: id) as! LittleSaverCore.Category
+            record.name = "After external save"
+            try context.save()
+        }
+        try await reader.refreshPersistentHistory()
+        XCTAssertEqual(category.name, "After external save")
+        XCTAssertEqual(reader.container.viewContext.transactionAuthor, "history-reader")
+        let tokenURL = storeURL.appendingPathExtension("history-reader.history-token")
+        let tokenData = try Data(contentsOf: tokenURL)
+        XCTAssertNotNil(try NSKeyedUnarchiver.unarchivedObject(ofClass: NSPersistentHistoryToken.self, from: tokenData))
+
+        let reopened = try DataController(configuration: config)
+        try await reopened.waitUntilReady()
+        let values = try await reopened.categorySnapshots(income: false)
+        XCTAssertEqual(values.first?.name, "After external save")
+        try await reopened.refreshPersistentHistory()
+        XCTAssertEqual(try Data(contentsOf: tokenURL), tokenData)
+        for controller in [reader, writer, reopened] {
+            controller.container.viewContext.reset()
+            for store in controller.container.persistentStoreCoordinator.persistentStores {
+                try controller.container.persistentStoreCoordinator.remove(store)
+            }
+        }
+    }
+
+    @MainActor
+    func testAppEntityQueryUsesOnlyValueSnapshotsAndPropagatesFailure() async throws {
+        guard #available(iOS 16, *) else { return }
+        let category = makeCategory(name: "Food")
+        let id = category.id!
+        let values = try await controller.categorySnapshots(income: false)
+        let query = ExpenseCategoryQuery(load: { values })
+        controller.container.viewContext.reset()
+        let entities = try await query.entities(for: [id])
+        XCTAssertEqual(entities.first?.name, "Food")
+        XCTAssertTrue(Mirror(reflecting: entities[0]).children.allSatisfy { !($0.value is NSManagedObject) })
+        let failure = ExpenseCategoryQuery(load: { throw DataController.PersistentStoreAccessError.failed("fixture") })
+        do {
+            _ = try await failure.suggestedEntities()
+            XCTFail("Entity lookup must not hide load failure as an empty collection")
+        } catch { XCTAssertEqual(error as? DataController.PersistentStoreAccessError, .failed("fixture")) }
+    }
+
+    func testConcurrencyDebugIsActuallyEnabledInTestProcess() {
+        let arguments = ProcessInfo.processInfo.arguments
+        guard let index = arguments.firstIndex(of: "-com.apple.CoreData.ConcurrencyDebug"), index + 1 < arguments.count else {
+            return XCTFail("Test process did not receive Core Data concurrency checking")
+        }
+        XCTAssertEqual(arguments[index + 1], "1")
+    }
+    func testReadinessWaitsForDelayedStoreAndReportsFailure() async throws {
+        let gate = PersistenceReadiness()
+        XCTAssertEqual(gate.state, .loading)
+        do {
+            try await gate.wait(timeout: 0.01)
+            XCTFail("Loading must not become an empty result")
+        } catch { XCTAssertEqual(error as? DataController.PersistentStoreAccessError, .loading) }
+        gate.resolve(.failed("fixture load failure"))
+        do {
+            try await gate.wait()
+            XCTFail("Load failure must propagate")
+        } catch { XCTAssertEqual(error as? DataController.PersistentStoreAccessError, .failed("fixture load failure")) }
+        let loaded = PersistenceReadiness()
+        Task { loaded.resolve(.loaded) }
+        try await loaded.wait()
+    }
+
+    @MainActor
+    func testBackgroundSnapshotsAreValuesAndBudgetIdentityAcceptsLegacyURI() async throws {
+        let category = makeCategory(name: "Food")
+        let budget = Budget(context: controller.container.viewContext)
+        budget.id = UUID()
+        budget.category = category
+        budget.startDate = Date()
+        budget.type = 2
+        budget.amount = 100
+        controller.save()
+        let uuid = budget.id!.uuidString
+        let legacy = budget.objectID.uriRepresentation().absoluteString
+        let snapshots = try await controller.categorySnapshots(income: false)
+        XCTAssertEqual(snapshots.first?.name, "Food")
+        let byUUID = try await controller.budgetSnapshot(identifier: uuid)
+        let byURI = try await controller.budgetSnapshot(identifier: legacy)
+        XCTAssertEqual(byUUID?.id, byURI?.id)
+        XCTAssertEqual(byUUID?.id?.uuidString, uuid)
+        func requireSendable<T: Sendable>(_: T) {}
+        requireSendable(snapshots)
+        requireSendable(byUUID)
+        let isPrivate = try await controller.performBackgroundRead { $0.concurrencyType == .privateQueueConcurrencyType }
+        XCTAssertTrue(isPrivate)
+        let isOffMainThread = try await controller.performBackgroundRead { _ in !Thread.isMainThread }
+        XCTAssertTrue(isOffMainThread)
+    }
+
+    func testWidgetUnavailableStatesRetrySoonerThanLoadedOrEmpty() {
+        let now = Date(timeIntervalSince1970: 0)
+        XCTAssertEqual(ExtensionReadStatus.loading.nextRefresh(after: now), now.addingTimeInterval(60))
+        XCTAssertEqual(ExtensionReadStatus.failed("offline").nextRefresh(after: now), now.addingTimeInterval(60))
+        XCTAssertEqual(ExtensionReadStatus.empty.nextRefresh(after: now), now.addingTimeInterval(900))
+        XCTAssertEqual(ExtensionReadStatus.loaded.nextRefresh(after: now), now.addingTimeInterval(900))
+    }
+
+    @MainActor
+    func testBudgetReadSnapshotsDoNotPublishNonFiniteAmounts() async throws {
+        let category = makeCategory(name: "Food")
+        let budget = Budget(context: controller.container.viewContext)
+        budget.id = UUID()
+        budget.category = category
+        budget.startDate = Date()
+        budget.type = 2
+        budget.amount = .infinity
+        let overall = MainBudget(context: controller.container.viewContext)
+        overall.startDate = Date()
+        overall.type = 2
+        overall.amount = .infinity
+        controller.save()
+        let id = budget.id!.uuidString
+        let categoryValue = try await controller.budgetSnapshot(identifier: id)
+        let overallValue = try await controller.mainBudgetSnapshot()
+        XCTAssertNil(categoryValue)
+        XCTAssertNil(overallValue)
+    }
     func testPlatformAdapterInstallsWidgetCallbackOnlyOnce() {
         let shared = DataController.platformShared
         let original = shared.reloadWidgets
@@ -25,7 +199,8 @@ final class DataFoundationTests: XCTestCase {
         XCTAssertEqual(current.entityVersionHashesByName, controller.container.managedObjectModel.entityVersionHashesByName)
     }
 
-    func testLegacyDiskStoreReopensWithFrameworkModelAndPreservesRelationships() throws {
+    @MainActor
+    func testLegacyDiskStoreReopensWithFrameworkModelAndPreservesRelationships() async throws {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: directory) }
@@ -68,6 +243,7 @@ final class DataFoundationTests: XCTestCase {
             storeURL: storeURL,
             reloadWidgetsAfterSave: false
         ))
+        try await diskController.waitUntilReady()
         XCTAssertEqual(diskController.persistentStoreState, .loaded)
         let transaction = try XCTUnwrap(diskController.results(for: Transaction.fetchRequest()).first)
         XCTAssertEqual(transaction.id, transactionID)

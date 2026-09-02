@@ -34,39 +34,23 @@ struct GetInsightsIntent: AppIntent {
         let dataController = DataController.platformShared
 //        let dataController = DataController()
 
-        let categories: [Category]
         let optionalIncome: Bool?
-        let typeInt: Int
-
+        let categoryIDs: [UUID]
         switch type {
         case .net:
-            categories = []
             optionalIncome = nil
-            typeInt = 1
+            categoryIDs = []
         case .income:
-            if let unwrappedCategories = incomeCategories {
-                categories = unwrappedCategories.compactMap { category in
-                    try? dataController.findCategory(withId: category.id)
-                }
-            } else {
-                categories = []
-            }
-
             optionalIncome = true
-            typeInt = 2
+            categoryIDs = incomeCategories?.map(\.id) ?? []
         case .spent:
-            if let unwrappedCategories = expenseCategories {
-                categories = unwrappedCategories.compactMap { category in
-                    try? dataController.findCategory(withId: category.id)
-                }
-            } else {
-                categories = []
-            }
             optionalIncome = false
-            typeInt = 3
+            categoryIDs = expenseCategories?.map(\.id) ?? []
         }
-
-        let result = dataController.getShortcutInsights(type: typeInt, timeframe: timeframe.rawValue, optionalIncome: optionalIncome, categories: categories)
+        let values = try await dataController.transactionSnapshots(type: timeframe.rawValue, income: optionalIncome, categoryIDs: categoryIDs)
+        let result = NumericSafety.finiteOrZero(values.reduce(0) {
+            $0 + (optionalIncome == nil && !$1.income ? -$1.amount : $1.amount)
+        })
 
         return .result(value: result, dialog: "Here you go!") {
             ShortcutInsightsView(amount: result, type: type, timeframe: timeframe)

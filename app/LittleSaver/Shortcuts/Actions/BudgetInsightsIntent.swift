@@ -33,25 +33,14 @@ struct BudgetIntent: AppIntent {
 
         let dataController = DataController.platformShared
 
-        var amount: Double = 0
-        var budgetType: Int16 = 0
-
+        let snapshot: BudgetReadSnapshot?
         switch type {
-        case .overall:
-            if let mainBudget = dataController.results(for: dataController.fetchRequestForMainBudget()).first {
-                amount = dataController.getBudgetLeftover(overallBudget: mainBudget)
-
-                budgetType = mainBudget.type
-            }
-        case .category:
-            if let unwrappedBudget = budget {
-                let categoryBudget = try dataController.findBudget(withId: unwrappedBudget.id)
-
-                amount = dataController.getBudgetLeftover(budget: categoryBudget)
-
-                budgetType = categoryBudget.type
-            }
+        case .overall: snapshot = try await dataController.mainBudgetSnapshot()
+        case .category: snapshot = try await dataController.budgetSnapshot(identifier: budget?.id.uuidString ?? "")
         }
+        guard let snapshot else { throw CustomError.notFound }
+        let amount = NumericSafety.finiteOrZero(snapshot.amount - snapshot.spent)
+        let budgetType = snapshot.type
 
         return .result(value: amount, dialog: "Here you go!") {
             ShortcutBudgetView(amount: amount, type: Int(budgetType))

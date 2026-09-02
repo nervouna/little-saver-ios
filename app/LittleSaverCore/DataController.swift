@@ -49,13 +49,13 @@ public final class DataController: ObservableObject {
         return NSManagedObjectModel(contentsOf: modelURL)
     }()
 
-    public enum PersistentStoreState: Equatable {
+    public enum PersistentStoreState: Equatable, Sendable {
         case loading
         case loaded
         case failed(String)
     }
 
-    public enum PersistentStoreAccessError: LocalizedError {
+    public enum PersistentStoreAccessError: LocalizedError, Equatable {
         case loading
         case failed(String)
 
@@ -74,12 +74,14 @@ public final class DataController: ObservableObject {
         public let modelName: String
         public let storeURL: URL?
         public let reloadWidgetsAfterSave: Bool
+        public let transactionAuthor: String
 
-        public init(mode: PersistentStoreMode, modelName: String, storeURL: URL?, reloadWidgetsAfterSave: Bool) {
+        public init(mode: PersistentStoreMode, modelName: String, storeURL: URL?, reloadWidgetsAfterSave: Bool, transactionAuthor: String = Bundle.main.bundleIdentifier ?? "LittleSaver.tests") {
             self.mode = mode
             self.modelName = modelName
             self.storeURL = storeURL
             self.reloadWidgetsAfterSave = reloadWidgetsAfterSave
+            self.transactionAuthor = transactionAuthor
         }
 
         public static func currentProcess(
@@ -130,6 +132,9 @@ public final class DataController: ObservableObject {
     public let container: NSPersistentCloudKitContainer
     public let configuration: Configuration?
     @Published public private(set) var persistentStoreState: PersistentStoreState = .loading
+    private let readiness = PersistenceReadiness()
+    private let historyConsumer = PersistentHistoryConsumer()
+    private var remoteChangeObserver: NSObjectProtocol?
 
     private init(configurationError error: Error) {
         configuration = nil
@@ -138,9 +143,12 @@ public final class DataController: ObservableObject {
             managedObjectModel: NSManagedObjectModel()
         )
         persistentStoreState = .failed(error.localizedDescription)
+        readiness.resolve(.failed(error.localizedDescription))
     }
 
-    public init(configuration: Configuration) throws {
+    public typealias StoreLoader = (NSPersistentCloudKitContainer, @escaping (NSPersistentStoreDescription, Error?) -> Void) -> Void
+
+    public init(configuration: Configuration, storeLoader: StoreLoader? = nil) throws {
         self.configuration = configuration
 
         guard configuration.modelName == AppIdentifiers.persistentModel,
@@ -157,6 +165,7 @@ public final class DataController: ObservableObject {
 
         description.shouldMigrateStoreAutomatically = true
         description.shouldInferMappingModelAutomatically = true
+        description.shouldAddStoreAsynchronously = configuration.mode != .inMemory
         description.setOption(true as NSNumber, forKey: NSPersistentHistoryTrackingKey)
         description.setOption(true as NSNumber, forKey: NSPersistentStoreRemoteChangeNotificationPostOptionKey)
 
@@ -175,8 +184,15 @@ public final class DataController: ObservableObject {
         }
 
         container.persistentStoreDescriptions = [description]
+        remoteChangeObserver = NotificationCenter.default.addObserver(
+            forName: .NSPersistentStoreRemoteChange,
+            object: container.persistentStoreCoordinator,
+            queue: nil
+        ) { [weak self] _ in
+            Task { try? await self?.refreshPersistentHistory() }
+        }
 
-        container.loadPersistentStores { _, error in
+        let didLoad: (NSPersistentStoreDescription, Error?) -> Void = { _, error in
 
             if let error {
                 self.publishPersistentStoreState(.failed(error.localizedDescription))
@@ -202,20 +218,65 @@ public final class DataController: ObservableObject {
             self.container.viewContext.performAndWait {
                 self.container.viewContext.automaticallyMergesChangesFromParent = true
                 self.container.viewContext.mergePolicy = NSMergeByPropertyObjectTrumpMergePolicy
+                self.container.viewContext.transactionAuthor = configuration.transactionAuthor
             }
-            self.publishPersistentStoreState(.loaded)
+            if configuration.mode == .inMemory {
+                self.publishPersistentStoreState(.loaded)
+            } else {
+                Task {
+                    do {
+                        try await self.prepareStoreForUse()
+                        self.publishPersistentStoreState(.loaded)
+                    } catch {
+                        self.publishPersistentStoreState(.failed(error.localizedDescription))
+                    }
+                }
+            }
         }
+
+        if let storeLoader { storeLoader(container, didLoad) }
+        else { container.loadPersistentStores(completionHandler: didLoad) }
 
     }
 
     private func publishPersistentStoreState(_ state: PersistentStoreState) {
         if Thread.isMainThread {
             persistentStoreState = state
+            readiness.resolve(state)
         } else {
             DispatchQueue.main.async { [weak self] in
                 self?.persistentStoreState = state
+                self?.readiness.resolve(state)
             }
         }
+    }
+
+    deinit {
+        if let remoteChangeObserver { NotificationCenter.default.removeObserver(remoteChangeObserver) }
+    }
+
+    /// Startup maintenance must finish before publishing readiness. Future migrations and
+    /// reconciliation belong here, not in a SwiftUI view lifecycle.
+    private func prepareStoreForUse() async throws {
+        try await historyConsumer.consume(container: container, configuration: configuration)
+    }
+
+    public func waitUntilReady(timeout: TimeInterval = 10) async throws {
+        try await readiness.wait(timeout: timeout)
+    }
+
+    public func refreshPersistentHistory() async throws {
+        try await waitUntilReady()
+        try await historyConsumer.consume(container: container, configuration: configuration)
+    }
+
+    public func performBackgroundRead<T: Sendable>(
+        _ body: @escaping (NSManagedObjectContext) throws -> T
+    ) async throws -> T {
+        try await waitUntilReady()
+        let context = container.newBackgroundContext()
+        context.transactionAuthor = configuration?.transactionAuthor
+        return try await context.perform { try body(context) }
     }
 
     // internal variables

@@ -15,7 +15,11 @@ struct InsightsWidget: Widget {
 
     var body: some WidgetConfiguration {
         IntentConfiguration(kind: kind, intent: InsightsWidgetConfigurationIntent.self, provider: InsightsProvider()) { entry in
-            InsightsWidgetEntryView(entry: entry)
+            if entry.readStatus.isUnavailable {
+                WidgetReadStatusView(status: entry.readStatus)
+            } else {
+                InsightsWidgetEntryView(entry: entry)
+            }
         }
         .configurationDisplayName("Insights")
         .description("Analyse your expenditure breakdowns over various time periods.")
@@ -29,39 +33,40 @@ struct InsightsProvider: IntentTimelineProvider {
     public typealias Entry = InsightsWidgetEntry
     typealias LoadedData = (amount: Double, maximum: Double, average: Double, numberOfDays: Int, dates: [Date], dateDictionary: [Date: Double], categories: [HoldingCategory])
 
-    func placeholder(in _: Context) -> InsightsWidgetEntry {
-        let results = loadData(type: .week, income: true)
-
-        return InsightsWidgetEntry(date: Date(), amount: results.amount, duration: .week, maximum: results.maximum, dates: results.dates, dictionary: results.dateDictionary, numberOfDays: results.numberOfDays, average: results.average, categories: results.categories, income: true)
+    func placeholder(in _: Context) -> Entry {
+        empty(configuration: Intent(), status: .loading)
     }
 
-    func getSnapshot(for configuration: InsightsWidgetConfigurationIntent, in _: Context, completion: @escaping (InsightsWidgetEntry) -> Void) {
-        let loaded = loadData(type: configuration.duration, income: configuration.income == .income)
-
-        let entry = InsightsWidgetEntry(date: Date(), amount: loaded.amount, duration: configuration.duration, maximum: loaded.maximum, dates: loaded.dates, dictionary: loaded.dateDictionary, numberOfDays: loaded.numberOfDays, average: loaded.average, categories: loaded.categories, income: configuration.income == .income)
-        completion(entry)
+    func getSnapshot(for configuration: Intent, in _: Context, completion: @escaping (Entry) -> Void) {
+        Task { completion(await loadEntry(configuration: configuration)) }
     }
 
-    func getTimeline(for configuration: InsightsWidgetConfigurationIntent, in _: Context, completion: @escaping (Timeline<Entry>) -> Void) {
-        let loaded = loadData(type: configuration.duration, income: configuration.income == .income)
-
-        let entry = InsightsWidgetEntry(date: Date(), amount: loaded.amount, duration: configuration.duration, maximum: loaded.maximum, dates: loaded.dates, dictionary: loaded.dateDictionary, numberOfDays: loaded.numberOfDays, average: loaded.average, categories: loaded.categories, income: configuration.income == .income)
-
-        let timeline = Timeline(entries: [entry], policy: .atEnd)
-
-        completion(timeline)
+    func getTimeline(for configuration: Intent, in _: Context, completion: @escaping (Timeline<Entry>) -> Void) {
+        Task {
+            let entry = await loadEntry(configuration: configuration)
+            completion(Timeline(entries: [entry], policy: .after(entry.readStatus.nextRefresh(after: entry.date))))
+        }
     }
 
-    func loadData(type: InsightsTimePeriod, income: Bool) -> LoadedData {
-        let dataController = DataController.platformShared
+    private func empty(configuration: Intent, status: ExtensionReadStatus) -> Entry {
+        Entry(date: Date(), amount: 0, duration: configuration.duration, maximum: 0, dates: [], dictionary: [:], numberOfDays: 0, average: 0, categories: [], income: configuration.income == .income, readStatus: status)
+    }
+
+    private func loadEntry(configuration: Intent) async -> Entry {
         do {
-            let loaded: LoadedData = try dataController.performViewContextRead { context in
-                let itemRequest = dataController.fetchRequestForWidgetInsights(type: type.ledgerPeriod, income: income)
-                let categoryRequest = dataController.fetchRequestForCategories(income: income)
-                let categories = try context.fetch(categoryRequest)
-                let transactions = try context.fetch(itemRequest.fetchRequest)
-                var iterativeDate = itemRequest.date
+            let loaded = try await loadData(type: configuration.duration, income: configuration.income == .income)
+            return Entry(date: Date(), amount: loaded.amount, duration: configuration.duration, maximum: loaded.maximum, dates: loaded.dates, dictionary: loaded.dateDictionary, numberOfDays: loaded.numberOfDays, average: loaded.average, categories: loaded.categories, income: configuration.income == .income, readStatus: loaded.categories.isEmpty ? .empty : .loaded)
+        } catch {
+            return empty(configuration: configuration, status: ExtensionReadStatus(error: error))
+        }
+    }
 
+    func loadData(type: InsightsTimePeriod, income: Bool) async throws -> LoadedData {
+        let snapshot = try await DataController.platformShared.insightsSnapshot(period: type.ledgerPeriod, income: income)
+        let categories = snapshot.categories
+        let transactions = snapshot.transactions
+        var iterativeDate = snapshot.startDate
+        let loaded: LoadedData = {
                 switch type {
         case .unknown:
             return (0, 0, 0, 0, [Date](), [Date: Double](), [HoldingCategory]())
@@ -84,10 +89,10 @@ struct InsightsProvider: IntentTimelineProvider {
                 nextDate = calendar.date(byAdding: .day, value: 1, to: iterativeDate)!
 
                 let holding = transactions.filter {
-                    $0.wrappedDate >= iterativeDate && $0.wrappedDate < nextDate
+                    $0.date >= iterativeDate && $0.date < nextDate
                 }
 
-                let total = WidgetInsightMath.total(holding.map(\.wrappedAmount))
+                let total = WidgetInsightMath.total(holding.map(\.amount))
 
                 totalForWeek = NumericSafety.finiteOrZero(totalForWeek + total)
 
@@ -105,22 +110,22 @@ struct InsightsProvider: IntentTimelineProvider {
                 iterativeDate = nextDate
             }
 
-            let numberOfDaysPast = Calendar.current.dateComponents([.day], from: itemRequest.date, to: Date.now)
+            let numberOfDaysPast = Calendar.current.dateComponents([.day], from: snapshot.startDate, to: Date.now)
 
             var holdingCat = [HoldingCategory]()
 
             for category in categories {
                 let holding = transactions.filter {
-                    $0.category == category
+                    $0.categoryID == category.id
                 }
 
-                let total = WidgetInsightMath.total(holding.map(\.wrappedAmount))
+                let total = WidgetInsightMath.total(holding.map(\.amount))
 
                 if total == 0 {
                     continue
                 }
 
-                let newCategory = HoldingCategory(colour: category.wrappedColour, name: category.wrappedName, percent: WidgetInsightMath.categoryShare(amount: total, total: totalForWeek))
+                let newCategory = HoldingCategory(colour: category.colour, name: category.name, percent: WidgetInsightMath.categoryShare(amount: total, total: totalForWeek))
 
                 holdingCat.append(newCategory)
             }
@@ -146,10 +151,10 @@ struct InsightsProvider: IntentTimelineProvider {
                 nextDate = calendar.date(byAdding: .day, value: 1, to: iterativeDate)!
 
                 let holding = transactions.filter {
-                    $0.wrappedDate >= iterativeDate && $0.wrappedDate < nextDate
+                    $0.date >= iterativeDate && $0.date < nextDate
                 }
 
-                let total = WidgetInsightMath.total(holding.map(\.wrappedAmount))
+                let total = WidgetInsightMath.total(holding.map(\.amount))
 
                 totalForMonth = NumericSafety.finiteOrZero(totalForMonth + total)
 
@@ -167,22 +172,22 @@ struct InsightsProvider: IntentTimelineProvider {
                 iterativeDate = nextDate
             }
 
-            let numDays = Calendar.current.dateComponents([.day], from: itemRequest.date, to: Date.now)
+            let numDays = Calendar.current.dateComponents([.day], from: snapshot.startDate, to: Date.now)
 
             var holdingCat = [HoldingCategory]()
 
             for category in categories {
                 let holding = transactions.filter {
-                    $0.category == category
+                    $0.categoryID == category.id
                 }
 
-                let total = WidgetInsightMath.total(holding.map(\.wrappedAmount))
+                let total = WidgetInsightMath.total(holding.map(\.amount))
 
                 if total == 0 {
                     continue
                 }
 
-                let newCategory = HoldingCategory(colour: category.wrappedColour, name: category.wrappedName, percent: WidgetInsightMath.categoryShare(amount: total, total: totalForMonth))
+                let newCategory = HoldingCategory(colour: category.colour, name: category.name, percent: WidgetInsightMath.categoryShare(amount: total, total: totalForMonth))
 
                 holdingCat.append(newCategory)
             }
@@ -208,10 +213,10 @@ struct InsightsProvider: IntentTimelineProvider {
                 nextDate = calendar.date(byAdding: .month, value: 1, to: iterativeDate)!
 
                 let holding = transactions.filter {
-                    $0.wrappedDate >= iterativeDate && $0.wrappedDate < nextDate
+                    $0.date >= iterativeDate && $0.date < nextDate
                 }
 
-                let total = WidgetInsightMath.total(holding.map(\.wrappedAmount))
+                let total = WidgetInsightMath.total(holding.map(\.amount))
 
                 totalForYear = NumericSafety.finiteOrZero(totalForYear + total)
 
@@ -229,22 +234,22 @@ struct InsightsProvider: IntentTimelineProvider {
                 iterativeDate = nextDate
             }
 
-            let numDays = Calendar.current.dateComponents([.month], from: itemRequest.date, to: Date.now)
+            let numDays = Calendar.current.dateComponents([.month], from: snapshot.startDate, to: Date.now)
 
             var holdingCat = [HoldingCategory]()
 
             for category in categories {
                 let holding = transactions.filter {
-                    $0.category == category
+                    $0.categoryID == category.id
                 }
 
-                let total = WidgetInsightMath.total(holding.map(\.wrappedAmount))
+                let total = WidgetInsightMath.total(holding.map(\.amount))
 
                 if total == 0 {
                     continue
                 }
 
-                let newCategory = HoldingCategory(colour: category.wrappedColour, name: category.wrappedName, percent: WidgetInsightMath.categoryShare(amount: total, total: totalForYear))
+                let newCategory = HoldingCategory(colour: category.colour, name: category.name, percent: WidgetInsightMath.categoryShare(amount: total, total: totalForYear))
 
                 holdingCat.append(newCategory)
             }
@@ -255,11 +260,8 @@ struct InsightsProvider: IntentTimelineProvider {
 
             return (totalForYear, maximum, WidgetInsightMath.average(total: totalForYear, periodCount: (numDays.month ?? -1) + 1), numberOfDays, dates, dictionary, holdingCat)
                 }
-            }
-            return sanitized(loaded)
-        } catch {
-            return (0, 0, 0, 0, [], [:], [])
-        }
+        }()
+        return sanitized(loaded)
     }
 
     private func sanitized(_ loaded: LoadedData) -> LoadedData {
@@ -294,6 +296,7 @@ struct InsightsWidgetEntry: TimelineEntry {
     let average: Double
     let categories: [HoldingCategory]
     let income: Bool
+    var readStatus: ExtensionReadStatus = .loaded
 }
 
 struct InsightsWidgetEntryView: View {
@@ -730,7 +733,7 @@ struct InsightsWidgetEntryView: View {
     }
 }
 
-struct HoldingCategory: Hashable {
+struct HoldingCategory: Hashable, Sendable {
     let colour: String
     let name: String
     let percent: Double
