@@ -11,6 +11,7 @@ import Popovers
 import SwiftUI
 
 struct BudgetView: View {
+    @Environment(\.ledgerCalendarRevision) private var calendarRevision
     @FetchRequest(sortDescriptors: []) private var categories: FetchedResults<Category>
     @FetchRequest(sortDescriptors: []) private var budgets: FetchedResults<Budget>
     @FetchRequest(sortDescriptors: []) private var mainBudgetCandidates: FetchedResults<MainBudget>
@@ -19,6 +20,7 @@ struct BudgetView: View {
     }
 
     var body: some View {
+        let _ = calendarRevision
         if categories.isEmpty && budgets.isEmpty && mainBudget.isEmpty {
             VStack(spacing: 5) {
                 Image("category-3")
@@ -51,6 +53,7 @@ struct BudgetView: View {
 }
 
 struct ActualBudgetView: View {
+    @Environment(\.ledgerCalendarRevision) private var calendarRevision
     @Environment(\.colorScheme) var colorScheme
     @State private var showInfo = false
 
@@ -87,6 +90,7 @@ struct ActualBudgetView: View {
     @State var date = Date.now
 
     var body: some View {
+        let _ = calendarRevision
         NavigationView {
             VStack(spacing: 0) {
                 HStack {
@@ -231,12 +235,6 @@ struct ActualBudgetView: View {
             }) { budget in
                 BrandNewBudgetView(overallBudgetCreated: !mainBudget.isEmpty, toEditBudget: budget)
             }
-            .onAppear {
-                Task {
-                    do { try await dataController.updateBudgetDates() }
-                    catch { MutationPresentation.show(error) }
-                }
-            }
             .sheet(isPresented: $newBudget) {
                 BrandNewBudgetView(overallBudgetCreated: !mainBudget.isEmpty)
             }
@@ -263,7 +261,7 @@ struct MainBudgetView: View {
 
     @State var toEdit: MainBudget?
     @State var toDelete: MainBudget?
-    @State var totalSpent: Double = 0
+    var totalSpent: Double { transactions.reduce(0) { $0 + $1.amount } }
 
     var soloBudget: Bool
 
@@ -294,47 +292,14 @@ struct MainBudgetView: View {
         }
     }
 
-    @AppStorage("currency", store: UserDefaults(suiteName: AppIdentifiers.appGroup)) var currency: String = Locale.current.currencyCode!
+    @AppStorage("currency", store: UserDefaults(suiteName: AppIdentifiers.appGroup)) var currency: String = (Locale.current.currencyCode ?? "USD")
     var currencySymbol: String {
-        return Locale.current.localizedCurrencySymbol(forCurrencyCode: currency)!
+        return (Locale.current.localizedCurrencySymbol(forCurrencyCode: currency) ?? currency)
     }
 
-    var percentageOfDays: Double {
-        let calendar = Calendar.current
+    var percentageOfDays: Double { budget.currentWindow()?.progress() ?? 0 }
 
-        if budget.isFault {
-            return 0.0
-        }
-
-        if budget.type == 1 {
-            let components = calendar.dateComponents([.minute], from: budget.wrappedDate, to: Date.now)
-            return Double(components.minute ?? 0) / 1440
-        }
-
-        let components1 = calendar.dateComponents([.day], from: budget.wrappedDate, to: budget.endDate)
-        let numberOfDays = components1.day ?? 0
-
-        let components2 = calendar.dateComponents([.day], from: budget.wrappedDate, to: Date.now)
-        let numberOfDaysPast = components2.day ?? 0
-
-        return Double(numberOfDaysPast) / Double(numberOfDays)
-    }
-
-    var targetPercent: Double {
-        let calendar = Calendar.current
-
-        if budget.isFault {
-            return 0.0
-        }
-
-        let components1 = calendar.dateComponents([.day], from: budget.wrappedDate, to: budget.endDate)
-        let numberOfDays = components1.day ?? 0
-
-        let components2 = calendar.dateComponents([.day], from: budget.wrappedDate, to: Date.now)
-        let numberOfDaysPast = (components2.day ?? 0) + 1
-
-        return Double(numberOfDays - numberOfDaysPast) / Double(numberOfDays)
-    }
+    var targetPercent: Double { 1 - (budget.currentWindow()?.progress() ?? 0) }
 
     var triangleOffset: (x: Double, y: Double) {
         var x = 0.0
@@ -366,24 +331,12 @@ struct MainBudgetView: View {
     }
 
     var difference: Double {
-        return abs(budgetAmount - totalSpent)
+        return abs(NumericSafety.difference(budgetAmount, totalSpent))
     }
 
-    var percentString: String {
-        if !budget.isFault {
-            return "\(Int(round(100 - (totalSpent / budgetAmount) * 100)))%"
-        } else {
-            return ""
-        }
-    }
+    var percentString: String { BudgetMath.percentageText(spent: totalSpent, budgetAmount: budgetAmount, remaining: true) }
 
-    var percentString1: String {
-        if !budget.isFault {
-            return "\(Int(round((totalSpent / budgetAmount) * 100)))%"
-        } else {
-            return ""
-        }
-    }
+    var percentString1: String { BudgetMath.percentageText(spent: totalSpent, budgetAmount: budgetAmount, remaining: false) }
 
     var width: CGFloat {
         if soloBudget {
@@ -395,7 +348,13 @@ struct MainBudgetView: View {
 
     @Environment(\.colorScheme) var colorScheme
 
-    var body: some View {
+    @ViewBuilder var body: some View {
+        if budget.currentWindow() == nil || !transactions.reduce(0, { $0 + $1.amount }).isFinite {
+            Text("Budget unavailable. Edit this budget to repair its settings.").padding()
+        } else { budgetContent }
+    }
+
+    private var budgetContent: some View {
         VStack(spacing: 5) {
             ZStack(alignment: .bottom) {
                 ZStack {
@@ -403,7 +362,7 @@ struct MainBudgetView: View {
                         .fill(Color.SecondaryBackground)
                         .frame(width: width, height: width / 2)
 
-                    if totalSpent / budgetAmount < 0.97 {
+                    if BudgetMath.spendingRatio(spent: totalSpent, budgetAmount: budgetAmount) < 0.97 {
                         AnimatedCurvedBarGraphMainBudget(transactions: transactions, budgetTotal: budgetAmount, cornerRadius: 6.5, width: soloBudget ? 35 : 25)
                             .frame(width: width, height: width / 2)
                     }
@@ -447,10 +406,10 @@ struct MainBudgetView: View {
                     Text("\(budgetAmount, specifier: "%.2f")")
                         .frame(width: 60, alignment: .trailing)
                 } else {
-                    Text("\(Int(round(totalSpent)))")
+                    Text(String(format: "%.0f", totalSpent))
                         .frame(width: 60, alignment: .leading)
                     Spacer()
-                    Text("\(Int(round(budgetAmount)))")
+                    Text(String(format: "%.0f", budgetAmount))
                         .frame(width: 60, alignment: .trailing)
                 }
             }
@@ -477,18 +436,6 @@ struct MainBudgetView: View {
                 Label("Delete", systemImage: "xmark.bin")
             }
         }
-        .onAppear {
-            if budget.isFault {
-                return
-            }
-
-            var holdingTotal = 0.0
-            transactions.forEach { transaction in
-                holdingTotal += transaction.wrappedAmount
-            }
-
-            totalSpent = holdingTotal
-        }
         .sheet(item: $toEdit, onDismiss: {
             toEdit = nil
         }) { budget in
@@ -505,13 +452,7 @@ struct MainBudgetView: View {
         self.budget = budget
         soloBudget = solo
 
-        let startPredicate = NSPredicate(format: "%K >= %@", #keyPath(Transaction.date), budget.wrappedDate as CVarArg)
-        let endPredicate = NSPredicate(format: "%K <= %@", #keyPath(Transaction.date), Date.now as CVarArg)
-        let incomePredicate = NSPredicate(format: "income = %d", false)
-
-        let andPredicate = NSCompoundPredicate(type: .and, subpredicates: [startPredicate, endPredicate, incomePredicate])
-
-        _transactions = FetchRequest<Transaction>(sortDescriptors: [], predicate: andPredicate)
+        _transactions = FetchRequest<Transaction>(sortDescriptors: [], predicate: budget.transactionPredicate())
     }
 }
 
@@ -522,7 +463,7 @@ struct SingleBudgetView: View {
     @Binding var toDelete: Budget?
     @Binding var toEdit: Budget?
 
-    @State var totalSpent: Double = 0
+    var totalSpent: Double { transactions.reduce(0) { $0 + $1.amount } }
 
     var budgetRows: Bool
 
@@ -610,46 +551,20 @@ struct SingleBudgetView: View {
         }
     }
 
-    @AppStorage("currency", store: UserDefaults(suiteName: AppIdentifiers.appGroup)) var currency: String = Locale.current.currencyCode!
+    @AppStorage("currency", store: UserDefaults(suiteName: AppIdentifiers.appGroup)) var currency: String = (Locale.current.currencyCode ?? "USD")
     var currencySymbol: String {
-        return Locale.current.localizedCurrencySymbol(forCurrencyCode: currency)!
+        return (Locale.current.localizedCurrencySymbol(forCurrencyCode: currency) ?? currency)
     }
 
     var difference: Double {
-        return abs(budgetAmount - totalSpent)
+        return abs(NumericSafety.difference(budgetAmount, totalSpent))
     }
 
-    var percentString: String {
-        if !budget.isFault {
-            return "\(Int(round(100 - (totalSpent / budgetAmount) * 100)))%"
-        } else {
-            return ""
-        }
-    }
+    var percentString: String { BudgetMath.percentageText(spent: totalSpent, budgetAmount: budgetAmount, remaining: true) }
 
-    var percentString1: String {
-        if !budget.isFault {
-            return "\(Int(round((totalSpent / budgetAmount) * 100)))%"
-        } else {
-            return ""
-        }
-    }
+    var percentString1: String { BudgetMath.percentageText(spent: totalSpent, budgetAmount: budgetAmount, remaining: false) }
 
-    var targetPercent: Double {
-        let calendar = Calendar.current
-
-        if budget.isFault {
-            return 0.0
-        }
-
-        let components1 = calendar.dateComponents([.day], from: budget.wrappedDate, to: budget.endDate)
-        let numberOfDays = components1.day ?? 0
-
-        let components2 = calendar.dateComponents([.day], from: budget.wrappedDate, to: Date.now)
-        let numberOfDaysPast = components2.day ?? 0 + 1
-
-        return Double(numberOfDays - numberOfDaysPast) / Double(numberOfDays)
-    }
+    var targetPercent: Double { 1 - (budget.currentWindow()?.progress() ?? 0) }
 
     @Environment(\.colorScheme) var colorScheme
 
@@ -669,7 +584,13 @@ struct SingleBudgetView: View {
 
     @GestureState var isDragging = false
 
-    var body: some View {
+    @ViewBuilder var body: some View {
+        if budget.currentWindow() == nil || !transactions.reduce(0, { $0 + $1.amount }).isFinite {
+            Text("Budget unavailable. Edit this budget to repair its settings.").padding()
+        } else { budgetContent }
+    }
+
+    private var budgetContent: some View {
         Group {
             if budgetRows {
                 ZStack(alignment: .trailing) {
@@ -836,7 +757,7 @@ struct SingleBudgetView: View {
                                     .font(.system(.caption2, design: .rounded).weight(.semibold))
 //                                    .font(.system(size: 11, weight: .semibold, design: .rounded))
                                     .lineLimit(1)
-                                    .foregroundColor(totalSpent / budgetAmount > 1 ? Color("BudgetRed") : Color.IncomeGreen)
+                                    .foregroundColor(BudgetMath.spendingRatio(spent: totalSpent, budgetAmount: budgetAmount) > 1 ? Color("BudgetRed") : Color.IncomeGreen)
                                     .padding(.bottom, 5)
                             }
 
@@ -861,10 +782,10 @@ struct SingleBudgetView: View {
                                 .fill(Color.SecondaryBackground)
                                 .frame(width: proxy.size.width)
 
-                            if totalSpent / budgetAmount < 0.98 {
+                            if BudgetMath.spendingRatio(spent: totalSpent, budgetAmount: budgetAmount) < 0.98 {
                                 if let category = budget.category {
                                     AnimatedHorizontalBarGraphBudget(category: category)
-                                        .frame(width: proxy.size.width * (1 - totalSpent / budgetAmount))
+                                        .frame(width: proxy.size.width * (1 - BudgetMath.spendingRatio(spent: totalSpent, budgetAmount: budgetAmount)))
                                 }
                             }
                         }
@@ -899,18 +820,6 @@ struct SingleBudgetView: View {
                 }
             }
         }
-        .onAppear {
-            if budget.isFault {
-                return
-            }
-
-            var holdingTotal = 0.0
-            transactions.forEach { transaction in
-                holdingTotal += transaction.wrappedAmount
-            }
-
-            totalSpent = holdingTotal
-        }
     }
 
     init(budget: Budget, toDelete: Binding<Budget?>?, toEdit: Binding<Budget?>?, budgetRows: Bool) {
@@ -919,24 +828,7 @@ struct SingleBudgetView: View {
         _toDelete = toDelete ?? Binding.constant(nil)
         _toEdit = toEdit ?? Binding.constant(nil)
 
-        let date = budget.startDate ?? Date.now
-
-        let startPredicate = NSPredicate(format: "%K >= %@", #keyPath(Transaction.date), date as CVarArg)
-        let endPredicate = NSPredicate(format: "%K <= %@", #keyPath(Transaction.date), Date.now as CVarArg)
-        let incomePredicate = NSPredicate(format: "income = %d", false)
-
-        let andPredicate: NSCompoundPredicate
-
-        if let category = budget.category {
-            let categoryPredicate = NSPredicate(format: "%K == %@", #keyPath(Transaction.category), category)
-            andPredicate = NSCompoundPredicate(type: .and, subpredicates: [startPredicate, endPredicate, categoryPredicate, incomePredicate])
-
-            _transactions = FetchRequest<Transaction>(sortDescriptors: [], predicate: andPredicate)
-        } else {
-            andPredicate = NSCompoundPredicate(type: .and, subpredicates: [startPredicate, endPredicate, incomePredicate])
-
-            _transactions = FetchRequest<Transaction>(sortDescriptors: [], predicate: andPredicate)
-        }
+        _transactions = FetchRequest<Transaction>(sortDescriptors: [], predicate: budget.transactionPredicate())
     }
 }
 
@@ -962,7 +854,7 @@ struct AnimatedBudgetBarGraph: View {
                             .fill(color.opacity(0.73))
                             .frame(height: showBar ? nil : 0, alignment: .bottom)
                     }
-                    .frame(height: proxy.size.height * percent)
+                    .frame(height: proxy.size.height * NumericSafety.clamped(percent, to: 0...1))
                 }
             }
         }
@@ -988,9 +880,9 @@ struct BudgetDollarView: View {
     var scale: Int
     var size: CGFloat
 
-    @AppStorage("currency", store: UserDefaults(suiteName: AppIdentifiers.appGroup)) var currency: String = Locale.current.currencyCode!
+    @AppStorage("currency", store: UserDefaults(suiteName: AppIdentifiers.appGroup)) var currency: String = (Locale.current.currencyCode ?? "USD")
     var currencySymbol: String {
-        return Locale.current.localizedCurrencySymbol(forCurrencyCode: currency)!
+        return (Locale.current.localizedCurrencySymbol(forCurrencyCode: currency) ?? currency)
     }
 
     var dynamicTypeSizes: (symbol: Font.TextStyle, amount: Font.TextStyle) {
@@ -1010,7 +902,7 @@ struct BudgetDollarView: View {
                     .font(.system(dynamicTypeSizes.symbol, design: .rounded).weight(.medium))
                     .foregroundColor(red ? Color("BudgetRed") : Color.SubtitleText) +
 
-                Text("\(amount, specifier: showCents && amount < 100 ? "%.2f" : "%.0f")")
+                Text(amount.isFinite ? String(format: showCents && amount < 100 ? "%.2f" : "%.0f", amount) : String(localized: "Amount unavailable"))
                     .font(.system(dynamicTypeSizes.amount, design: .rounded).weight(.medium))
                     .foregroundColor(red ? Color("BudgetRed") : Color.PrimaryText)
             }
@@ -1024,9 +916,9 @@ struct DetailedBudgetDollarView: View {
     var amount: Double
     @AppStorage("showCents", store: UserDefaults(suiteName: AppIdentifiers.appGroup)) var showCents: Bool = true
 
-    @AppStorage("currency", store: UserDefaults(suiteName: AppIdentifiers.appGroup)) var currency: String = Locale.current.currencyCode!
+    @AppStorage("currency", store: UserDefaults(suiteName: AppIdentifiers.appGroup)) var currency: String = (Locale.current.currencyCode ?? "USD")
     var currencySymbol: String {
-        return Locale.current.localizedCurrencySymbol(forCurrencyCode: currency)!
+        return (Locale.current.localizedCurrencySymbol(forCurrencyCode: currency) ?? currency)
     }
 
     var body: some View {
@@ -1036,7 +928,7 @@ struct DetailedBudgetDollarView: View {
                     .font(.system(.title2, design: .rounded).weight(.medium))
                     .foregroundColor(Color.SubtitleText) +
 
-                Text("\(amount, specifier: showCents && amount < 100 ? "%.2f" : "%.0f")")
+                Text(amount.isFinite ? String(format: showCents && amount < 100 ? "%.2f" : "%.0f", amount) : String(localized: "Amount unavailable"))
                     .font(.system(.largeTitle, design: .rounded).weight(.medium))
                     .foregroundColor(Color.PrimaryText)
             }
@@ -1052,9 +944,9 @@ struct DetailedBudgetDifferenceDollarView: View {
 
     @AppStorage("showCents", store: UserDefaults(suiteName: AppIdentifiers.appGroup)) var showCents: Bool = true
 
-    @AppStorage("currency", store: UserDefaults(suiteName: AppIdentifiers.appGroup)) var currency: String = Locale.current.currencyCode!
+    @AppStorage("currency", store: UserDefaults(suiteName: AppIdentifiers.appGroup)) var currency: String = (Locale.current.currencyCode ?? "USD")
     var currencySymbol: String {
-        return Locale.current.localizedCurrencySymbol(forCurrencyCode: currency)!
+        return (Locale.current.localizedCurrencySymbol(forCurrencyCode: currency) ?? currency)
     }
 
     var body: some View {
@@ -1064,7 +956,7 @@ struct DetailedBudgetDifferenceDollarView: View {
                     .font(.system(.title2, design: .rounded).weight(.medium))
                     .foregroundColor(red ? Color("BudgetRed") : Color.SubtitleText) +
 
-                Text("\(amount, specifier: showCents && amount < 100 ? "%.2f" : "%.0f")")
+                Text(amount.isFinite ? String(format: showCents && amount < 100 ? "%.2f" : "%.0f", amount) : String(localized: "Amount unavailable"))
                     .font(.system(.largeTitle, design: .rounded).weight(.medium))
                     .foregroundColor(red ? Color("BudgetRed") : Color.PrimaryText)
             }
@@ -1242,6 +1134,7 @@ struct DeleteMainBudgetAlert: View {
 }
 
 struct DetailedBudgetView: View {
+    @Environment(\.ledgerCalendarRevision) private var calendarRevision
     @Environment(\.presentationMode) var presentationMode: Binding<PresentationMode>
     @Environment(\.managedObjectContext) var moc
     @EnvironmentObject var dataController: DataController
@@ -1254,6 +1147,7 @@ struct DetailedBudgetView: View {
     @State private var toEdit: Budget?
 
     var body: some View {
+        let _ = calendarRevision
         VStack(spacing: 15) {
             HStack {
                 Button {
@@ -1290,7 +1184,12 @@ struct DetailedBudgetView: View {
             }
             .padding(.horizontal, 20)
 
-            TimeBudgetView(budget: budget)
+            if budget.currentWindow() != nil {
+                TimeBudgetView(budget: budget)
+            } else {
+                Text("Budget unavailable. Edit this budget to repair its settings.")
+                    .padding()
+            }
         }
         .padding(.vertical, 15)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
@@ -1315,6 +1214,7 @@ struct DetailedBudgetView: View {
 }
 
 struct DetailedMainBudgetView: View {
+    @Environment(\.ledgerCalendarRevision) private var calendarRevision
     @Environment(\.presentationMode) var presentationMode: Binding<PresentationMode>
     @Environment(\.managedObjectContext) var moc
     @EnvironmentObject var dataController: DataController
@@ -1332,6 +1232,7 @@ struct DetailedMainBudgetView: View {
     @State private var toEdit: MainBudget?
 
     var body: some View {
+        let _ = calendarRevision
         VStack(spacing: 15) {
             HStack {
                 Button {
@@ -1365,8 +1266,13 @@ struct DetailedMainBudgetView: View {
             }
             .padding(.horizontal, 20)
 
-            TimeMainBudgetView(budget: budget)
-                .id(budget.objectID)
+            if budget.currentWindow() != nil {
+                TimeMainBudgetView(budget: budget)
+                    .id(budget.objectID)
+            } else {
+                Text("Budget unavailable. Edit this budget to repair its settings.")
+                    .padding()
+            }
         }
         .padding(.vertical, 15)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
@@ -1395,6 +1301,7 @@ struct DetailedMainBudgetView: View {
 }
 
 struct TimeBudgetView: View {
+    @Environment(\.ledgerCalendarRevision) private var calendarRevision
     let budget: Budget
 
     var budgetAmount: Double {
@@ -1405,66 +1312,59 @@ struct TimeBudgetView: View {
         return Int(budget.type)
     }
 
-    @State var startDate = Date.now
+    @State private var selectedPeriodIndex: Int?
+
+    var selectedWindow: BudgetWindow? {
+        guard let current = budget.currentWindow(), let anchor = budget.startDate else { return nil }
+        guard let selectedPeriodIndex else { return current }
+        return BudgetPeriod(rawValue: budget.type)?.window(anchor: anchor, index: min(selectedPeriodIndex, current.index))
+    }
+
+    private var startDate: Date {
+        get { selectedWindow?.start ?? .distantPast }
+        nonmutating set {
+            guard let anchor = budget.startDate,
+                  let selected = BudgetPeriod(rawValue: budget.type)?.window(anchor: anchor, containing: newValue),
+                  let current = budget.currentWindow() else { return }
+            selectedPeriodIndex = selected.index >= current.index ? nil : selected.index
+        }
+    }
 
     var dateString: String {
-        let dateFormatter = DateFormatter()
-
-        if budgetType == 1 {
-            dateFormatter.dateStyle = .medium
-            return dateFormatter.string(from: startDate)
-        } else if budgetType == 2 {
-            let endDate = Calendar.current.date(byAdding: .day, value: 6, to: startDate) ?? Date.now
-            dateFormatter.setLocalizedDateFormatFromTemplate("dMMM")
-            return dateFormatter.string(from: startDate) + " - " + dateFormatter.string(from: endDate)
-        } else if budgetType == 3 {
-            var endDate = Calendar.current.date(byAdding: .month, value: 1, to: startDate)!
-            endDate = Calendar.current.date(byAdding: .day, value: -1, to: endDate)!
-            dateFormatter.setLocalizedDateFormatFromTemplate("dMMM")
-            return dateFormatter.string(from: startDate) + " - " + dateFormatter.string(from: endDate)
-        } else if budgetType == 4 {
-            var endDate = Calendar.current.date(byAdding: .year, value: 1, to: startDate)!
-            endDate = Calendar.current.date(byAdding: .day, value: -1, to: endDate)!
-            dateFormatter.dateStyle = .medium
-            return dateFormatter.string(from: startDate) + " - " + dateFormatter.string(from: endDate)
-        } else {
-            return ""
-        }
+        guard let window = selectedWindow else { return String(localized: "Date unavailable") }
+        return localizedDateInterval(from: window.start, to: window.end.addingTimeInterval(-1))
     }
 
     @State var totalSpent = 0.0
 
     var timeLeft: String {
-        let calendar = Calendar.current
-
         if budgetType == 1 {
-            let components = calendar.dateComponents([.hour], from: budget.wrappedDate, to: Date.now)
-            return String(localized: "\(24 - (components.hour ?? 0)) hours left")
-        } else {
-            return String(localized: "\(daysLeftNumber) days left")
+            let hours = NumericSafety.roundedInt(ceil(max(0, budget.endDate.timeIntervalSinceNow) / 3600))
+            return String(localized: "\(hours) hours left")
         }
+        return String(localized: "\(daysLeftNumber) days left")
     }
 
     var subtitleText: String {
-        if budget.startDate == startDate {
+        if budget.wrappedDate == startDate {
             return timeLeft
         } else {
             return dateString
         }
     }
 
-    @AppStorage("currency", store: UserDefaults(suiteName: AppIdentifiers.appGroup)) var currency: String = Locale.current.currencyCode!
+    @AppStorage("currency", store: UserDefaults(suiteName: AppIdentifiers.appGroup)) var currency: String = (Locale.current.currencyCode ?? "USD")
     var currencySymbol: String {
-        return Locale.current.localizedCurrencySymbol(forCurrencyCode: currency)!
+        return (Locale.current.localizedCurrencySymbol(forCurrencyCode: currency) ?? currency)
     }
 
     var difference: Double {
-        abs(budgetAmount - totalSpent)
+        abs(NumericSafety.difference(budgetAmount, totalSpent))
     }
 
     var differenceSubtitle: String {
         if budgetAmount >= totalSpent {
-            if startDate == budget.startDate {
+            if startDate == budget.wrappedDate {
                 if budgetType == 1 {
                     return String(localized: "left today")
                 } else if budgetType == 2 {
@@ -1487,18 +1387,18 @@ struct TimeBudgetView: View {
                     return String(localized: "left \(weekString)")
                 } else if budgetType == 3 {
                     let components = Calendar.current.dateComponents([.month], from: startDate, to: budget.wrappedDate)
-                    let monthString = String(localized: "\(components.month!) months ago")
+                    let monthString = String(localized: "\((components.month ?? 0)) months ago")
                     return String(localized: "left \(monthString)")
                 } else if budgetType == 4 {
                     let components = Calendar.current.dateComponents([.year], from: startDate, to: budget.wrappedDate)
-                    let yearString = String(localized: "\(components.year!) years ago")
+                    let yearString = String(localized: "\((components.year ?? 0)) years ago")
                     return String(localized: "left \(yearString)")
                 } else {
                     return ""
                 }
             }
         } else {
-            if startDate == budget.startDate {
+            if startDate == budget.wrappedDate {
                 if budgetType == 1 {
                     return String(localized: "over today")
                 } else if budgetType == 2 {
@@ -1521,11 +1421,11 @@ struct TimeBudgetView: View {
                     return String(localized: "over \(weekString)")
                 } else if budgetType == 3 {
                     let components = Calendar.current.dateComponents([.month], from: startDate, to: budget.wrappedDate)
-                    let monthString = String(localized: "\(components.month!) months ago")
+                    let monthString = String(localized: "\((components.month ?? 0)) months ago")
                     return String(localized: "over \(monthString)")
                 } else if budgetType == 4 {
                     let components = Calendar.current.dateComponents([.year], from: startDate, to: budget.wrappedDate)
-                    let yearString = String(localized: "\(components.year!) years ago")
+                    let yearString = String(localized: "\((components.year ?? 0)) years ago")
                     return String(localized: "over \(yearString)")
                 } else {
                     return ""
@@ -1536,35 +1436,11 @@ struct TimeBudgetView: View {
 
     // for week, month, year only
 
-    var daysLeftNumber: Int {
-        let calendar = Calendar.current
-
-        if budgetType == 1 {
-            return 0
-        } else if budgetType == 2 {
-            let components = calendar.dateComponents([.day], from: budget.wrappedDate, to: Date.now)
-            return 7 - (components.day ?? 0)
-        } else if budgetType == 3 {
-            let components1 = calendar.dateComponents([.day], from: budget.wrappedDate, to: budget.endDate)
-            let numberOfDays = components1.day!
-            let components2 = calendar.dateComponents([.day], from: budget.wrappedDate, to: Date.now)
-            let numberOfDaysPast = components2.day!
-
-            return Int(numberOfDays - numberOfDaysPast)
-        } else if budgetType == 4 {
-            let components1 = calendar.dateComponents([.day], from: budget.wrappedDate, to: budget.endDate)
-            let numberOfDays = components1.day!
-            let components2 = calendar.dateComponents([.day], from: budget.wrappedDate, to: Date.now)
-            let numberOfDaysPast = components2.day!
-            return Int(numberOfDays - numberOfDaysPast)
-        } else {
-            return 0
-        }
-    }
+    var daysLeftNumber: Int { budget.currentWindow()?.daysRemaining() ?? 0 }
 
     var leftPerDay: Double {
         if budgetType >= 2 {
-            return (budgetAmount - totalSpent) / Double(daysLeftNumber)
+            return NumericSafety.safeRatio(NumericSafety.difference(budgetAmount, totalSpent), Double(daysLeftNumber))
         } else {
             return 0
         }
@@ -1572,13 +1448,14 @@ struct TimeBudgetView: View {
 
     var showExtraDetails: Bool {
         if budgetType >= 2 {
-            return budget.startDate == startDate && totalSpent < budgetAmount && daysLeftNumber != 1
+            return budget.wrappedDate == startDate && totalSpent < budgetAmount && daysLeftNumber != 1
         } else {
             return false
         }
     }
 
     var body: some View {
+        let _ = calendarRevision
         VStack(spacing: 20) {
             // budget name and emoji and time left
             VStack(spacing: 10) {
@@ -1648,10 +1525,10 @@ struct TimeBudgetView: View {
                             .fill(Color.SecondaryBackground)
                             .frame(width: proxy.size.width)
 
-                        if totalSpent / budgetAmount < 0.98 {
+                        if BudgetMath.spendingRatio(spent: totalSpent, budgetAmount: budgetAmount) < 0.98 {
                             if let category = budget.category {
                                 AnimatedHorizontalBarGraphBudget(category: category)
-                                    .frame(width: proxy.size.width * (1 - totalSpent / budgetAmount))
+                                    .frame(width: proxy.size.width * (1 - BudgetMath.spendingRatio(spent: totalSpent, budgetAmount: budgetAmount)))
                             }
                         }
                     }
@@ -1683,13 +1560,13 @@ struct TimeBudgetView: View {
                         FilteredCategoryDayBudgetView(category: category, day: startDate, totalSpent: $totalSpent)
                             .padding(.horizontal, 15)
                     } else {
-                        FilteredBudgetView(category: category, startDate: startDate, totalSpent: $totalSpent, type: budgetType - 1)
+                        FilteredBudgetView(category: category, startDate: startDate, endDate: selectedWindow?.end ?? startDate, totalSpent: $totalSpent, type: budgetType - 1)
                             .padding(.horizontal, 15)
                     }
                 }
                 .frame(maxHeight: .infinity)
 
-                BudgetStepperView(category: category, date: $startDate, startDate: budget.wrappedDate, budgetType: budgetType)
+                BudgetStepperView(category: category, date: Binding(get: { startDate }, set: { startDate = $0 }), startDate: budget.startDate, budgetType: budgetType)
                     .padding(.horizontal, 25)
             }
         }
@@ -1703,9 +1580,9 @@ struct TimeBudgetView: View {
 struct FilteredCategoryDayBudgetView: View {
     @FetchRequest private var transactions: FetchedResults<Transaction>
     @Binding var totalSpent: Double
-    @AppStorage("currency", store: UserDefaults(suiteName: AppIdentifiers.appGroup)) var currency: String = Locale.current.currencyCode!
+    @AppStorage("currency", store: UserDefaults(suiteName: AppIdentifiers.appGroup)) var currency: String = (Locale.current.currencyCode ?? "USD")
     var currencySymbol: String {
-        return Locale.current.localizedCurrencySymbol(forCurrencyCode: currency)!
+        return (Locale.current.localizedCurrencySymbol(forCurrencyCode: currency) ?? currency)
     }
 
     var date: Date
@@ -1749,6 +1626,9 @@ struct FilteredCategoryDayBudgetView: View {
                 totalSpent = holding
             }
         }
+        .onChange(of: transactions.map(\.amount)) { amounts in
+            totalSpent = amounts.reduce(0, +)
+        }
 //        .fullScreenCover(item: $toDelete, onDismiss: {
 //            toDelete = nil
 //        }) { transaction in
@@ -1765,7 +1645,7 @@ struct FilteredCategoryDayBudgetView: View {
     init(category: Category?, day: Date, totalSpent: Binding<Double>) {
         date = day
 
-        let datePredicate = NSPredicate(format: "%K == %@", #keyPath(Transaction.day), day as CVarArg)
+        let datePredicate = LedgerCalendar.dayPredicate(day)
         let dateCapPredicate = NSPredicate(format: "%K <= %@", #keyPath(Transaction.date), Date.now as CVarArg)
         let incomePredicate = NSPredicate(format: "income = %d", false)
 
@@ -1790,7 +1670,7 @@ struct FilteredCategoryDayBudgetView: View {
 }
 
 struct FilteredBudgetView: View {
-    @SectionedFetchRequest<Date?, Transaction> private var transactions: SectionedFetchResults<Date?, Transaction>
+    @FetchRequest<Transaction> private var transactions: FetchedResults<Transaction>
 
     @Binding var totalSpent: Double
     var date: Date
@@ -1801,94 +1681,35 @@ struct FilteredBudgetView: View {
                 NoResultsView(fullscreen: false)
             }
 
-            ListView(transactions: _transactions)
+            ListView(transactions: Array(transactions))
         }
         .frame(maxHeight: .infinity)
         .onAppear {
             DispatchQueue.main.async {
-                var holding = 0.0
-                transactions.forEach { day in
-
-                    day.forEach { transaction in
-                        holding += transaction.wrappedAmount
-                    }
-                }
-
-                totalSpent = holding
+                totalSpent = transactions.reduce(0) { $0 + $1.amount }
             }
         }
         .onChange(of: date) { _ in
             DispatchQueue.main.async {
-                var holding = 0.0
-                transactions.forEach { day in
-
-                    day.forEach { transaction in
-                        holding += transaction.wrappedAmount
-                    }
-                }
-                totalSpent = holding
+                totalSpent = transactions.reduce(0) { $0 + $1.amount }
             }
+        }
+        .onChange(of: transactions.map(\.amount)) { amounts in
+            totalSpent = amounts.reduce(0, +)
         }
     }
 
-    init(category: Category? = nil, startDate: Date, totalSpent: Binding<Double>, type: Int) {
+    init(category: Category? = nil, startDate: Date, endDate: Date, totalSpent: Binding<Double>, type: Int) {
         date = startDate
-
-        let startPredicate = NSPredicate(format: "%K >= %@", #keyPath(Transaction.date), startDate as CVarArg)
-        let incomePredicate = NSPredicate(format: "income = %d", false)
-        let endPredicate: NSPredicate
-
-        var calendar = Calendar(identifier: .gregorian)
-
-        calendar.firstWeekday = UserDefaults(suiteName: AppIdentifiers.appGroup)!.integer(forKey: "firstWeekday")
-        calendar.minimumDaysInFirstWeek = 4
-
-        if type == 1 {
-            if calendar.isDate(startDate, equalTo: Date.now, toGranularity: .weekOfYear) {
-                endPredicate = NSPredicate(format: "%K < %@", #keyPath(Transaction.date), Date.now as CVarArg)
-            } else {
-                let next = calendar.date(byAdding: .day, value: 7, to: startDate) ?? Date.now
-                endPredicate = NSPredicate(format: "%K < %@", #keyPath(Transaction.date), next as CVarArg)
-            }
-        } else if type == 2 {
-            if calendar.isDate(startDate, equalTo: Date.now, toGranularity: .month) {
-                endPredicate = NSPredicate(format: "%K < %@", #keyPath(Transaction.date), Date.now as CVarArg)
-            } else {
-                let next = calendar.date(byAdding: .month, value: 1, to: startDate) ?? Date.now
-                endPredicate = NSPredicate(format: "%K < %@", #keyPath(Transaction.date), next as CVarArg)
-            }
-        } else {
-            if calendar.isDate(startDate, equalTo: Date.now, toGranularity: .year) {
-                endPredicate = NSPredicate(format: "%K < %@", #keyPath(Transaction.date), Date.now as CVarArg)
-            } else {
-                let next = calendar.date(byAdding: .year, value: 1, to: startDate) ?? Date.now
-                endPredicate = NSPredicate(format: "%K < %@", #keyPath(Transaction.date), next as CVarArg)
-            }
-        }
-
-        if let unwrappedCategory = category {
-            let categoryPredicate = NSPredicate(format: "%K == %@", #keyPath(Transaction.category), unwrappedCategory)
-
-            let andPredicate = NSCompoundPredicate(type: .and, subpredicates: [startPredicate, endPredicate, categoryPredicate, incomePredicate])
-
-            _transactions = SectionedFetchRequest<Date?, Transaction>(sectionIdentifier: \.day, sortDescriptors: [
-                SortDescriptor(\.day, order: .reverse),
-                SortDescriptor(\.date, order: .reverse)
-            ], predicate: andPredicate)
-        } else {
-            let andPredicate = NSCompoundPredicate(type: .and, subpredicates: [startPredicate, endPredicate, incomePredicate])
-
-            _transactions = SectionedFetchRequest<Date?, Transaction>(sectionIdentifier: \.day, sortDescriptors: [
-                SortDescriptor(\.day, order: .reverse),
-                SortDescriptor(\.date, order: .reverse)
-            ], predicate: andPredicate)
-        }
-
+        var predicates = [LedgerCalendar.predicate(start: startDate, end: endDate, now: .now), NSPredicate(format: "income == NO")]
+        if let category { predicates.append(NSPredicate(format: "category == %@", category)) }
+        _transactions = FetchRequest<Transaction>(sortDescriptors: [SortDescriptor(\.date, order: .reverse)], predicate: NSCompoundPredicate(andPredicateWithSubpredicates: predicates))
         _totalSpent = totalSpent
     }
 }
 
 struct TimeMainBudgetView: View {
+    @Environment(\.ledgerCalendarRevision) private var calendarRevision
     let budget: MainBudget
 
     var budgetAmount: Double {
@@ -1899,66 +1720,59 @@ struct TimeMainBudgetView: View {
         return Int(budget.type)
     }
 
-    @State var startDate = Date.now
+    @State private var selectedPeriodIndex: Int?
+
+    var selectedWindow: BudgetWindow? {
+        guard let current = budget.currentWindow(), let anchor = budget.startDate else { return nil }
+        guard let selectedPeriodIndex else { return current }
+        return BudgetPeriod(rawValue: budget.type)?.window(anchor: anchor, index: min(selectedPeriodIndex, current.index))
+    }
+
+    private var startDate: Date {
+        get { selectedWindow?.start ?? .distantPast }
+        nonmutating set {
+            guard let anchor = budget.startDate,
+                  let selected = BudgetPeriod(rawValue: budget.type)?.window(anchor: anchor, containing: newValue),
+                  let current = budget.currentWindow() else { return }
+            selectedPeriodIndex = selected.index >= current.index ? nil : selected.index
+        }
+    }
 
     var dateString: String {
-        let dateFormatter = DateFormatter()
-
-        if budgetType == 1 {
-            dateFormatter.dateStyle = .medium
-            return dateFormatter.string(from: startDate)
-        } else if budgetType == 2 {
-            let endDate = Calendar.current.date(byAdding: .day, value: 6, to: startDate) ?? Date.now
-            dateFormatter.setLocalizedDateFormatFromTemplate("dMMM")
-            return dateFormatter.string(from: startDate) + " - " + dateFormatter.string(from: endDate)
-        } else if budgetType == 3 {
-            var endDate = Calendar.current.date(byAdding: .month, value: 1, to: startDate)!
-            endDate = Calendar.current.date(byAdding: .day, value: -1, to: endDate)!
-            dateFormatter.setLocalizedDateFormatFromTemplate("dMMM")
-            return dateFormatter.string(from: startDate) + " - " + dateFormatter.string(from: endDate)
-        } else if budgetType == 4 {
-            var endDate = Calendar.current.date(byAdding: .year, value: 1, to: startDate)!
-            endDate = Calendar.current.date(byAdding: .day, value: -1, to: endDate)!
-            dateFormatter.dateStyle = .medium
-            return dateFormatter.string(from: startDate) + " - " + dateFormatter.string(from: endDate)
-        } else {
-            return ""
-        }
+        guard let window = selectedWindow else { return String(localized: "Date unavailable") }
+        return localizedDateInterval(from: window.start, to: window.end.addingTimeInterval(-1))
     }
 
     @State var totalSpent = 0.0
 
     var timeLeft: String {
-        let calendar = Calendar.current
-
         if budgetType == 1 {
-            let components = calendar.dateComponents([.hour], from: budget.wrappedDate, to: Date.now)
-            return String(localized: "\(24 - (components.hour ?? 0)) hours left")
-        } else {
-            return String(localized: "\(daysLeftNumber) days left")
+            let hours = NumericSafety.roundedInt(ceil(max(0, budget.endDate.timeIntervalSinceNow) / 3600))
+            return String(localized: "\(hours) hours left")
         }
+        return String(localized: "\(daysLeftNumber) days left")
     }
 
     var subtitleText: String {
-        if budget.startDate == startDate {
+        if budget.wrappedDate == startDate {
             return timeLeft
         } else {
             return dateString
         }
     }
 
-    @AppStorage("currency", store: UserDefaults(suiteName: AppIdentifiers.appGroup)) var currency: String = Locale.current.currencyCode!
+    @AppStorage("currency", store: UserDefaults(suiteName: AppIdentifiers.appGroup)) var currency: String = (Locale.current.currencyCode ?? "USD")
     var currencySymbol: String {
-        return Locale.current.localizedCurrencySymbol(forCurrencyCode: currency)!
+        return (Locale.current.localizedCurrencySymbol(forCurrencyCode: currency) ?? currency)
     }
 
     var difference: Double {
-        abs(budgetAmount - totalSpent)
+        abs(NumericSafety.difference(budgetAmount, totalSpent))
     }
 
     var differenceSubtitle: String {
         if budgetAmount >= totalSpent {
-            if startDate == budget.startDate {
+            if startDate == budget.wrappedDate {
                 if budgetType == 1 {
                     return String(localized: "left today")
                 } else if budgetType == 2 {
@@ -1981,18 +1795,18 @@ struct TimeMainBudgetView: View {
                     return String(localized: "left \(weekString)")
                 } else if budgetType == 3 {
                     let components = Calendar.current.dateComponents([.month], from: startDate, to: budget.wrappedDate)
-                    let monthString = String(localized: "\(components.month!) months ago")
+                    let monthString = String(localized: "\((components.month ?? 0)) months ago")
                     return String(localized: "left \(monthString)")
                 } else if budgetType == 4 {
                     let components = Calendar.current.dateComponents([.year], from: startDate, to: budget.wrappedDate)
-                    let yearString = String(localized: "\(components.year!) years ago")
+                    let yearString = String(localized: "\((components.year ?? 0)) years ago")
                     return String(localized: "left \(yearString)")
                 } else {
                     return ""
                 }
             }
         } else {
-            if startDate == budget.startDate {
+            if startDate == budget.wrappedDate {
                 if budgetType == 1 {
                     return String(localized: "over today")
                 } else if budgetType == 2 {
@@ -2015,11 +1829,11 @@ struct TimeMainBudgetView: View {
                     return String(localized: "over \(weekString)")
                 } else if budgetType == 3 {
                     let components = Calendar.current.dateComponents([.month], from: startDate, to: budget.wrappedDate)
-                    let monthString = String(localized: "\(components.month!) months ago")
+                    let monthString = String(localized: "\((components.month ?? 0)) months ago")
                     return String(localized: "over \(monthString)")
                 } else if budgetType == 4 {
                     let components = Calendar.current.dateComponents([.year], from: startDate, to: budget.wrappedDate)
-                    let yearString = String(localized: "\(components.year!) years ago")
+                    let yearString = String(localized: "\((components.year ?? 0)) years ago")
                     return String(localized: "over \(yearString)")
                 } else {
                     return ""
@@ -2030,35 +1844,11 @@ struct TimeMainBudgetView: View {
 
     // for week, month, year only
 
-    var daysLeftNumber: Int {
-        let calendar = Calendar.current
-
-        if budgetType == 1 {
-            return 0
-        } else if budgetType == 2 {
-            let components = calendar.dateComponents([.day], from: budget.wrappedDate, to: Date.now)
-            return 7 - (components.day ?? 0)
-        } else if budgetType == 3 {
-            let components1 = calendar.dateComponents([.day], from: budget.wrappedDate, to: budget.endDate)
-            let numberOfDays = components1.day!
-            let components2 = calendar.dateComponents([.day], from: budget.wrappedDate, to: Date.now)
-            let numberOfDaysPast = components2.day!
-
-            return Int(numberOfDays - numberOfDaysPast)
-        } else if budgetType == 4 {
-            let components1 = calendar.dateComponents([.day], from: budget.wrappedDate, to: budget.endDate)
-            let numberOfDays = components1.day!
-            let components2 = calendar.dateComponents([.day], from: budget.wrappedDate, to: Date.now)
-            let numberOfDaysPast = components2.day!
-            return Int(numberOfDays - numberOfDaysPast)
-        } else {
-            return 0
-        }
-    }
+    var daysLeftNumber: Int { budget.currentWindow()?.daysRemaining() ?? 0 }
 
     var leftPerDay: Double {
         if budgetType >= 2 {
-            return (budgetAmount - totalSpent) / Double(daysLeftNumber)
+            return NumericSafety.safeRatio(NumericSafety.difference(budgetAmount, totalSpent), Double(daysLeftNumber))
         } else {
             return 0
         }
@@ -2066,13 +1856,14 @@ struct TimeMainBudgetView: View {
 
     var showExtraDetails: Bool {
         if budgetType >= 2 {
-            return budget.startDate == startDate && totalSpent < budgetAmount && daysLeftNumber != 1
+            return budget.wrappedDate == startDate && totalSpent < budgetAmount && daysLeftNumber != 1
         } else {
             return false
         }
     }
 
     var body: some View {
+        let _ = calendarRevision
         VStack(spacing: 20) {
             // budget name and emoji and time left
             VStack(spacing: 10) {
@@ -2136,9 +1927,9 @@ struct TimeMainBudgetView: View {
                             .fill(Color.SecondaryBackground)
                             .frame(width: proxy.size.width)
 
-                        if totalSpent / budgetAmount < 0.98 {
+                        if BudgetMath.spendingRatio(spent: totalSpent, budgetAmount: budgetAmount) < 0.98 {
                             AnimatedHorizontalBarGraphMainBudget()
-                                .frame(width: proxy.size.width * (1 - totalSpent / budgetAmount))
+                                .frame(width: proxy.size.width * (1 - BudgetMath.spendingRatio(spent: totalSpent, budgetAmount: budgetAmount)))
                         }
                     }
                     .frame(maxWidth: .infinity)
@@ -2168,13 +1959,13 @@ struct TimeMainBudgetView: View {
                     FilteredCategoryDayBudgetView(category: nil, day: startDate, totalSpent: $totalSpent)
                         .padding(.horizontal, 15)
                 } else {
-                    FilteredBudgetView(category: nil, startDate: startDate, totalSpent: $totalSpent, type: budgetType - 1)
+                    FilteredBudgetView(category: nil, startDate: startDate, endDate: selectedWindow?.end ?? startDate, totalSpent: $totalSpent, type: budgetType - 1)
                         .padding(.horizontal, 15)
                 }
             }
             .frame(maxHeight: .infinity)
 
-            BudgetStepperView(category: nil, date: $startDate, startDate: budget.wrappedDate, budgetType: budgetType)
+            BudgetStepperView(category: nil, date: Binding(get: { startDate }, set: { startDate = $0 }), startDate: budget.startDate, budgetType: budgetType)
                 .padding(.horizontal, 25)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
@@ -2244,29 +2035,14 @@ struct AnimatedCurvedBarGraphBudget: View {
     let cornerRadius: Double
     let width: Double
     let color: String
-    @State var percent: Double = 0
+    var percent: Double { 1 - BudgetMath.gaugeRatio(spent: transactions.reduce(0) { $0 + $1.amount }, budgetAmount: budgetTotal) }
 
     @AppStorage("animated", store: UserDefaults(suiteName: AppIdentifiers.appGroup)) var animated: Bool = true
 
     var body: some View {
         DonutSemicircle(percent: percent, cornerRadius: cornerRadius, width: width)
             .fill(Color(color))
-            .onAppear {
-                DispatchQueue.main.asyncAfter(deadline: .now()) {
-                    var holdingTotal = 0.0
-                    transactions.forEach { transaction in
-                        holdingTotal += transaction.wrappedAmount
-                    }
-
-                    if !animated {
-                        percent = 1 - (holdingTotal / budgetTotal)
-                    } else {
-                        withAnimation(.easeInOut(duration: 0.7)) {
-                            percent = 1 - (holdingTotal / budgetTotal)
-                        }
-                    }
-                }
-            }
+            .animation(animated ? .easeInOut(duration: 0.7) : nil, value: percent)
     }
 }
 
@@ -2276,131 +2052,54 @@ struct AnimatedCurvedBarGraphMainBudget: View {
     let cornerRadius: Double
     let width: Double
 
-    @State var percent: Double = 0
+    var percent: Double { 1 - BudgetMath.gaugeRatio(spent: transactions.reduce(0) { $0 + $1.amount }, budgetAmount: budgetTotal) }
 
     @AppStorage("animated", store: UserDefaults(suiteName: AppIdentifiers.appGroup)) var animated: Bool = true
 
     var body: some View {
         DonutSemicircle(percent: percent, cornerRadius: cornerRadius, width: width)
             .fill(Color.DarkBackground)
-            .onAppear {
-                DispatchQueue.main.asyncAfter(deadline: .now()) {
-                    var holdingTotal = 0.0
-                    transactions.forEach { transaction in
-                        holdingTotal += transaction.wrappedAmount
-                    }
-
-                    if !animated {
-                        percent = 1 - (holdingTotal / budgetTotal)
-                    } else {
-                        withAnimation(.easeInOut(duration: 0.7)) {
-                            percent = 1 - (holdingTotal / budgetTotal)
-                        }
-                    }
-                }
-            }
+            .animation(animated ? .easeInOut(duration: 0.7) : nil, value: percent)
     }
 }
 
 struct BudgetStepperView: View {
     @FetchRequest private var transactions: FetchedResults<Transaction>
-
     @Binding var date: Date
-    var firstDate: Date {
-        if transactions.isEmpty {
-            return Date.now
-        } else {
-            return transactions[0].day ?? Date.now
-        }
-    }
-
-    var endDate: Date {
-        if type == 1 {
-            return Calendar.current.date(byAdding: .day, value: 1, to: date)!
-        } else if type == 2 {
-            return Calendar.current.date(byAdding: .day, value: 6, to: date)!
-        } else if type == 3 {
-            let holdingDate = Calendar.current.date(byAdding: .month, value: 1, to: date)!
-            return Calendar.current.date(byAdding: .day, value: -1, to: holdingDate)!
-        } else if type == 4 {
-            let holdingDate = Calendar.current.date(byAdding: .year, value: 1, to: date)!
-            return Calendar.current.date(byAdding: .day, value: -1, to: holdingDate)!
-        }
-
-        return startDate
-    }
-
-    let startDate: Date
+    let startDate: Date?
     let type: Int
 
-    var dateString: String {
-        let dateFormatter = DateFormatter()
-
-        if type == 1 {
-            dateFormatter.dateStyle = .medium
-            return dateFormatter.string(from: date)
-        } else if type == 4 {
-            dateFormatter.dateStyle = .medium
-            return dateFormatter.string(from: date) + " - " + dateFormatter.string(from: endDate)
-        } else {
-            dateFormatter.setLocalizedDateFormatFromTemplate("dMMM")
-            return dateFormatter.string(from: date) + " - " + dateFormatter.string(from: endDate)
-        }
+    private var period: BudgetPeriod? { Int16(exactly: type).flatMap(BudgetPeriod.init(rawValue:)) }
+    private var selected: BudgetWindow? {
+        guard let anchor = startDate else { return nil }
+        return period?.window(anchor: anchor, containing: date)
     }
-
+    private var latest: BudgetWindow? { period?.currentWindow(anchor: startDate, amount: 1) }
+    private var earliestIndex: Int {
+        guard let anchor = startDate, let earliest = transactions.compactMap(\.date).first(where: LedgerCalendar.isValid) else { return latest?.index ?? 0 }
+        return min(latest?.index ?? 0, period?.window(anchor: anchor, containing: earliest)?.index ?? 0)
+    }
+    private func move(_ delta: Int) {
+        guard let anchor = startDate, let selected, let latest else { return }
+        let index = min(latest.index, max(earliestIndex, selected.index + delta))
+        if let window = period?.window(anchor: anchor, index: index) { date = window.start }
+    }
     var body: some View {
         HStack {
-            StepperButtonView(left: true, disabled: date <= firstDate) {
-                if date > firstDate {
-                    if type == 1 {
-                        date = Calendar.current.date(byAdding: .day, value: -1, to: date)!
-                    } else if type == 2 {
-                        date = Calendar.current.date(byAdding: .day, value: -7, to: date)!
-                    } else if type == 3 {
-                        date = Calendar.current.date(byAdding: .month, value: -1, to: date)!
-                    } else if type == 4 {
-                        date = Calendar.current.date(byAdding: .year, value: -1, to: date)!
-                    }
-                }
-            }
-
+            StepperButtonView(left: true, disabled: (selected?.index ?? 0) <= earliestIndex) { move(-1) }
             Spacer()
-
-            Text(dateString)
+            Text(selected.map { localizedDateInterval(from: $0.start, to: $0.end.addingTimeInterval(-1)) } ?? String(localized: "Date unavailable"))
                 .font(.system(.title3, design: .rounded).weight(.bold))
-
             Spacer()
-
-            StepperButtonView(left: false, disabled: date == startDate) {
-                if date < startDate {
-                    if type == 1 {
-                        date = Calendar.current.date(byAdding: .day, value: 1, to: date)!
-                    } else if type == 2 {
-                        date = Calendar.current.date(byAdding: .day, value: 7, to: date)!
-                    } else if type == 3 {
-                        date = Calendar.current.date(byAdding: .month, value: 1, to: date)!
-                    } else if type == 4 {
-                        date = Calendar.current.date(byAdding: .year, value: -1, to: date)!
-                    }
-                }
-            }
+            StepperButtonView(left: false, disabled: (selected?.index ?? 0) >= (latest?.index ?? 0)) { move(1) }
         }
         .frame(maxWidth: .infinity)
     }
-
-    init(category: Category?, date: Binding<Date>, startDate: Date, budgetType: Int) {
-        if let unwrappedCategory = category {
-            _transactions = FetchRequest<Transaction>(sortDescriptors: [
-                SortDescriptor(\.day)
-            ], predicate: NSPredicate(format: "%K == %@", #keyPath(Transaction.category), unwrappedCategory))
-        } else {
-            _transactions = FetchRequest<Transaction>(sortDescriptors: [
-                SortDescriptor(\.day)
-            ])
-        }
-
+    init(category: Category?, date: Binding<Date>, startDate: Date?, budgetType: Int) {
+        var predicates = [NSPredicate(format: "date != nil")]
+        if let category { predicates.append(NSPredicate(format: "category == %@", category)) }
+        _transactions = FetchRequest<Transaction>(sortDescriptors: [SortDescriptor(\.date)], predicate: NSCompoundPredicate(andPredicateWithSubpredicates: predicates))
         _date = date
-
         self.startDate = startDate
         type = budgetType
     }

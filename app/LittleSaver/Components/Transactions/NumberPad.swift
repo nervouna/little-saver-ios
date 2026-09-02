@@ -157,19 +157,19 @@ struct NumberPad: View {
 
     public func deleteLastDigit() {
         if numberEntryType == 1 {
-            price = Double(Int(price * 10)) / 100
+            price = MoneyAmount.deletingLastDigit(price, centsEntry: true)
         } else if !isEditingDecimal {
-            price = Double(Int(price / 10))
+            price = MoneyAmount.deletingLastDigit(price, centsEntry: false)
         } else {
             switch decimalValuesAssigned {
                 case .none:
                     isEditingDecimal = false
                     return
                 case .first:
-                    price = Double(Int(price))
+                    price = MoneyAmount.truncating(price, decimalPlaces: 0)
                     decimalValuesAssigned = .none
                 case .second:
-                    price = Double(Int(price * 10)) / 10
+                    price = MoneyAmount.truncating(price, decimalPlaces: 1)
                     decimalValuesAssigned = .first
             }
         }
@@ -342,19 +342,19 @@ struct NumberPadTextView: View {
 
     public func deleteLastDigit() {
         if numberEntryType == 1 {
-            price = Double(Int(price * 10)) / 100
+            price = MoneyAmount.deletingLastDigit(price, centsEntry: true)
         } else if !isEditingDecimal {
-            price = Double(Int(price / 10))
+            price = MoneyAmount.deletingLastDigit(price, centsEntry: false)
         } else {
             switch decimalValuesAssigned {
                 case .none:
                     isEditingDecimal = false
                     return
                 case .first:
-                    price = Double(Int(price))
+                    price = MoneyAmount.truncating(price, decimalPlaces: 0)
                     decimalValuesAssigned = .none
                 case .second:
-                    price = Double(Int(price * 10)) / 10
+                    price = MoneyAmount.truncating(price, decimalPlaces: 1)
                     decimalValuesAssigned = .first
             }
         }

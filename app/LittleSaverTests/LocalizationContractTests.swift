@@ -14,7 +14,7 @@ final class LocalizationContractTests: XCTestCase {
         }
         let referenceKeys = Set(tables[0].1.keys)
 
-        XCTAssertEqual(referenceKeys.count, 492, "Unexpected Localizable.strings baseline key count")
+        XCTAssertEqual(referenceKeys.count, 496, "Unexpected Localizable.strings baseline key count")
         let englishTable = tables[0].1
         for (locale, table) in tables {
             XCTAssertEqual(Set(table.keys), referenceKeys, "Localizable.strings keys differ for \(locale)")

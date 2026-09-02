@@ -7,6 +7,8 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+        A50000000000000000000003 /* BudgetCalendarMoney.swift in Sources */ = {isa = PBXBuildFile; fileRef = A50000000000000000000004; };
+        A50000000000000000000001 /* BudgetCalendarMoneyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A50000000000000000000002; };
 		A40000000000000000000001 /* LedgerCommands.swift in Sources */ = {isa = PBXBuildFile; fileRef = A40000000000000000000002 /* LedgerCommands.swift */; };
 		A40000000000000000000003 /* MutationSubmission.swift in Sources */ = {isa = PBXBuildFile; fileRef = A40000000000000000000004 /* MutationSubmission.swift */; };
 		00A5C7C03012A0534736DF47 /* DataFoundationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = ED2430264B59FBBBA80D6358 /* DataFoundationTests.swift */; };
@@ -248,6 +250,8 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+        A50000000000000000000004 /* BudgetCalendarMoney.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BudgetCalendarMoney.swift; sourceTree = "<group>"; };
+        A50000000000000000000002 /* BudgetCalendarMoneyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BudgetCalendarMoneyTests.swift; sourceTree = "<group>"; };
 		A40000000000000000000002 /* LedgerCommands.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LedgerCommands.swift; sourceTree = "<group>"; };
 		A40000000000000000000004 /* MutationSubmission.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = MutationSubmission.swift; path = LittleSaver/Utilities/MutationSubmission.swift; sourceTree = "<group>"; };
 		0FCD34B312585CF720B9AB33 /* ManagedObjects.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ManagedObjects.swift; sourceTree = "<group>"; };
@@ -723,6 +727,7 @@
 			children = (
 				A10000012F50000100000028 /* LocalizationContractTests.swift */,
 				ED2430264B59FBBBA80D6358 /* DataFoundationTests.swift */,
+                A50000000000000000000002 /* BudgetCalendarMoneyTests.swift */,
 			);
 			name = LittleSaverTests;
 			path = LittleSaverTests;
@@ -766,6 +771,7 @@
 				A20000000000000000000002 /* PersistenceReads.swift */,
 				A30000000000000000000002 /* LedgerMaintenance.swift */,
 				A40000000000000000000002 /* LedgerCommands.swift */,
+                A50000000000000000000004 /* BudgetCalendarMoney.swift */,
 				53980E5B28A77B62009CC4E2 /* Helper.swift */,
 				4039E770B84C2C977C944AC3 /* CSVImport.swift */,
 				DA6A00002F4A000100000001 /* AppIdentifiers.swift */,
@@ -1060,6 +1066,7 @@
 				A20000000000000000000001 /* PersistenceReads.swift in Sources */,
 				A30000000000000000000001 /* LedgerMaintenance.swift in Sources */,
 				A40000000000000000000001 /* LedgerCommands.swift in Sources */,
+                A50000000000000000000003 /* BudgetCalendarMoney.swift in Sources */,
 				2C50B7E3FE22D07311A0910E /* Helper.swift in Sources */,
 				F0F2539C2687B8E67DC1E20E /* CSVImport.swift in Sources */,
 				EDE51A15B41C67DF9B8BDB35 /* AppIdentifiers.swift in Sources */,
@@ -1206,6 +1213,7 @@
 			files = (
 				A10000012F50000100000007 /* LocalizationContractTests.swift in Sources */,
 				00A5C7C03012A0534736DF47 /* DataFoundationTests.swift in Sources */,
+                A50000000000000000000001 /* BudgetCalendarMoneyTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

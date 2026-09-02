@@ -1542,7 +1542,7 @@ final class DataFoundationTests: XCTestCase {
         _ = fixtureTransaction(note: "Inside", category: category, income: false, amount: 25, date: date(2026, 1, 12), repeatType: 0, repeatCoefficient: 1, delay: false)
         _ = fixtureTransaction(note: "Income", category: category, income: true, amount: 100, date: date(2026, 1, 12), repeatType: 0, repeatCoefficient: 1, delay: false)
 
-        let windowTransactions = controller.results(for: controller.fetchRequestForBudgetTransactions(budget: budget))
+        let windowTransactions = controller.results(for: controller.fetchRequestForBudgetTransactions(budget: budget, now: date(2026, 1, 13), calendar: calendar))
         XCTAssertEqual(windowTransactions.map(\.wrappedNote), ["Inside"])
         XCTAssertEqual(
             BudgetWindow.progress(

@@ -1263,55 +1263,27 @@ public final class DataController: ObservableObject {
         return budgetAmount - totalSpent
     }
 
-    public func fetchRequestForMainBudgetTransactions(budget: MainBudget) -> NSFetchRequest<Transaction> {
+    public func fetchRequestForMainBudgetTransactions(budget: MainBudget, now: Date = .now, calendar: Calendar = .current) -> NSFetchRequest<Transaction> {
         let itemRequest: NSFetchRequest<Transaction> = Transaction.fetchRequest()
-
-        guard let startDate = budget.startDate else {
-            itemRequest.predicate = NSPredicate(value: false)
-            return itemRequest
-        }
-
-        let startPredicate = NSPredicate(format: "%K >= %@", #keyPath(Transaction.date), startDate as CVarArg)
-        let endPredicate = NSPredicate(format: "%K <= %@", #keyPath(Transaction.date), Date.now as CVarArg)
-        let incomePredicate = NSPredicate(format: "income = %d", false)
-
-        let andPredicate = NSCompoundPredicate(type: .and, subpredicates: [startPredicate, endPredicate, incomePredicate])
-
-        itemRequest.predicate = andPredicate
-
+        itemRequest.predicate = budget.transactionPredicate(now: now, calendar: calendar)
         return itemRequest
     }
 
-    public func fetchRequestForBudgetTransactions(budget: Budget) -> NSFetchRequest<Transaction> {
+    public func fetchRequestForBudgetTransactions(budget: Budget, now: Date = .now, calendar: Calendar = .current) -> NSFetchRequest<Transaction> {
         let itemRequest: NSFetchRequest<Transaction> = Transaction.fetchRequest()
-
-        guard let startDate = budget.startDate, let category = budget.category else {
-            itemRequest.predicate = NSPredicate(value: false)
-            return itemRequest
-        }
-
-        let startPredicate = NSPredicate(format: "%K >= %@", #keyPath(Transaction.date), startDate as CVarArg)
-        let endPredicate = NSPredicate(format: "%K <= %@", #keyPath(Transaction.date), Date.now as CVarArg)
-        let categoryPredicate = NSPredicate(format: "%K == %@", #keyPath(Transaction.category), category)
-        let incomePredicate = NSPredicate(format: "income = %d", false)
-
-        let andPredicate = NSCompoundPredicate(type: .and, subpredicates: [startPredicate, endPredicate, categoryPredicate, incomePredicate])
-
-        itemRequest.predicate = andPredicate
-
+        itemRequest.predicate = budget.transactionPredicate(now: now, calendar: calendar)
         return itemRequest
     }
 
     public func fetchRequestForLineGraph(optionalIncome: Bool?) -> NSFetchRequest<Transaction> {
         let itemRequest: NSFetchRequest<Transaction> = Transaction.fetchRequest()
         itemRequest.sortDescriptors = [NSSortDescriptor(keyPath: \Transaction.date, ascending: true)]
-
+        var predicates = [NSPredicate(format: "date >= %@ AND date <= %@", Date.distantPast as NSDate, Date.now as NSDate)]
         if let income = optionalIncome {
-            itemRequest.predicate = NSPredicate(format: "income = %d", income)
-            return itemRequest
-        } else {
-            return itemRequest
+            predicates.append(NSPredicate(format: "income = %d", income))
         }
+        itemRequest.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: predicates)
+        return itemRequest
     }
 
     public func fetchRequestForLogViewCategoryFilter(income: Bool) -> NSFetchRequest<Transaction> {
@@ -1320,318 +1292,50 @@ public final class DataController: ObservableObject {
         return itemRequest
     }
 
-    public func getInsights(type: Int, date: Date, income: Bool) -> (amount: Double, maximum: Double, average: Double, numberOfDays: Int, dates: [Date], dateDictionary: [Date: Double]) {
-        let currentItemRequest: NSFetchRequest<Transaction> = fetchRequestForInsights(type: type, date: date, income: income)
-        let currentTransactions = results(for: currentItemRequest)
-
-        var iterativeDate = date
-
-        if type == 1 {
-            // tracking dates
-            var dates = [Date]()
-            var nextDate = date
-
-            // calendar initialization
-            var calendar = Calendar(identifier: .gregorian)
-
-            calendar.firstWeekday = UserDefaults(suiteName: AppIdentifiers.appGroup)?.integer(forKey: "firstWeekday") ?? 1
-            calendar.minimumDaysInFirstWeek = 4
-
-            var dictionary = [Date: Double]()
-            var totalForWeek = 0.0
-            var maximum = 0.0
-            var numberOfDays = 0
-            var weekAverage = 0.0
-
-            for _ in 1 ... 7 {
-                nextDate = calendar.date(byAdding: .day, value: 1, to: iterativeDate)!
-
-                let holding = currentTransactions.filter {
-                    $0.wrappedDate >= iterativeDate && $0.wrappedDate < nextDate
-                }
-
-                var total = 0.0
-
-                holding.forEach { transaction in
-                    total += transaction.wrappedAmount
-                }
-
-                totalForWeek += total
-
-                dictionary[iterativeDate] = total
-
-                if total > maximum {
-                    maximum = total
-                }
-
-                if total != 0 {
-                    numberOfDays += 1
-                }
-
-                dates.append(iterativeDate)
-                iterativeDate = nextDate
-            }
-
-            let dateComponents = calendar.dateComponents([.weekOfYear, .yearForWeekOfYear], from: Date.now)
-
-            let currentWeek = calendar.date(from: dateComponents)!
-
-            if currentWeek == date {
-//                let fromDate = Calendar.current.startOfDay(for: currentWeek)
-//                let toDate = Calendar.current.startOfDay(for: Date.now)
-                let numberOfDays = Calendar.current.dateComponents([.day], from: currentWeek, to: Date.now)
-
-                weekAverage = totalForWeek / Double((numberOfDays.day! + 1))
-            } else {
-                weekAverage = totalForWeek / 7
-            }
-
-            return (totalForWeek, maximum, weekAverage, numberOfDays, dates, dictionary)
-        } else if type == 2 {
-            // tracking dates
-            var dates = [Date]()
-            var nextDate = date
-
-            let calendar = Calendar(identifier: .gregorian)
-            let range = calendar.range(of: .day, in: .month, for: iterativeDate)!
-
-            var dictionary = [Date: Double]()
-            var totalForMonth = 0.0
-            var maximum = 0.0
-            var numberOfDays = 0
-            var monthAverage = 0.0
-
-            for _ in 1 ... range.count {
-                nextDate = calendar.date(byAdding: .day, value: 1, to: iterativeDate)!
-
-                let holding = currentTransactions.filter {
-                    $0.wrappedDate >= iterativeDate && $0.wrappedDate < nextDate
-                }
-
-                var total = 0.0
-
-                holding.forEach { transaction in
-                    total += transaction.wrappedAmount
-                }
-
-                totalForMonth += total
-
-                dictionary[iterativeDate] = total
-
-                if total > maximum {
-                    maximum = total
-                }
-
-                if total != 0 {
-                    numberOfDays += 1
-                }
-
-                dates.append(iterativeDate)
-                iterativeDate = nextDate
-            }
-
-            let next = calendar.date(byAdding: .month, value: 1, to: date) ?? Date.now
-
-            if next > Date.now {
-                let numDays = Calendar.current.dateComponents([.day], from: date, to: Date.now)
-
-                monthAverage = totalForMonth / Double((numDays.day! + 1))
-            } else {
-                monthAverage = totalForMonth / Double(range.count)
-            }
-
-            return (totalForMonth, maximum, monthAverage, numberOfDays, dates, dictionary)
-        } else if type == 3 {
-            // trackin dates
-            var dates = [Date]()
-            var nextDate = date
-
-            let calendar = Calendar(identifier: .gregorian)
-
-            var dictionary = [Date: Double]()
-            var totalForYear = 0.0
-            var maximum = 0.0
-            var numberOfDays = 0
-            var monthAverage = 0.0
-
-            for _ in 1 ... 12 {
-                nextDate = calendar.date(byAdding: .month, value: 1, to: iterativeDate)!
-
-                let holding = currentTransactions.filter {
-                    $0.wrappedDate >= iterativeDate && $0.wrappedDate < nextDate
-                }
-
-                var total = 0.0
-
-                holding.forEach { transaction in
-                    total += transaction.wrappedAmount
-                }
-
-                totalForYear += total
-
-                dictionary[iterativeDate] = total
-
-                if total > maximum {
-                    maximum = total
-                }
-
-                if total != 0 {
-                    numberOfDays += 1
-                }
-
-                dates.append(iterativeDate)
-                iterativeDate = nextDate
-            }
-
-            let dateComponents = calendar.dateComponents([.year], from: Date.now)
-
-            let currentYear = calendar.date(from: dateComponents)!
-
-            if currentYear == date {
-                let fromDate = Calendar.current.startOfDay(for: currentYear)
-                let toDate = Calendar.current.startOfDay(for: Date.now)
-                let numDays = Calendar.current.dateComponents([.month], from: fromDate, to: toDate)
-
-                monthAverage = totalForYear / Double((numDays.month! + 1))
-            } else {
-                monthAverage = totalForYear / 12
-            }
-
-            return (totalForYear, maximum, monthAverage, numberOfDays, dates, dictionary)
-        } else {
-            return (0, 0, 0, 0, [Date](), [Date: Double]())
+    public func getInsights(type: Int, date: Date, income: Bool, now: Date = .now, calendar: Calendar = .current, firstDayOfMonth: Int? = nil) -> (amount: Double, maximum: Double, average: Double, numberOfDays: Int, dates: [Date], dateDictionary: [Date: Double]) {
+        let preferredDay = firstDayOfMonth ?? UserDefaults(suiteName: AppIdentifiers.appGroup)?.integer(forKey: "firstDayOfMonth") ?? 1
+        guard (1...3).contains(type), let end = LedgerCalendar.insightsEnd(start: date, type: type, firstDayOfMonth: preferredDay, calendar: calendar), end > date else { return (0, 0, 0, 0, [], [:]) }
+        let transactions = results(for: fetchRequestForInsights(type: type, date: date, income: income, now: now, calendar: calendar, firstDayOfMonth: preferredDay))
+        let component: Calendar.Component = type == 3 ? .month : .day
+        let count = calendar.dateComponents([component], from: date, to: end).value(for: component) ?? 0
+        guard count > 0, count <= 366 else { return (0, 0, 0, 0, [], [:]) }
+        var dates: [Date] = []
+        var totals: [Date: Double] = [:]
+        for index in 0..<count {
+            guard let start = calendar.date(byAdding: component, value: index, to: date),
+                  let next = calendar.date(byAdding: component, value: index + 1, to: date), next > start else { continue }
+            let total = transactions.filter { row in row.date.map { start <= $0 && $0 < next } ?? false }.reduce(0) { $0 + $1.amount }
+            dates.append(start)
+            totals[start] = total
         }
+        let total = totals.values.reduce(0, +)
+        let elapsed = calendar.dateComponents([component], from: date, to: min(now, end)).value(for: component) ?? 0
+        let periods = now >= end ? count : min(count, max(1, elapsed + 1))
+        return (total, totals.values.filter(\.isFinite).max() ?? 0, total.isFinite ? NumericSafety.safeRatio(total, Double(periods)) : .nan, totals.values.filter { $0 != 0 }.count, dates, totals)
     }
 
-    public func fetchRequestForInsights(type: Int, date: Date, income: Bool? = nil) -> NSFetchRequest<Transaction> {
-        let itemRequest: NSFetchRequest<Transaction> = Transaction.fetchRequest()
-
-        var calendar = Calendar(identifier: .gregorian)
-
-        calendar.firstWeekday = UserDefaults(suiteName: AppIdentifiers.appGroup)?.integer(forKey: "firstWeekday") ?? 1
-        calendar.minimumDaysInFirstWeek = 4
-
-        let startPredicate = NSPredicate(format: "%K >= %@", #keyPath(Transaction.date), date as CVarArg)
-
-        let endPredicate: NSPredicate
-
-        if type == 1 {
-            if calendar.isDate(date, equalTo: Date.now, toGranularity: .weekOfYear) {
-                endPredicate = NSPredicate(format: "%K < %@", #keyPath(Transaction.date), Date.now as CVarArg)
-            } else {
-                let next = calendar.date(byAdding: .day, value: 7, to: date) ?? Date.now
-                endPredicate = NSPredicate(format: "%K < %@", #keyPath(Transaction.date), next as CVarArg)
-            }
-        } else if type == 2 {
-            let next = calendar.date(byAdding: .month, value: 1, to: date) ?? Date.now
-
-//            let endOfPeriod = calendar.date(byAdding: .day, value: -1, to: next) ?? Date.now
-//
-            if next > Date.now {
-                endPredicate = NSPredicate(format: "%K < %@", #keyPath(Transaction.date), Date.now as CVarArg)
-            } else {
-                endPredicate = NSPredicate(format: "%K < %@", #keyPath(Transaction.date), next as CVarArg)
-            }
-//
-//            if calendar.isDate(date, equalTo: Date.now, toGranularity: .month) {
-//                endPredicate = NSPredicate(format: "%K < %@", #keyPath(Transaction.date), Date.now as CVarArg)
-//            } else {
-//
-//                endPredicate = NSPredicate(format: "%K < %@", #keyPath(Transaction.date), next as CVarArg)
-//            }
-        } else {
-            if calendar.isDate(date, equalTo: Date.now, toGranularity: .year) {
-                endPredicate = NSPredicate(format: "%K < %@", #keyPath(Transaction.date), Date.now as CVarArg)
-            } else {
-                let next = calendar.date(byAdding: .year, value: 1, to: date) ?? Date.now
-                endPredicate = NSPredicate(format: "%K < %@", #keyPath(Transaction.date), next as CVarArg)
-            }
-        }
-
-        let andPredicate: NSCompoundPredicate
-
-        if let unwrappedIncome = income {
-            let incomePredicate = NSPredicate(format: "income = %d", unwrappedIncome)
-
-            andPredicate = NSCompoundPredicate(type: .and, subpredicates: [startPredicate, incomePredicate, endPredicate])
-        } else {
-            andPredicate = NSCompoundPredicate(type: .and, subpredicates: [startPredicate, endPredicate])
-        }
-
-        itemRequest.predicate = andPredicate
-
-        return itemRequest
+    public func fetchRequestForInsights(type: Int, date: Date, income: Bool? = nil, now: Date = .now, calendar: Calendar = .current, firstDayOfMonth: Int? = nil) -> NSFetchRequest<Transaction> {
+        let request = Transaction.fetchRequest()
+        let preferredDay = firstDayOfMonth ?? UserDefaults(suiteName: AppIdentifiers.appGroup)?.integer(forKey: "firstDayOfMonth") ?? 1
+        var predicates = [LedgerCalendar.insightsPredicate(start: date, type: type, now: now, firstDayOfMonth: preferredDay, calendar: calendar)]
+        if let income { predicates.append(NSPredicate(format: "income == %d", income)) }
+        request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: predicates)
+        return request
     }
 
     public func getInsightsSummary(type: Int, date: Date) -> (spent: Double, income: Double, net: Double, positive: Bool, average: Double) {
-        let itemRequest: NSFetchRequest<Transaction> = fetchRequestForInsights(type: type, date: date)
-        let currentTransactions = results(for: itemRequest)
-
-        var holdingSpent = 0.0
-        var holdingIncome = 0.0
-
-        currentTransactions.forEach { transaction in
-            if transaction.income {
-                holdingIncome += transaction.amount
-            } else {
-                holdingSpent += transaction.amount
-            }
-        }
-
-        let net = holdingIncome - holdingSpent
-        let absoluteNet: Double
-        let positive: Bool
-
-        if net < 0 {
-            absoluteNet = abs(net)
-            positive = false
-        } else {
-            absoluteNet = net
-            positive = true
-        }
-
+        let transactions = results(for: fetchRequestForInsights(type: type, date: date))
+        let spent = transactions.filter { !$0.income }.reduce(0) { $0 + $1.amount }
+        let income = transactions.filter(\.income).reduce(0) { $0 + $1.amount }
+        let net = income - spent
         let calendar = Calendar.current
-
-        if type == 1 {
-            if calendar.isDate(date, equalTo: Date.now, toGranularity: .weekOfYear) {
-                let numberOfDays = Calendar.current.dateComponents([.day], from: date, to: Date.now)
-
-                return (holdingSpent, holdingIncome, absoluteNet, positive, abs(net) / Double(numberOfDays.day! + 1))
-            } else {
-                return (holdingSpent, holdingIncome, absoluteNet, positive, abs(net) / 7)
-            }
-        } else if type == 2 {
-            let next = calendar.date(byAdding: .month, value: 1, to: date) ?? Date.now
-
-            if next > Date.now {
-                let numDays = Calendar.current.dateComponents([.day], from: date, to: Date.now)
-
-                return (holdingSpent, holdingIncome, absoluteNet, positive, abs(net) / Double(numDays.day! + 1))
-            } else {
-                let numDays = Calendar.current.dateComponents([.day], from: date, to: next)
-
-                return (holdingSpent, holdingIncome, absoluteNet, positive, abs(net) / Double(numDays.day! + 1))
-            }
-//            if calendar.isDate(date, equalTo: Date.now, toGranularity: .month) {
-//                let numDays = Calendar.current.dateComponents([.day], from: date, to: Date.now)
-//
-//                return (holdingSpent, holdingIncome, absoluteNet, positive, abs(net) / Double(numDays.day! + 1))
-//            } else {
-//
-//                let range = calendar.range(of: .day, in: .month, for: date)!
-//                let numDays = range.count
-//
-//                return (holdingSpent, holdingIncome, absoluteNet, positive, abs(net) / Double(numDays))
-//            }
-        } else {
-            if calendar.isDate(date, equalTo: Date.now, toGranularity: .year) {
-                let numDays = Calendar.current.dateComponents([.month], from: date, to: Date.now)
-
-                return (holdingSpent, holdingIncome, absoluteNet, positive, abs(net) / Double(numDays.month! + 1))
-            } else {
-                return (holdingSpent, holdingIncome, absoluteNet, positive, abs(net) / 12)
-            }
-        }
+        let preferredDay = UserDefaults(suiteName: AppIdentifiers.appGroup)?.integer(forKey: "firstDayOfMonth") ?? 1
+        guard let end = LedgerCalendar.insightsEnd(start: date, type: type, firstDayOfMonth: preferredDay), end > date else { return (spent, income, abs(net), net >= 0, 0) }
+        let now = Date.now
+        let component: Calendar.Component = type == 3 ? .month : .day
+        let elapsed = calendar.dateComponents([component], from: date, to: min(now, end)).value(for: component) ?? 0
+        let periods = max(1, elapsed + (now < end ? 1 : 0))
+        return (spent, income, abs(net), net >= 0, net.isFinite ? NumericSafety.safeRatio(abs(net), Double(periods)) : .nan)
     }
 
     public func fetchRequestForWidgetInsights(type: LedgerInsightsPeriod, income: Bool) -> (fetchRequest: NSFetchRequest<Transaction>, date: Date) {
@@ -1767,7 +1471,7 @@ public final class DataController: ObservableObject {
         do {
             return try performViewContextRead { context in
                 guard let budget = try LedgerMaintenance.currentMainBudget(in: context),
-                      let startDate = budget.startDate else {
+                      let window = budget.currentWindow() else {
                     return (false, 0, 0, 0, 0, Date.now)
                 }
                 let transactions = try context.fetch(fetchRequestForMainBudgetTransactions(budget: budget))
@@ -1776,12 +1480,12 @@ public final class DataController: ObservableObject {
                     return (false, 0, 0, 0, 0, Date.now)
                 }
                 let percentage = BudgetWindow.progress(
-                    startDate: startDate,
-                    endDate: budget.endDate,
+                    startDate: window.start,
+                    endDate: window.end,
                     now: .now,
                     calendar: .current
                 )
-                return (true, total, budget.amount, percentage, Int(budget.type), startDate)
+                return (true, total, budget.amount, percentage, Int(budget.type), window.start)
             }
         } catch {
             return (false, 0, 0, 0, 0, Date.now)
@@ -1820,21 +1524,21 @@ public enum TransactionSummary {
     }
 }
 
-public enum BudgetWindow {
-    public static func progress(
-        startDate: Date,
-        endDate: Date,
-        now: Date,
-        calendar: Calendar
-    ) -> Double {
-        let duration = calendar.dateComponents([.second], from: startDate, to: endDate).second ?? 0
-        let elapsed = calendar.dateComponents([.second], from: startDate, to: now).second ?? 0
-        guard duration > 0 else { return 0 }
-        return Double(elapsed) / Double(duration)
-    }
-}
-
 public enum NumericSafety {
+    public static func graphMaximum(_ value: Double) -> Double {
+        guard value.isFinite, value > 0 else { return 0 }
+        let headroom = value * 1.1
+        guard headroom.isFinite else { return value }
+        let rounded = ceil(headroom / 10) * 10
+        return rounded.isFinite ? rounded : value
+    }
+
+    public static func difference(_ lhs: Double, _ rhs: Double) -> Double {
+        guard lhs.isFinite, rhs.isFinite else { return .nan }
+        let result = lhs - rhs
+        if result.isFinite { return result }
+        return lhs >= rhs ? .greatestFiniteMagnitude : -.greatestFiniteMagnitude
+    }
     public static func finiteOrZero(_ value: Double) -> Double {
         value.isFinite ? value : 0
     }
@@ -1868,7 +1572,9 @@ public enum WidgetInsightMath {
     }
 
     public static func categoryShare(amount: Double, total: Double) -> Double {
-        NumericSafety.clamped(NumericSafety.safeRatio(amount, total), to: 0 ... 1)
+        guard amount.isFinite, total.isFinite, amount >= 0, total > 0 else { return 0 }
+        if amount >= total { return 1 }
+        return NumericSafety.clamped(NumericSafety.safeRatio(amount, total), to: 0 ... 1)
     }
 }
 
@@ -1879,9 +1585,17 @@ public enum BudgetValidation {
 }
 
 public enum BudgetMath {
+    public static func percentageText(spent: Double, budgetAmount: Double, remaining: Bool = false) -> String {
+        guard spent.isFinite, budgetAmount.isFinite, budgetAmount > 0 else { return "—" }
+        let percentage = spendingRatio(spent: spent, budgetAmount: budgetAmount) * 100
+        guard percentage.isFinite else { return (spent >= 0) != remaining ? ">999%" : "<−999%" }
+        let value = remaining ? 100 - percentage : percentage
+        return String(format: "%.0f%%", value)
+    }
     public static func spendingRatio(spent: Double, budgetAmount: Double) -> Double {
         guard spent.isFinite, budgetAmount.isFinite, budgetAmount > 0 else { return 0 }
-        return NumericSafety.safeRatio(spent, budgetAmount)
+        let result = spent / budgetAmount
+        return result.isFinite ? result : (spent >= 0 ? .greatestFiniteMagnitude : -.greatestFiniteMagnitude)
     }
 
     public static func gaugeRatio(spent: Double, budgetAmount: Double) -> Double {
@@ -1947,26 +1661,10 @@ public func getStartOfMonth(
     calendar: Calendar = .current
 ) -> Date {
 
-    guard startDay > 0 && startDay <= calendar.maximumRange(of: .day)!.upperBound else {
-        let dateComponents = calendar.dateComponents([.month, .year], from: now)
-        return calendar.date(from: dateComponents) ?? now
-    }
-
-    let today = calendar.startOfDay(for: now)
-    let currentDay = calendar.component(.day, from: today)
-
-    var startComponents = DateComponents()
-    startComponents.month = currentDay >= startDay ? 0 : -1
-
-    startComponents.day = startDay - currentDay
-
-    return calendar.date(byAdding: startComponents, to: today) ?? now
+    guard let candidate = LedgerCalendar.monthStart(in: now, day: startDay, calendar: calendar) else { return .distantPast }
+    return candidate <= now ? candidate : (LedgerCalendar.monthStart(in: now, day: startDay, offset: -1, calendar: calendar) ?? candidate)
 }
 
-public func calculateStartOfMonthPeriod(earliestDate: Date, startOfMonthDay: Int) -> Date {
-    var components = Calendar.current.dateComponents([.year, .month, .day], from: earliestDate)
-    components.day = startOfMonthDay
-
-    let startOfMonth = Calendar.current.date(from: components) ?? Date.now
-    return (earliestDate < startOfMonth) ? (Calendar.current.date(byAdding: .month, value: -1, to: startOfMonth) ?? Date.now) : startOfMonth
+public func calculateStartOfMonthPeriod(earliestDate: Date, startOfMonthDay: Int, calendar: Calendar = .current) -> Date {
+    getStartOfMonth(startDay: startOfMonthDay, now: earliestDate, calendar: calendar)
 }

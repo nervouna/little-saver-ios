@@ -55,13 +55,13 @@ struct MainBudgetWidgetProvider: TimelineProvider {
     }
 
     private func empty(status: ExtensionReadStatus) -> Entry {
-        Entry(date: Date(), totalSpent: 0, percentageOfDays: 0, type: 1, budgetAmount: 0, startDate: Date(), found: false, readStatus: status)
+        Entry(date: Date(), totalSpent: 0, percentageOfDays: 0, type: 1, budgetAmount: 0, startDate: Date(), endDate: Date(), found: false, readStatus: status)
     }
 
     private func loadEntry() async -> Entry {
         do {
             guard let snapshot = try await DataController.platformShared.mainBudgetSnapshot() else { return empty(status: .empty) }
-            return Entry(date: Date(), totalSpent: snapshot.spent, percentageOfDays: snapshot.progress, type: snapshot.type, budgetAmount: snapshot.amount, startDate: snapshot.startDate, found: true)
+            return Entry(date: snapshot.readDate, totalSpent: snapshot.spent, percentageOfDays: snapshot.progress, type: snapshot.type, budgetAmount: snapshot.amount, startDate: snapshot.startDate, endDate: snapshot.endDate, found: true)
         } catch {
             return empty(status: ExtensionReadStatus(error: error))
         }
@@ -75,6 +75,7 @@ struct MainBudgetWidgetEntry: TimelineEntry {
     let type: Int
     let budgetAmount: Double
     let startDate: Date
+    let endDate: Date
     let found: Bool
     var readStatus: ExtensionReadStatus = .loaded
 }
@@ -102,14 +103,8 @@ struct MainBudgetWidgetEntryView: View {
         switch entry.type {
         case 1:
             return localizedDate(entry.startDate, template: "dMMMyyyy")
-        case 2:
-            let endComponents = DateComponents(day: 7, second: -1)
-            let endWeekDate = Calendar.current.date(byAdding: endComponents, to: entry.startDate)!
-            return localizedDateInterval(from: entry.startDate, to: endWeekDate)
-        case 3:
-            let endComponents = DateComponents(month: 1, second: -1)
-            let endWeekDate = Calendar.current.date(byAdding: endComponents, to: entry.startDate)!
-            return localizedDateInterval(from: entry.startDate, to: endWeekDate)
+        case 2, 3:
+            return localizedDateInterval(from: entry.startDate, to: entry.endDate.addingTimeInterval(-1))
         case 4:
             return localizedDate(entry.startDate, template: "dMMMyy")
         default:
@@ -118,15 +113,15 @@ struct MainBudgetWidgetEntryView: View {
     }
 
     var difference: Double {
-        return abs(entry.budgetAmount - entry.totalSpent)
+        return abs(NumericSafety.difference(entry.budgetAmount, entry.totalSpent))
     }
 
     var percentString: String {
-        return String(localized: "\(BudgetMath.roundedPercentage(spent: entry.totalSpent, budgetAmount: entry.budgetAmount))% spent")
+        return localizedFormat("widget.budget.percentage.spent", arguments: [BudgetMath.percentageText(spent: entry.totalSpent, budgetAmount: entry.budgetAmount)])
     }
 
     var percentString1: String {
-        return "\(BudgetMath.roundedPercentage(spent: entry.totalSpent, budgetAmount: entry.budgetAmount))%"
+        return BudgetMath.percentageText(spent: entry.totalSpent, budgetAmount: entry.budgetAmount)
     }
 
     var percent: Double {
@@ -152,7 +147,7 @@ struct MainBudgetWidgetEntryView: View {
         return size > systemSmallWidgetText.widthOfRoundedString(size: 10, weight: .semibold)
     }
 
-    @AppStorage("currency", store: UserDefaults(suiteName: AppIdentifiers.appGroup)) var currency: String = Locale.current.currencyCode!
+    @AppStorage("currency", store: UserDefaults(suiteName: AppIdentifiers.appGroup)) var currency: String = (Locale.current.currencyCode ?? "USD")
     @AppStorage("showCents", store: UserDefaults(suiteName: AppIdentifiers.appGroup)) var showCents: Bool = true
 
     func currencyAmount(_ amount: Double) -> String {
@@ -190,7 +185,7 @@ struct MainBudgetWidgetEntryView: View {
                     Gauge(value: gaugePercent) {
                         Image(systemName: "dollarsign.circle.fill")
                     } currentValueLabel: {
-                        Text("\(BudgetMath.roundedPercentage(spent: entry.totalSpent, budgetAmount: entry.budgetAmount))%")
+                        Text(BudgetMath.percentageText(spent: entry.totalSpent, budgetAmount: entry.budgetAmount))
                     }
                     .gaugeStyle(AccessoryCircularGaugeStyle())
                     .containerBackground(for: .widget) { Color.clear }
@@ -214,7 +209,7 @@ struct MainBudgetWidgetEntryView: View {
                         Gauge(value: gaugePercent) {
                             Image(systemName: "dollarsign.circle.fill")
                         } currentValueLabel: {
-                            Text("\(BudgetMath.roundedPercentage(spent: entry.totalSpent, budgetAmount: entry.budgetAmount))%")
+                            Text(BudgetMath.percentageText(spent: entry.totalSpent, budgetAmount: entry.budgetAmount))
                         }
                         .gaugeStyle(AccessoryCircularGaugeStyle())
 

@@ -147,7 +147,7 @@ public enum CSVTransactionImporter {
                 throw CSVImportError.unmatchedCategory(row: rowNumber, value: categoryName)
             }
             let amountText = row[mapping.amountColumn].trimmingCharacters(in: .whitespacesAndNewlines)
-            guard let amount = Double(amountText), amount.isFinite else {
+            guard let parsed = Double(amountText), let amount = MoneyAmount(parsed) else {
                 throw CSVImportError.invalidAmount(row: rowNumber, value: amountText)
             }
             let dateText = row[mapping.dateColumn].trimmingCharacters(in: .whitespacesAndNewlines)
@@ -158,7 +158,7 @@ public enum CSVTransactionImporter {
                 rowNumber: rowNumber,
                 note: row[mapping.noteColumn].trimmingCharacters(in: .whitespacesAndNewlines),
                 categoryID: category,
-                amount: abs(amount),
+                amount: abs(amount.value),
                 date: date
             ))
         }

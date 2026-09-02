@@ -93,9 +93,9 @@ struct BrandNewBudgetView: View {
     @State var decimalValuesAssigned: AssignedDecimal = .none
     @State private var priceString: String = "0"
 
-    @AppStorage("currency", store: UserDefaults(suiteName: AppIdentifiers.appGroup)) var currency: String = Locale.current.currencyCode!
+    @AppStorage("currency", store: UserDefaults(suiteName: AppIdentifiers.appGroup)) var currency: String = (Locale.current.currencyCode ?? "USD")
     var currencySymbol: String {
-        return Locale.current.localizedCurrencySymbol(forCurrencyCode: currency)!
+        return (Locale.current.localizedCurrencySymbol(forCurrencyCode: currency) ?? currency)
     }
 
     var amountPerDayString: String {
@@ -139,7 +139,11 @@ struct BrandNewBudgetView: View {
     }
 
     var showBackButton: Bool {
-        progress > 1 && !(progress == 2 && overallBudgetCreated) && !(progress == 3 && editMode)
+        canGoBack(from: progress)
+    }
+
+    func canGoBack(from step: Int) -> Bool {
+        step > Int(initialProgress)
     }
 
     var instructions: [InstructionHeadings] {
@@ -599,95 +603,6 @@ struct BrandNewBudgetView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
         .background(Color.PrimaryBackground)
-        .onAppear {
-            DispatchQueue.main.async {
-                if let unwrappedEditedBudget = toEditBudget {
-                    selectedCategory = unwrappedEditedBudget.category
-                    switch unwrappedEditedBudget.type {
-                    case 1:
-                        budgetTimeFrame = .day
-                    case 2:
-                        budgetTimeFrame = .week
-                        chosenDayWeek = Calendar.current.dateComponents([.weekday], from: unwrappedEditedBudget.startDate!).weekday!
-                    case 3:
-                        budgetTimeFrame = .month
-                        chosenDayMonth = Calendar.current.dateComponents([.day], from: unwrappedEditedBudget.startDate!).day!
-                    case 4:
-                        budgetTimeFrame = .year
-                        chosenDayYear = unwrappedEditedBudget.startDate!
-                    default:
-                        budgetTimeFrame = .week
-                    }
-
-                    price = unwrappedEditedBudget.amount
-
-                    if unwrappedEditedBudget.amount.truncatingRemainder(dividingBy: 1) > 0 && numberEntryType == 2 {
-                        isEditingDecimal = true
-                        decimalValuesAssigned = .second
-                    }
-//                    let string = String(format: "%.2f", unwrappedEditedBudget.amount)
-//
-//                    var stringArray = string.compactMap { String($0) }
-//
-//                    
-//                    numbers = stringArray.compactMap { Int($0) }
-//
-//                    if round(unwrappedEditedBudget.amount) == unwrappedEditedBudget.amount {
-//                        stringArray.removeLast()
-//                        stringArray.removeLast()
-//                        stringArray.removeLast()
-//                        numbers1 = stringArray
-//                    } else {
-//                        numbers1 = stringArray
-//                    }
-                } else {
-                    chosenDayWeek = firstWeekday
-                    chosenDayMonth = firstDayOfMonth
-                }
-
-                if let unwrappedEditedMainBudget = toEditMainBudget {
-                    switch unwrappedEditedMainBudget.type {
-                    case 1:
-                        budgetTimeFrame = .day
-                    case 2:
-                        budgetTimeFrame = .week
-                        chosenDayWeek = Calendar.current.dateComponents([.weekday], from: unwrappedEditedMainBudget.startDate!).weekday!
-                    case 3:
-                        budgetTimeFrame = .month
-                        chosenDayMonth = Calendar.current.dateComponents([.day], from: unwrappedEditedMainBudget.startDate!).day!
-                    case 4:
-                        budgetTimeFrame = .year
-                        chosenDayYear = unwrappedEditedMainBudget.startDate!
-                    default:
-                        budgetTimeFrame = .week
-                    }
-
-                    price = unwrappedEditedMainBudget.amount
-
-                    if unwrappedEditedMainBudget.amount.truncatingRemainder(dividingBy: 1) > 0 && numberEntryType == 2 {
-                        isEditingDecimal = true
-                        decimalValuesAssigned = .second
-                    }
-//                    let string = String(format: "%.2f", unwrappedEditedMainBudget.amount)
-//
-//                    var stringArray = string.compactMap { String($0) }
-//
-//                    numbers = stringArray.compactMap { Int($0) }
-//
-//                    if round(unwrappedEditedMainBudget.amount) == unwrappedEditedMainBudget.amount {
-//                        stringArray.removeLast()
-//                        stringArray.removeLast()
-//                        stringArray.removeLast()
-//                        numbers1 = stringArray
-//                    } else {
-//                        numbers1 = stringArray
-//                    }
-                } else {
-                    chosenDayWeek = firstWeekday
-                    chosenDayMonth = firstDayOfMonth
-                }
-            }
-        }
         .sheet(isPresented: $showingCategoryView) {
             if #available(iOS 16.0, *) {
                 NewCategoryAlert(income: Binding.constant(false), bottomSpacers: false, budgetMode: true)
@@ -748,40 +663,51 @@ struct BrandNewBudgetView: View {
                 startDate = holdingDate
             }
         case .month:
-            let calendar = Calendar.current
-
-            let dateComponents = calendar.dateComponents([.month, .year], from: today)
-
-            let startOfMonth = calendar.date(from: dateComponents)!
-
-            let holdingDate = calendar.date(byAdding: .day, value: chosenDayMonth - 1, to: startOfMonth)!
-
-            if holdingDate > today {
-                let newHoldingDate = calendar.date(byAdding: .month, value: -1, to: holdingDate)!
-
-                startDate = newHoldingDate
-            } else {
-                startDate = holdingDate
+            guard let anchor = LedgerCalendar.monthlyScheduleAnchor(day: chosenDayMonth, onOrBefore: today) else {
+                MutationPresentation.show(LedgerCommandError.invalidInput)
+                return
             }
+            startDate = anchor
         case .year:
             startDate = Calendar.current.startOfDay(for: chosenDayYear)
         }
 
-        let reference = toEditBudget.map(LedgerReference.init)
-        let category = selectedCategory.map(LedgerReference.init)
+        startDate = retainedScheduleAnchor(proposed: startDate)
+
+        let category = selectedCategory
         let amount = price
         let type = Int16(budgetType)
         let isCategoryBudget = toEditBudget != nil || (toEditMainBudget == nil && categoryBudget)
         dataController.submitMutation({
             if isCategoryBudget {
-                guard let category else { throw LedgerCommandError.invalidInput }
-                try await dataController.saveBudget(reference: reference, category: category, amount: amount, startDate: startDate, type: type)
+                try await saveCategoryBudget(using: dataController, category: category, amount: amount, proposedStart: startDate)
             } else {
                 try await dataController.upsertMainBudget(amount: amount, startDate: startDate, type: type)
             }
         }, success: {
             dismiss()
         })
+    }
+
+    // This is the same submission path used after the category repair step.
+    @MainActor
+    func saveCategoryBudget(using controller: DataController, category: Category?, amount: Double, proposedStart: Date, calendar: Calendar = .current) async throws {
+        guard let category else { throw LedgerCommandError.invalidInput }
+        try await controller.saveBudget(reference: toEditBudget.map(LedgerReference.init), category: LedgerReference(category), amount: amount, startDate: retainedScheduleAnchor(proposed: proposedStart, calendar: calendar), type: Int16(getBudgetTypeInteger(budgetTimeFrame)))
+    }
+
+    func retainedScheduleAnchor(proposed: Date, calendar: Calendar = .current) -> Date {
+        let budgetType = getBudgetTypeInteger(budgetTimeFrame)
+        let originalAnchor = toEditBudget?.startDate ?? toEditMainBudget?.startDate
+        let originalType = toEditBudget?.type ?? toEditMainBudget?.type
+        if let originalAnchor, LedgerCalendar.isValid(originalAnchor), originalType == Int16(budgetType) {
+            let unchanged = budgetType == 1
+                || (budgetType == 2 && calendar.component(.weekday, from: originalAnchor) == chosenDayWeek)
+                || (budgetType == 3 && calendar.component(.day, from: originalAnchor) == chosenDayMonth)
+                || (budgetType == 4 && calendar.isDate(originalAnchor, inSameDayAs: chosenDayYear))
+            if unchanged { return originalAnchor }
+        }
+        return proposed
     }
 
     func getRows() -> [[Category]] {
@@ -883,12 +809,13 @@ struct BrandNewBudgetView: View {
         }
     }
 
-    init(overallBudgetCreated: Bool, toEditBudget: Budget? = nil, toEditMainBudget: MainBudget? = nil) {
-        if toEditBudget != nil {
+    init(overallBudgetCreated: Bool, toEditBudget: Budget? = nil, toEditMainBudget: MainBudget? = nil, calendar: Calendar = .current, preferredWeekday: Int? = nil, preferredMonthDay: Int? = nil) {
+        if let toEditBudget {
             self.overallBudgetCreated = overallBudgetCreated
-            _progress = State(initialValue: 3)
+            let firstStep = toEditBudget.category == nil ? 2 : 3
+            _progress = State(initialValue: firstStep)
             _categoryBudget = State(initialValue: true)
-            initialProgress = 3
+            initialProgress = Double(firstStep)
         } else if toEditMainBudget != nil {
             self.overallBudgetCreated = overallBudgetCreated
             _progress = State(initialValue: 3)
@@ -908,6 +835,24 @@ struct BrandNewBudgetView: View {
 
         self.toEditBudget = toEditBudget
         self.toEditMainBudget = toEditMainBudget
+
+        // Initialize once. Returning from category creation must not reset edits,
+        // and category-budget values must not be overwritten by main-budget defaults.
+        let preferences = UserDefaults(suiteName: AppIdentifiers.appGroup)
+        let type = toEditBudget?.type ?? toEditMainBudget?.type
+        let anchor = (toEditBudget?.startDate ?? toEditMainBudget?.startDate).flatMap { LedgerCalendar.isValid($0) ? $0 : nil } ?? Date.now
+        let amount = MoneyAmount(toEditBudget?.amount ?? toEditMainBudget?.amount ?? 0)?.value ?? 0
+        let defaultWeekday = preferredWeekday ?? preferences?.integer(forKey: "firstWeekday") ?? 1
+        let defaultMonthDay = preferredMonthDay ?? preferences?.integer(forKey: "firstDayOfMonth") ?? 1
+        _selectedCategory = State(initialValue: toEditBudget?.category)
+        _budgetTimeFrame = State(initialValue: type == 1 ? .day : type == 3 ? .month : type == 4 ? .year : .week)
+        _chosenDayWeek = State(initialValue: type == 2 ? calendar.component(.weekday, from: anchor) : (1...7).contains(defaultWeekday) ? defaultWeekday : 1)
+        _chosenDayMonth = State(initialValue: type == 3 ? calendar.component(.day, from: anchor) : (1...31).contains(defaultMonthDay) ? defaultMonthDay : 1)
+        _chosenDayYear = State(initialValue: anchor)
+        _price = State(initialValue: amount)
+        let editingDecimal = amount.truncatingRemainder(dividingBy: 1) > 0 && preferences?.integer(forKey: "numberEntryType") == 2
+        _isEditingDecimal = State(initialValue: editingDecimal)
+        _decimalValuesAssigned = State(initialValue: editingDecimal ? .second : .none)
 
         let budgetPredicate = NSPredicate(format: "%K == nil", #keyPath(Category.budget))
         let incomePredicate = NSPredicate(format: "income = %d", false)

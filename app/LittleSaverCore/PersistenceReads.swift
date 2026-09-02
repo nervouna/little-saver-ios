@@ -169,7 +169,8 @@ public struct BudgetReadSnapshot: Sendable, Equatable {
     public let type: Int
     public let startDate: Date
     public let endDate: Date
-    public var progress: Double { BudgetWindow.progress(startDate: startDate, endDate: endDate, now: .now, calendar: .current) }
+    public let readDate: Date
+    public var progress: Double { BudgetWindow.progress(startDate: startDate, endDate: endDate, now: readDate, calendar: .current) }
 }
 
 public struct TransactionReadSnapshot: Sendable {
@@ -184,7 +185,7 @@ public struct TransactionReadSnapshot: Sendable {
 
     public init(transaction: Transaction) {
         note = transaction.wrappedNote
-        amount = transaction.amount
+        amount = MoneyAmount(transaction.amount)?.value ?? transaction.amount
         income = transaction.income
         date = transaction.wrappedDate
         categoryID = transaction.category?.id
@@ -227,13 +228,13 @@ public extension DataController {
         }
     }
 
-    func budgetSnapshots() async throws -> [BudgetReadSnapshot] {
+    func budgetSnapshots(now: Date = .now, calendar: Calendar = .current) async throws -> [BudgetReadSnapshot] {
         try await performBackgroundRead { context in
-            try context.fetch(self.fetchRequestForBudgets()).compactMap { try self.snapshot(budget: $0, context: context) }
+            try context.fetch(self.fetchRequestForBudgets()).compactMap { try self.snapshot(budget: $0, context: context, now: now, calendar: calendar) }
         }
     }
 
-    func budgetSnapshot(identifier: String) async throws -> BudgetReadSnapshot? {
+    func budgetSnapshot(identifier: String, now: Date = .now, calendar: Calendar = .current) async throws -> BudgetReadSnapshot? {
         try await performBackgroundRead { context in
             let budget: Budget?
             if let id = UUID(uuidString: identifier) {
@@ -247,27 +248,27 @@ public extension DataController {
                 budget = try context.existingObject(with: id) as? Budget
             } else { budget = nil }
             guard let budget else { return nil }
-            return try self.snapshot(budget: budget, context: context)
+            return try self.snapshot(budget: budget, context: context, now: now, calendar: calendar)
         }
     }
 
-    private func snapshot(budget: Budget, context: NSManagedObjectContext) throws -> BudgetReadSnapshot? {
-        guard let start = budget.startDate, budget.category != nil, (1...4).contains(budget.type) else { return nil }
-        let spent = try context.fetch(fetchRequestForBudgetTransactions(budget: budget)).reduce(0) { $0 + $1.amount }
+    private func snapshot(budget: Budget, context: NSManagedObjectContext, now: Date, calendar: Calendar) throws -> BudgetReadSnapshot? {
+        guard let window = budget.currentWindow(now: now, calendar: calendar) else { return nil }
+        let spent = try context.fetch(fetchRequestForBudgetTransactions(budget: budget, now: now, calendar: calendar)).reduce(0) { $0 + $1.amount }
         guard spent.isFinite, budget.amount.isFinite else { return nil }
         return BudgetReadSnapshot(id: budget.id, identifier: budget.id?.uuidString ?? budget.objectID.uriRepresentation().absoluteString,
                                   name: budget.wrappedName, emoji: budget.wrappedEmoji, colour: budget.wrappedColour,
-                                  amount: budget.amount, spent: NumericSafety.finiteOrZero(spent), type: Int(budget.type), startDate: start, endDate: budget.endDate)
+                                  amount: budget.amount, spent: spent, type: Int(budget.type), startDate: window.start, endDate: window.end, readDate: now)
     }
 
-    func mainBudgetSnapshot() async throws -> BudgetReadSnapshot? {
+    func mainBudgetSnapshot(now: Date = .now, calendar: Calendar = .current) async throws -> BudgetReadSnapshot? {
         try await performBackgroundRead { context in
             guard let budget = try LedgerMaintenance.currentMainBudget(in: context),
-                  let start = budget.startDate, (1...4).contains(budget.type) else { return nil }
-            let spent = try context.fetch(self.fetchRequestForMainBudgetTransactions(budget: budget)).reduce(0) { $0 + $1.amount }
+                  let window = budget.currentWindow(now: now, calendar: calendar) else { return nil }
+            let spent = try context.fetch(self.fetchRequestForMainBudgetTransactions(budget: budget, now: now, calendar: calendar)).reduce(0) { $0 + $1.amount }
             guard spent.isFinite, budget.amount.isFinite else { return nil }
             return BudgetReadSnapshot(id: nil, identifier: "overall", name: "", emoji: "", colour: "", amount: budget.amount,
-                                      spent: NumericSafety.finiteOrZero(spent), type: Int(budget.type), startDate: start, endDate: budget.endDate)
+                                      spent: spent, type: Int(budget.type), startDate: window.start, endDate: window.end, readDate: now)
         }
     }
 

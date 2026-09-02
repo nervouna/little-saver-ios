@@ -7,6 +7,8 @@ public func localizedCurrencyAmount(
     showPositiveSign: Bool = false,
     locale: Locale = .current
 ) -> String {
+    guard let money = MoneyAmount(amount) else { return String(localized: "Amount unavailable") }
+    let amount = money.value
     let formatter = NumberFormatter()
     formatter.locale = locale
     formatter.numberStyle = .currency

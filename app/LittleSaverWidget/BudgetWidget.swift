@@ -101,7 +101,7 @@ struct WidgetReadStatusView: View {
 struct BudgetWidgetEntryView: View {
     let entry: BudgetWidgetProvider.Entry
 
-    @AppStorage("currency", store: UserDefaults(suiteName: AppIdentifiers.appGroup)) var currency: String = Locale.current.currencyCode!
+    @AppStorage("currency", store: UserDefaults(suiteName: AppIdentifiers.appGroup)) var currency: String = (Locale.current.currencyCode ?? "USD")
     @AppStorage("showCents", store: UserDefaults(suiteName: AppIdentifiers.appGroup)) var showCents: Bool = true
 
     var budgetType: String {
@@ -120,11 +120,11 @@ struct BudgetWidgetEntryView: View {
     }
 
     var difference: Double {
-        return abs(entry.budget.budgetAmount - entry.totalSpent)
+        return abs(NumericSafety.difference(entry.budget.budgetAmount, entry.totalSpent))
     }
 
     var percentString1: String {
-        return "\(BudgetMath.roundedPercentage(spent: entry.totalSpent, budgetAmount: entry.budget.budgetAmount))%"
+        return BudgetMath.percentageText(spent: entry.totalSpent, budgetAmount: entry.budget.budgetAmount)
     }
 
     var spendingRatio: Double {
@@ -384,7 +384,7 @@ struct WidgetBudgetDollarView: View {
     var amount: Double
     var red: Bool
 
-    @AppStorage("currency", store: UserDefaults(suiteName: AppIdentifiers.appGroup)) var currency: String = Locale.current.currencyCode!
+    @AppStorage("currency", store: UserDefaults(suiteName: AppIdentifiers.appGroup)) var currency: String = (Locale.current.currencyCode ?? "USD")
 
     var body: some View {
         Text(localizedCurrencyAmount(amount, currencyCode: currency, showCents: showCents))

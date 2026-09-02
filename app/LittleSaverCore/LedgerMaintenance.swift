@@ -36,7 +36,7 @@ public enum LedgerMaintenance {
         series.type = transaction.recurringType
         series.coefficient = transaction.recurringCoefficient
         series.note = transaction.note
-        series.amount = transaction.amount
+        series.amount = MoneyAmount(transaction.amount)?.value ?? transaction.amount
         series.income = transaction.income
         series.category = transaction.category
         transaction.seriesID = identity
@@ -112,7 +112,7 @@ public enum LedgerMaintenance {
                 return ($0.userEditToken ?? "") < ($1.userEditToken ?? "")
             }), edited !== canonical {
                 // Canonical object identity and canonical human-edited payload are independent.
-                canonical.amount = edited.amount
+                canonical.amount = MoneyAmount(edited.amount)?.value ?? edited.amount
                 canonical.note = edited.note
                 canonical.category = edited.category
                 canonical.income = edited.income
@@ -167,16 +167,19 @@ public enum LedgerMaintenance {
     }
 
     public static func hasDueWork(in context: NSManagedObjectContext, now: Date) throws -> Bool {
-        guard now.timeIntervalSince1970.isFinite else { throw RecurringScheduleError.dateCalculationFailed }
+        guard LedgerCalendar.isValid(now) else { throw RecurringScheduleError.dateCalculationFailed }
         let series = try context.fetch(RecurringSeries.fetchRequest())
         let transactions = try context.fetch(Transaction.fetchRequest())
         return scheduleOwners(series).contains { owner in
+            guard let amount = MoneyAmount(owner.amount), amount.value >= 0 else {
+                return owner.stoppedAt == nil || owner.nextDate != nil
+            }
             if owner.stoppedAt != nil {
                 guard owner.nextDate != nil, calendar(for: owner) != nil else { return false }
                 return transactions.contains { needsNormalization($0, owner: owner, series: series) }
             }
             // A final bounded pass must quarantine invalid rows even if the prior batch filled up.
-            guard let next = owner.nextDate, next.timeIntervalSince1970.isFinite, let calendar = calendar(for: owner) else { return true }
+            guard let next = owner.nextDate, LedgerCalendar.isValid(next), let calendar = calendar(for: owner) else { return true }
             return calendar.startOfDay(for: next) <= calendar.startOfDay(for: now)
                 || transactions.contains { isPrematureLosingOccurrence($0, owner: owner, series: series) }
         }
@@ -185,7 +188,7 @@ public enum LedgerMaintenance {
     /// Work is bounded by visited slots, including slots already present from another peer.
     @discardableResult
     public static func materialize(in context: NSManagedObjectContext, now: Date = Date(), limit: Int = batchLimit) throws -> Int {
-        guard now.timeIntervalSince1970.isFinite else { throw RecurringScheduleError.dateCalculationFailed }
+        guard LedgerCalendar.isValid(now) else { throw RecurringScheduleError.dateCalculationFailed }
         guard limit > 0 else { return 0 }
         let all = try context.fetch(Transaction.fetchRequest())
         var byKey: [String: Transaction] = [:]
@@ -195,6 +198,13 @@ public enum LedgerMaintenance {
         var inserted = 0
         let suppressed = Set(try context.fetch(RecurringSuppression.fetchRequest()).compactMap(\.occurrenceKey))
         for current in scheduleOwners(series) {
+            guard let amount = MoneyAmount(current.amount), amount.value >= 0 else {
+                // Preserve damaged imported data, but never multiply it into new
+                // ledger entries. This quarantine is stable on repeated passes.
+                if current.stoppedAt == nil { current.stoppedAt = now }
+                if current.nextDate != nil { current.nextDate = nil }
+                continue
+            }
             guard let identity = current.logicalID, let namespace = current.occurrenceNamespace, let calendar = calendar(for: current) else {
                 if current.stoppedAt == nil { current.stoppedAt = now }
                 continue
@@ -205,7 +215,7 @@ public enum LedgerMaintenance {
             let pendingMaximum = all.filter { needsNormalization($0, owner: current, series: series) }.map(\.occurrenceIndex).max() ?? 0
             while visited < limit {
                 if replayOnly && current.nextIndex > pendingMaximum { break }
-                guard let due = current.nextDate, due.timeIntervalSince1970.isFinite,
+                guard let due = current.nextDate, LedgerCalendar.isValid(due),
                       current.nextIndex > 0, current.nextIndex < Int64.max else {
                     if current.stoppedAt == nil { current.stoppedAt = now }
                     if current.nextDate != nil { current.nextDate = nil }
@@ -246,7 +256,7 @@ public enum LedgerMaintenance {
                     transaction.seriesID = identity
                     transaction.materializedGenerationID = identity
                     transaction.normalizedGenerationID = identity
-                    transaction.amount = current.amount
+                    transaction.amount = amount.value
                     transaction.note = current.note
                     transaction.income = current.income
                     transaction.category = current.category
@@ -263,7 +273,7 @@ public enum LedgerMaintenance {
                         context.delete(transaction)
                     } else if transaction.userEditedAt == nil && !transaction.scheduleDateOverridden {
                         // The winning schedule owns automatic payload; human edits remain intact.
-                        if transaction.amount != current.amount { transaction.amount = current.amount }
+                        if transaction.amount != amount.value { transaction.amount = amount.value }
                         if transaction.note != current.note { transaction.note = current.note }
                         if transaction.income != current.income { transaction.income = current.income }
                         if transaction.category != current.category { transaction.category = current.category }
@@ -445,7 +455,7 @@ public enum LedgerMaintenance {
 
     private static func resetCursor(_ series: RecurringSeries) {
         guard series.sourceIndex >= 0, series.sourceIndex < Int64.max,
-              let anchor = series.anchorDate, anchor.timeIntervalSince1970.isFinite,
+              let anchor = series.anchorDate, LedgerCalendar.isValid(anchor),
               let calendar = calendar(for: series),
               let next = try? RecurringSchedule.nextDate(after: anchor, type: series.type, coefficient: series.coefficient, calendar: calendar) else {
             series.stoppedAt = series.stoppedAt ?? Date(timeIntervalSince1970: 0)

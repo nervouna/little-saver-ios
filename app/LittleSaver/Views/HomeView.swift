@@ -28,7 +28,19 @@ class OverallTransactionManager: ObservableObject {
     @Published var future: Bool = false
 }
 
+private struct LedgerCalendarRevisionKey: EnvironmentKey {
+    static let defaultValue = 0
+}
+
+extension EnvironmentValues {
+    var ledgerCalendarRevision: Int {
+        get { self[LedgerCalendarRevisionKey.self] }
+        set { self[LedgerCalendarRevisionKey.self] = newValue }
+    }
+}
+
 struct HomeView: View {
+    @State private var calendarRevision = 0
     @EnvironmentObject var appLockVM: AppLockViewModel
 
     @StateObject var toastPresenter = OverallToastPresenter()
@@ -59,7 +71,14 @@ struct HomeView: View {
         self.bottomEdge = bottomEdge
     }
 
-    var body: some View { content.modifier(MutationPendingModifier()) }
+    var body: some View {
+        content.modifier(MutationPendingModifier())
+            .environment(\.ledgerCalendarRevision, calendarRevision)
+            .onReceive(NotificationCenter.default.publisher(for: .NSSystemTimeZoneDidChange)) { _ in calendarRevision += 1 }
+            .onReceive(NotificationCenter.default.publisher(for: NSLocale.currentLocaleDidChangeNotification)) { _ in calendarRevision += 1 }
+            .onReceive(NotificationCenter.default.publisher(for: UIApplication.significantTimeChangeNotification)) { _ in calendarRevision += 1 }
+            .onReceive(NotificationCenter.default.publisher(for: UIApplication.didBecomeActiveNotification)) { _ in calendarRevision += 1 }
+    }
 
     @ViewBuilder private var content: some View {
         ZStack(alignment: .bottom) {

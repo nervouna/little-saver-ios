@@ -114,7 +114,7 @@ struct LockBudgetWidgetEntryView: View {
     }
 
     var difference: Double {
-        return abs(entry.budget.budgetAmount - entry.totalSpent)
+        return abs(NumericSafety.difference(entry.budget.budgetAmount, entry.totalSpent))
     }
 
     var percent: Double {
@@ -126,10 +126,10 @@ struct LockBudgetWidgetEntryView: View {
     }
 
     var percentString: String {
-        return String(localized: "\(BudgetMath.roundedPercentage(spent: entry.totalSpent, budgetAmount: entry.budget.budgetAmount))% spent")
+        return localizedFormat("widget.budget.percentage.spent", arguments: [BudgetMath.percentageText(spent: entry.totalSpent, budgetAmount: entry.budget.budgetAmount)])
     }
 
-    @AppStorage("currency", store: UserDefaults(suiteName: AppIdentifiers.appGroup)) var currency: String = Locale.current.currencyCode!
+    @AppStorage("currency", store: UserDefaults(suiteName: AppIdentifiers.appGroup)) var currency: String = (Locale.current.currencyCode ?? "USD")
     @AppStorage("showCents", store: UserDefaults(suiteName: AppIdentifiers.appGroup)) var showCents: Bool = true
 
     func currencyAmount(_ amount: Double) -> String {
@@ -166,7 +166,7 @@ struct LockBudgetWidgetEntryView: View {
                     Gauge(value: gaugePercent) {
                         Text(entry.budget.emoji)
                     } currentValueLabel: {
-                        Text("\(BudgetMath.roundedPercentage(spent: entry.totalSpent, budgetAmount: entry.budget.budgetAmount))%")
+                        Text(BudgetMath.percentageText(spent: entry.totalSpent, budgetAmount: entry.budget.budgetAmount))
                     }
                     .gaugeStyle(AccessoryCircularGaugeStyle())
                     .widgetURL(DeepLink.budget(name: entry.budget.name).url)
@@ -191,7 +191,7 @@ struct LockBudgetWidgetEntryView: View {
                         Gauge(value: gaugePercent) {
                             Text(entry.budget.emoji)
                         } currentValueLabel: {
-                            Text("\(BudgetMath.roundedPercentage(spent: entry.totalSpent, budgetAmount: entry.budget.budgetAmount))%")
+                            Text(BudgetMath.percentageText(spent: entry.totalSpent, budgetAmount: entry.budget.budgetAmount))
                         }
                         .gaugeStyle(AccessoryCircularGaugeStyle())
                         .widgetURL(DeepLink.budget(name: entry.budget.name).url)

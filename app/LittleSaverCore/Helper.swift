@@ -40,9 +40,9 @@ public enum RecurringSchedule {
             throw RecurringScheduleError.invalidType(type)
         }
 
-        guard date.timeIntervalSince1970.isFinite,
+        guard LedgerCalendar.isValid(date),
               let result = calendar.date(byAdding: component, value: value, to: date),
-              result.timeIntervalSince1970.isFinite, result > date else {
+              LedgerCalendar.isValid(result), result > date else {
             throw RecurringScheduleError.dateCalculationFailed
         }
         return result
@@ -51,7 +51,7 @@ public enum RecurringSchedule {
 
 public extension Transaction {
     var wrappedAmount: Double {
-        amount
+        MoneyAmount(amount)?.value ?? amount
     }
 
     var wrappedDate: Date {
@@ -82,7 +82,7 @@ public extension Transaction {
 
 public extension TemplateTransaction {
     var wrappedAmount: Double {
-        amount
+        MoneyAmount(amount)?.value ?? amount
     }
 
     var wrappedNote: String {
@@ -149,39 +149,20 @@ public extension Budget {
     }
 
     var wrappedDate: Date {
-        return startDate ?? Date.now
+        currentWindow()?.start ?? .distantPast
     }
 
     var endDate: Date {
-        if type == 1 {
-            return Calendar.current.date(byAdding: .day, value: 1, to: startDate ?? Date.now)!
-        } else if type == 2 {
-            return Calendar.current.date(byAdding: .day, value: 7, to: startDate ?? Date.now)!
-        } else if type == 3 {
-            return Calendar.current.date(byAdding: .month, value: 1, to: startDate ?? Date.now)!
-        } else if type == 4 {
-            return Calendar.current.date(byAdding: .year, value: 1, to: startDate ?? Date.now)!
-        }
-        return startDate ?? Date.now
+        currentWindow()?.end ?? .distantPast
     }
 }
 
 public extension MainBudget {
     var wrappedDate: Date {
-        return startDate ?? Date.now
+        currentWindow()?.start ?? .distantPast
     }
 
     var endDate: Date {
-        if type == 1 {
-            return Calendar.current.date(byAdding: .day, value: 1, to: startDate ?? Date.now)!
-        } else if type == 2 {
-            return Calendar.current.date(byAdding: .day, value: 7, to: startDate ?? Date.now)!
-        } else if type == 3 {
-            return Calendar.current.date(byAdding: .month, value: 1, to: startDate ?? Date.now)!
-        } else if type == 4 {
-            return Calendar.current.date(byAdding: .year, value: 1, to: startDate ?? Date.now)!
-        }
-
-        return startDate ?? Date.now
+        currentWindow()?.end ?? .distantPast
     }
 }

@@ -513,3 +513,7 @@
 "shortcut.insights.summary" = "%2$@%1$@";
 "shortcut.budget.left" = "%1$@剩余";
 "shortcut.budget.over" = "%1$@超出";
+"Date unavailable" = "日期不可用";
+"Amount unavailable" = "金额不可用";
+"Budget unavailable. Edit this budget to repair its settings." = "预算不可用，请编辑此预算以修复设置。";
+"widget.budget.percentage.spent" = "已用%@";

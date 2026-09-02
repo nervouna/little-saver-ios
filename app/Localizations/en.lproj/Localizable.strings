@@ -529,3 +529,7 @@
 "Another change is being saved. Please try again." = "Another change is being saved. Please try again.";
 "Unable to Save" = "Unable to Save";
 "OK" = "OK";
+"Date unavailable" = "Date unavailable";
+"Amount unavailable" = "Amount unavailable";
+"Budget unavailable. Edit this budget to repair its settings." = "Budget unavailable. Edit this budget to repair its settings.";
+"widget.budget.percentage.spent" = "%@ spent";

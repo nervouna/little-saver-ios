@@ -51,7 +51,7 @@ struct SuggestedTransactions: View {
                                 .padding(.vertical, 3.5)
                                 .padding(.horizontal, 7)
 
-                            Text("\(currencySymbol)\(Int(round(transaction.wrappedAmount)))")
+                            Text(transaction.amount.isFinite ? currencySymbol + String(format: "%.0f", transaction.amount) : String(localized: "Amount unavailable"))
                                 .font(.system(size: 17, weight: .semibold, design: .rounded))
                                 .lineLimit(1)
                                 .foregroundStyle(Color(hex: transaction.wrappedColour))

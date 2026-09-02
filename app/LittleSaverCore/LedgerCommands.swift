@@ -208,7 +208,7 @@ extension DataController {
     }
 
     static func applyTransaction(_ input: TransactionInput, in context: NSManagedObjectContext) throws -> Transaction {
-        guard input.amount.isFinite, input.amount >= 0, input.date.timeIntervalSince1970.isFinite,
+        guard let amount = MoneyAmount(input.amount), amount.value >= 0, LedgerCalendar.isValid(input.date),
               (0...3).contains(input.repeatType), (1...Int(Int16.max)).contains(input.repeatCoefficient) else { throw LedgerCommandError.invalidInput }
         let category = try input.category?.resolve(in: context, as: Category.self)
         let existing = try input.reference?.resolve(in: context, as: Transaction.self)
@@ -224,7 +224,7 @@ extension DataController {
         transaction.note = input.note.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             ? category?.wrappedName ?? "" : input.note.trimmingCharacters(in: .whitespaces)
         transaction.category = category; transaction.income = input.income
-        transaction.amount = input.amount; transaction.date = input.date
+        transaction.amount = amount.value; transaction.date = input.date
         let calendar = Calendar.current
         transaction.day = calendar.startOfDay(for: input.date)
         transaction.month = calendar.date(from: calendar.dateComponents([.month, .year], from: input.date))
@@ -307,7 +307,7 @@ extension DataController {
 
     public func saveTemplate(_ input: TransactionInput, order: Int) async throws {
         try await performCommand { context in
-            guard input.amount.isFinite, input.amount >= 0, (0...3).contains(input.repeatType),
+            guard let amount = MoneyAmount(input.amount), amount.value >= 0, (0...3).contains(input.repeatType),
                   (1...Int(Int16.max)).contains(input.repeatCoefficient), (0...Int(Int16.max)).contains(order) else { throw LedgerCommandError.invalidInput }
             let category = try input.category?.resolve(in: context, as: Category.self)
             let existing = try input.reference?.resolve(in: context, as: TemplateTransaction.self)
@@ -315,7 +315,7 @@ extension DataController {
             if existing == nil { template.id = UUID(); template.order = Int16(order) }
             template.category = category
             template.note = input.note.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? category?.wrappedName ?? "" : input.note.trimmingCharacters(in: .whitespaces)
-            template.income = input.income; template.amount = input.amount
+            template.income = input.income; template.amount = amount.value
             template.recurringType = Int16(input.repeatType); template.recurringCoefficient = Int16(input.repeatCoefficient)
         }
     }
@@ -350,12 +350,12 @@ extension DataController {
 
     public func saveBudget(reference: LedgerReference? = nil, category: LedgerReference, amount: Double, startDate: Date, type: Int16) async throws {
         try await performCommand { context in
-            guard amount.isFinite, amount > 0, startDate.timeIntervalSince1970.isFinite, (1...4).contains(type) else { throw LedgerCommandError.invalidInput }
+            guard let money = MoneyAmount(amount), BudgetPeriod(rawValue: type)?.currentWindow(anchor: startDate, amount: money.value) != nil else { throw LedgerCommandError.invalidInput }
             let existing = try reference?.resolve(in: context, as: Budget.self)
             let budget = existing ?? Budget(context: context)
             if existing == nil { budget.id = UUID(); budget.dateCreated = Date() }
             budget.category = try category.resolve(in: context, as: Category.self)
-            budget.amount = amount; budget.startDate = startDate; budget.type = type
+            budget.amount = money.value; budget.startDate = startDate; budget.type = type
         }
     }
 
@@ -365,32 +365,13 @@ extension DataController {
 
     public func upsertMainBudget(amount: Double, startDate: Date, type: Int16) async throws {
         try await performCommand { context in
-            guard amount.isFinite, amount > 0, startDate.timeIntervalSince1970.isFinite, (1...4).contains(type) else { throw LedgerCommandError.invalidInput }
-            try LedgerMaintenance.upsertMainBudget(in: context, amount: amount, startDate: startDate, type: type)
+            guard let money = MoneyAmount(amount), BudgetPeriod(rawValue: type)?.currentWindow(anchor: startDate, amount: money.value) != nil else { throw LedgerCommandError.invalidInput }
+            try LedgerMaintenance.upsertMainBudget(in: context, amount: money.value, startDate: startDate, type: type)
         }
     }
 
     public func deleteMainBudget() async throws {
         try await performCommand { context in try LedgerMaintenance.deleteMainBudget(in: context) }
-    }
-
-    /// Temporary bounded cursor compatibility path; T5 replaces this with period projection.
-    public func updateBudgetDates(now: Date = Date()) async throws {
-        try await performCommand { context in
-            var rows: [NSManagedObject] = try context.fetch(Budget.fetchRequest())
-            if let main = try LedgerMaintenance.currentMainBudget(in: context) { rows.append(main) }
-            for row in rows {
-                guard let original = row.value(forKey: "startDate") as? Date,
-                      let type = row.value(forKey: "type") as? Int16, (1...4).contains(type) else { continue }
-                var start = original
-                let component: Calendar.Component = type < 3 ? .day : type == 3 ? .month : .year
-                for _ in 0..<4096 {
-                    guard let next = Calendar.current.date(byAdding: component, value: type == 2 ? 7 : 1, to: start), next > start, next <= now else { break }
-                    start = next
-                }
-                if start != original { row.setValue(start, forKey: "startDate") }
-            }
-        }
     }
 
 }

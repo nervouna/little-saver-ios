@@ -474,7 +474,7 @@ struct TransactionView: View {
                                             .padding(.vertical, 3.5)
                                             .padding(.horizontal, 7)
 
-                                        Text("\(currencySymbol)\(Int(round(transaction.wrappedAmount)))")
+                                        Text(localizedCurrencyAmount(transaction.amount, currencyCode: currency, showCents: false))
                                             .lineLimit(1)
                                             .foregroundStyle(Color(hex: transaction.wrappedColour))
                                             .padding(.vertical, 3.5)

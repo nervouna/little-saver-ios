@@ -513,3 +513,7 @@
 "shortcut.insights.summary" = "%2$@の%1$@";
 "shortcut.budget.left" = "%1$@の残り";
 "shortcut.budget.over" = "%1$@の超過";
+"Date unavailable" = "日付を表示できません";
+"Amount unavailable" = "金額を表示できません";
+"Budget unavailable. Edit this budget to repair its settings." = "予算を表示できません。予算を編集して設定を修正してください。";
+"widget.budget.percentage.spent" = "%@使用済み";
