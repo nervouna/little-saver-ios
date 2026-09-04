@@ -315,10 +315,22 @@ struct SettingsView: View {
                   optionalText: String(localized: "Status"))
               }
 
-              //
-              //                            NavigationLink(destination: SettingsQuickAddWidgetView()) {
-              //                                SettingsRowView(systemImage: "bolt.square.fill", title: "Quick-Add Widget", colour: 115)
-              //                            }
+              NavigationLink(
+                destination: SettingsQuickAddWidgetView()
+                  .onAppear {
+                    withAnimation(.easeOut.speed(1.5)) {
+                      tabBarManager.navigationHideTab()
+                    }
+                  }
+                  .onDisappear {
+                    withAnimation(.easeOut.speed(1.5)) {
+                      tabBarManager.navigationShowTab()
+                    }
+                  }
+              ) {
+                SettingsRowView(
+                  systemImage: "bolt.square.fill", title: "Quick Add Widget", colour: 115)
+              }
 
               Button {
                 showImportGuide = true
