@@ -1,13 +1,12 @@
 //
 //  InsightsView.swift
-//  xpenz
+//  LittleSaver
 //
 //  Created by Rafael Soh on 20/5/22.
 //
 
 import LittleSaverCore
 import Foundation
-import SwiftUIIntrospect
 import Popovers
 import SwiftUI
 
@@ -17,7 +16,6 @@ struct InsightsView: View {
 
     @State private var showTimeMenu = false
     @AppStorage("chartTimeFrame", store: UserDefaults(suiteName: AppIdentifiers.appGroup)) var chartType = 1
-
 
     var chartTypeString: String {
         if chartType == 1 {
@@ -30,9 +28,6 @@ struct InsightsView: View {
             return ""
         }
     }
-
-//    @State private var holdingIncome = false
-//    @Namespace var animation
 
     var body: some View {
         let _ = calendarRevision

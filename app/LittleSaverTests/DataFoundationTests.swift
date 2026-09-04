@@ -1476,7 +1476,7 @@ final class DataFoundationTests: XCTestCase {
     }
 
     func testBundledThirdPartyLicensesAreReadableAndComplete() throws {
-        XCTAssertEqual(BundledThirdPartyLicense.all.count, 4)
+        XCTAssertEqual(BundledThirdPartyLicense.all.count, 3)
 
         for license in BundledThirdPartyLicense.all {
             let text = try license.text(in: .main)

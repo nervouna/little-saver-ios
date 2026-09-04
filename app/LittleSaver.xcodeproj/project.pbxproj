@@ -163,12 +163,12 @@
 		C23017E8D0FF86FC3C3733F6 /* DataControllerPlatformAdapter.swift in Sources */ = {isa = PBXBuildFile; fileRef = DF75112C6B5500D36C1AF3F6 /* DataControllerPlatformAdapter.swift */; };
 		D63B204A2D8728C300CAFB20 /* Localizable.strings in Resources */ = {isa = PBXBuildFile; fileRef = D63B20462D8728C300CAFB20 /* Localizable.strings */; };
 		D63B204B2D8728C300CAFB20 /* Localizable.stringsdict in Resources */ = {isa = PBXBuildFile; fileRef = D63B20482D8728C300CAFB20 /* Localizable.stringsdict */; };
-		D6A4DE202D61744400F7F751 /* SwiftUIIntrospect in Frameworks */ = {isa = PBXBuildFile; productRef = D6A4DE1F2D61744400F7F751 /* SwiftUIIntrospect */; };
+
 		D8B1D8F8DAB4370D7497C358 /* LedgerQueryPeriod.swift in Sources */ = {isa = PBXBuildFile; fileRef = 282A0FC956692361B0F525EC /* LedgerQueryPeriod.swift */; };
 		DA7B00012F4B000100000001 /* CloudKitSyncMonitor.txt in Resources */ = {isa = PBXBuildFile; fileRef = DA7B00112F4B000100000001 /* CloudKitSyncMonitor.txt */; };
 		DA7B00022F4B000100000001 /* ConfettiSwiftUI.txt in Resources */ = {isa = PBXBuildFile; fileRef = DA7B00122F4B000100000001 /* ConfettiSwiftUI.txt */; };
 		DA7B00032F4B000100000001 /* Popovers.txt in Resources */ = {isa = PBXBuildFile; fileRef = DA7B00132F4B000100000001 /* Popovers.txt */; };
-		DA7B00042F4B000100000001 /* SwiftUIIntrospect.txt in Resources */ = {isa = PBXBuildFile; fileRef = DA7B00142F4B000100000001 /* SwiftUIIntrospect.txt */; };
+
 		EDE51A15B41C67DF9B8BDB35 /* AppIdentifiers.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA6A00002F4A000100000001 /* AppIdentifiers.swift */; };
 		F0F2539C2687B8E67DC1E20E /* CSVImport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4039E770B84C2C977C944AC3 /* CSVImport.swift */; };
 /* End PBXBuildFile section */
@@ -422,7 +422,7 @@
 		DA7B00112F4B000100000001 /* CloudKitSyncMonitor.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = CloudKitSyncMonitor.txt; sourceTree = "<group>"; };
 		DA7B00122F4B000100000001 /* ConfettiSwiftUI.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = ConfettiSwiftUI.txt; sourceTree = "<group>"; };
 		DA7B00132F4B000100000001 /* Popovers.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = Popovers.txt; sourceTree = "<group>"; };
-		DA7B00142F4B000100000001 /* SwiftUIIntrospect.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = SwiftUIIntrospect.txt; sourceTree = "<group>"; };
+
 		DF75112C6B5500D36C1AF3F6 /* DataControllerPlatformAdapter.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = DataControllerPlatformAdapter.swift; path = LittleSaver/Utilities/DataControllerPlatformAdapter.swift; sourceTree = "<group>"; };
 		ED2430264B59FBBBA80D6358 /* DataFoundationTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DataFoundationTests.swift; sourceTree = "<group>"; };
 		EEE9670EB054D671FFFED1D5 /* DeepLink.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DeepLink.swift; sourceTree = "<group>"; };
@@ -450,7 +450,6 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				D6A4DE202D61744400F7F751 /* SwiftUIIntrospect in Frameworks */,
 				53A4148028B7DA4C008C30E7 /* ConfettiSwiftUI in Frameworks */,
 				5383D85E287D9A0100D1B9BA /* CloudKit.framework in Frameworks */,
 				53DCFAA12A498FBF0063FCDE /* CloudKitSyncMonitor in Frameworks */,
@@ -831,7 +830,6 @@
 				DA7B00112F4B000100000001 /* CloudKitSyncMonitor.txt */,
 				DA7B00122F4B000100000001 /* ConfettiSwiftUI.txt */,
 				DA7B00132F4B000100000001 /* Popovers.txt */,
-				DA7B00142F4B000100000001 /* SwiftUIIntrospect.txt */,
 			);
 			path = ThirdPartyLicenses;
 			sourceTree = "<group>";
@@ -926,7 +924,6 @@
 				5327D2E5287C6CC300F76ADF /* Popovers */,
 				53A4147F28B7DA4C008C30E7 /* ConfettiSwiftUI */,
 				53DCFAA02A498FBF0063FCDE /* CloudKitSyncMonitor */,
-				D6A4DE1F2D61744400F7F751 /* SwiftUIIntrospect */,
 			);
 			productName = LittleSaver;
 			productReference = 5327D283287C697400F76ADF /* LittleSaver.app */;
@@ -1007,7 +1004,6 @@
 				5327D2E4287C6CC300F76ADF /* XCRemoteSwiftPackageReference "Popovers" */,
 				53A4147E28B7DA4C008C30E7 /* XCRemoteSwiftPackageReference "ConfettiSwiftUI" */,
 				53DCFA9F2A498FBF0063FCDE /* XCRemoteSwiftPackageReference "CloudKitSyncMonitor" */,
-				D6A4DE1E2D61744400F7F751 /* XCRemoteSwiftPackageReference "SwiftUI-Introspect" */,
 			);
 			productRefGroup = 5327D284287C697400F76ADF /* Products */;
 			projectDirPath = "";
@@ -1053,7 +1049,6 @@
 				DA7B00012F4B000100000001 /* CloudKitSyncMonitor.txt in Resources */,
 				DA7B00022F4B000100000001 /* ConfettiSwiftUI.txt in Resources */,
 				DA7B00032F4B000100000001 /* Popovers.txt in Resources */,
-				DA7B00042F4B000100000001 /* SwiftUIIntrospect.txt in Resources */,
 				D63B204A2D8728C300CAFB20 /* Localizable.strings in Resources */,
 				D63B204B2D8728C300CAFB20 /* Localizable.stringsdict in Resources */,
 				5327D295287C698900F76ADF /* Assets.xcassets in Resources */,
@@ -1961,14 +1956,6 @@
 				minimumVersion = 1.2.1;
 			};
 		};
-		D6A4DE1E2D61744400F7F751 /* XCRemoteSwiftPackageReference "SwiftUI-Introspect" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/siteline/SwiftUI-Introspect";
-			requirement = {
-				kind = upToNextMajorVersion;
-				minimumVersion = 1.0.0;
-			};
-		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -1986,11 +1973,6 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 53DCFA9F2A498FBF0063FCDE /* XCRemoteSwiftPackageReference "CloudKitSyncMonitor" */;
 			productName = CloudKitSyncMonitor;
-		};
-		D6A4DE1F2D61744400F7F751 /* SwiftUIIntrospect */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = D6A4DE1E2D61744400F7F751 /* XCRemoteSwiftPackageReference "SwiftUI-Introspect" */;
-			productName = SwiftUIIntrospect;
 		};
 /* End XCSwiftPackageProductDependency section */
 

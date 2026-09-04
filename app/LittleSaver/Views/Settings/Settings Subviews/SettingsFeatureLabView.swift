@@ -15,8 +15,6 @@ struct SettingsGoofyView: View {
   @AppStorage("confetti", store: UserDefaults(suiteName: AppIdentifiers.appGroup)) var confetti:
     Bool = false
 
-  //    @AppStorage("chromatic", store: UserDefaults(suiteName: AppIdentifiers.appGroup)) var chromatic: Bool = false
-
   @AppStorage("logViewLineGraph", store: UserDefaults(suiteName: AppIdentifiers.appGroup))
   var lineGraph: Bool = false
 
@@ -96,16 +94,6 @@ struct SettingsGoofyView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.bottom, 30)
       }
-
-      //            ToggleRow(text: "Miles-Morales Effect", bool: $chromatic, id: 5)
-      //            .background(Color.SettingsBackground, in: RoundedRectangle(cornerRadius: 9))
-      //
-      //            Text("Enables a chromatic abberation effect on the 'New Transaction' page when a future date is set.")
-      //                .font(.system(size: 12, weight: .medium, design: .rounded))
-      //                .foregroundColor(Color.SubtitleText)
-      //                .padding(.horizontal, 15)
-      //                .frame(maxWidth: .infinity, alignment: .leading)
-      //                .padding(.bottom, 30)
     }
     .modifier(SettingsSubviewModifier())
   }

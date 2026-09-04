@@ -1,6 +1,6 @@
 //
 //  LogView.swift
-//  xpenz
+//  LittleSaver
 //
 //  Created by Rafael Soh on 19/5/22.
 //

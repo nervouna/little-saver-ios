@@ -1,6 +1,6 @@
 //
 //  PowerCategory.swift
-//  Bonsai
+//  LittleSaver
 //
 //  Created by Rafael Soh on 6/6/22.
 //

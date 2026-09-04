@@ -1,6 +1,6 @@
 //
 //  SettingsView.swift
-//  xpenz
+//  LittleSaver
 //
 //  Created by Rafael Soh on 20/5/22.
 //
@@ -569,11 +569,7 @@ struct BundledThirdPartyLicense: Identifiable, Equatable {
     BundledThirdPartyLicense(
       name: "Popovers",
       attribution: "Copyright (c) 2022 A. Zheng",
-      resourceName: "Popovers"),
-    BundledThirdPartyLicense(
-      name: "SwiftUI Introspect",
-      attribution: "Copyright 2019 Timber Software",
-      resourceName: "SwiftUIIntrospect")
+      resourceName: "Popovers")
   ]
 
   func text(in bundle: Bundle = .main) throws -> String {
