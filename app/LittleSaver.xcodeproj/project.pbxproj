@@ -62,6 +62,15 @@
 		5327D2D8287C6B5F00F76ADF /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5327D2CF287C6B5E00F76ADF /* SettingsView.swift */; };
 		5327D2D9287C6B5F00F76ADF /* HomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5327D2D0287C6B5E00F76ADF /* HomeView.swift */; };
 		5327D2DB287C6B5F00F76ADF /* LogView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5327D2D2287C6B5E00F76ADF /* LogView.swift */; };
+		A11E00012F61000100000002 /* LogEmptyState.swift in Sources */ = {isa = PBXBuildFile; fileRef = A11E00012F61000100000001 /* LogEmptyState.swift */; };
+		A11E00012F61000100000004 /* LogHeaderView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A11E00012F61000100000003 /* LogHeaderView.swift */; };
+		A11E00012F61000100000006 /* LogInsightsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A11E00012F61000100000005 /* LogInsightsView.swift */; };
+		A11E00012F61000100000008 /* LogSearchView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A11E00012F61000100000007 /* LogSearchView.swift */; };
+		A11E00012F6100010000000A /* LogFilterPickerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A11E00012F61000100000009 /* LogFilterPickerView.swift */; };
+		A11E00012F6100010000000C /* TransactionsList.swift in Sources */ = {isa = PBXBuildFile; fileRef = A11E00012F6100010000000B /* TransactionsList.swift */; };
+		A11E00012F6100010000000E /* SingleTransactionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A11E00012F6100010000000D /* SingleTransactionView.swift */; };
+		A11E00012F61000100000010 /* DeleteTransactionAlert.swift in Sources */ = {isa = PBXBuildFile; fileRef = A11E00012F6100010000000F /* DeleteTransactionAlert.swift */; };
+		A11E00012F61000100000012 /* LogFilterSteppers.swift in Sources */ = {isa = PBXBuildFile; fileRef = A11E00012F61000100000011 /* LogFilterSteppers.swift */; };
 		5327D2DC287C6B5F00F76ADF /* BudgetView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5327D2D3287C6B5E00F76ADF /* BudgetView.swift */; };
 		5327D2DD287C6B5F00F76ADF /* InsightsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5327D2D4287C6B5E00F76ADF /* InsightsView.swift */; };
 		5327D2DE287C6B5F00F76ADF /* CustomTabBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5327D2D5287C6B5E00F76ADF /* CustomTabBar.swift */; };
@@ -317,6 +326,15 @@
 		5327D2CF287C6B5E00F76ADF /* SettingsView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		5327D2D0287C6B5E00F76ADF /* HomeView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = HomeView.swift; sourceTree = "<group>"; };
 		5327D2D2287C6B5E00F76ADF /* LogView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = LogView.swift; sourceTree = "<group>"; };
+		A11E00012F61000100000001 /* LogEmptyState.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = LogEmptyState.swift; sourceTree = "<group>"; };
+		A11E00012F61000100000003 /* LogHeaderView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = LogHeaderView.swift; sourceTree = "<group>"; };
+		A11E00012F61000100000005 /* LogInsightsView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = LogInsightsView.swift; sourceTree = "<group>"; };
+		A11E00012F61000100000007 /* LogSearchView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = LogSearchView.swift; sourceTree = "<group>"; };
+		A11E00012F61000100000009 /* LogFilterPickerView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = LogFilterPickerView.swift; sourceTree = "<group>"; };
+		A11E00012F6100010000000B /* TransactionsList.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = TransactionsList.swift; sourceTree = "<group>"; };
+		A11E00012F6100010000000D /* SingleTransactionView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = SingleTransactionView.swift; sourceTree = "<group>"; };
+		A11E00012F6100010000000F /* DeleteTransactionAlert.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = DeleteTransactionAlert.swift; sourceTree = "<group>"; };
+		A11E00012F61000100000011 /* LogFilterSteppers.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = LogFilterSteppers.swift; sourceTree = "<group>"; };
 		5327D2D3287C6B5E00F76ADF /* BudgetView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = BudgetView.swift; sourceTree = "<group>"; };
 		5327D2D4287C6B5E00F76ADF /* InsightsView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = InsightsView.swift; sourceTree = "<group>"; wrapsLines = 0; };
 		5327D2D5287C6B5E00F76ADF /* CustomTabBar.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = CustomTabBar.swift; sourceTree = "<group>"; };
@@ -609,6 +627,23 @@
 			path = Data;
 			sourceTree = "<group>";
 		};
+		A11E00012F61000100000013 /* Log */ = {
+			isa = PBXGroup;
+			children = (
+				5327D2D2287C6B5E00F76ADF /* LogView.swift */,
+				A11E00012F61000100000001 /* LogEmptyState.swift */,
+				A11E00012F61000100000003 /* LogHeaderView.swift */,
+				A11E00012F61000100000005 /* LogInsightsView.swift */,
+				A11E00012F61000100000007 /* LogSearchView.swift */,
+				A11E00012F61000100000009 /* LogFilterPickerView.swift */,
+				A11E00012F6100010000000B /* TransactionsList.swift */,
+				A11E00012F6100010000000D /* SingleTransactionView.swift */,
+				A11E00012F6100010000000F /* DeleteTransactionAlert.swift */,
+				A11E00012F61000100000011 /* LogFilterSteppers.swift */,
+			);
+			path = Log;
+			sourceTree = "<group>";
+		};
 		5327D298287C69B800F76ADF /* Views */ = {
 			isa = PBXGroup;
 			children = (
@@ -620,7 +655,7 @@
 				53D2506F2AA6331600016013 /* TemplateTransactionView.swift */,
 				5362CF312A92750800244744 /* ImportDataView.swift */,
 				5327D2D0287C6B5E00F76ADF /* HomeView.swift */,
-				5327D2D2287C6B5E00F76ADF /* LogView.swift */,
+				A11E00012F61000100000013 /* Log */,
 				536CC385293106180081E401 /* LineGraph.swift */,
 				5327D2D4287C6B5E00F76ADF /* InsightsView.swift */,
 				5327D2D3287C6B5E00F76ADF /* BudgetView.swift */,
@@ -1192,6 +1227,15 @@
 				5327D2C7287C6B2500F76ADF /* FilterType.swift in Sources */,
 				5327D2BA287C6AFB00F76ADF /* ViewExtension.swift in Sources */,
 				5327D2DB287C6B5F00F76ADF /* LogView.swift in Sources */,
+				A11E00012F61000100000002 /* LogEmptyState.swift in Sources */,
+				A11E00012F61000100000004 /* LogHeaderView.swift in Sources */,
+				A11E00012F61000100000006 /* LogInsightsView.swift in Sources */,
+				A11E00012F61000100000008 /* LogSearchView.swift in Sources */,
+				A11E00012F6100010000000A /* LogFilterPickerView.swift in Sources */,
+				A11E00012F6100010000000C /* TransactionsList.swift in Sources */,
+				A11E00012F6100010000000E /* SingleTransactionView.swift in Sources */,
+				A11E00012F61000100000010 /* DeleteTransactionAlert.swift in Sources */,
+				A11E00012F61000100000012 /* LogFilterSteppers.swift in Sources */,
 				5362CF322A92750800244744 /* ImportDataView.swift in Sources */,
 				5327D287287C697400F76ADF /* LittleSaverApp.swift in Sources */,
 				53A4147728B3B559008C30E7 /* WelcomeSheetView.swift in Sources */,

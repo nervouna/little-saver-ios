@@ -87,7 +87,7 @@ final class PlatformFoundationTests: XCTestCase {
         XCTAssertEqual(focus.end(), false)
         XCTAssertEqual(focus.appear(), true)
         let app = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
-        let source = try String(contentsOf: app.appendingPathComponent("LittleSaver/Views/LogView.swift"))
+        let source = try String(contentsOf: app.appendingPathComponent("LittleSaver/Views/Log/LogSearchView.swift"))
         XCTAssertFalse(source.contains(".introspect("))
         XCTAssertTrue(source.contains(".focused($searchFocused)"))
         XCTAssertTrue(source.contains("focusLifecycle.appear()"))

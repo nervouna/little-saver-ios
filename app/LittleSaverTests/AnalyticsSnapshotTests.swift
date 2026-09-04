@@ -259,8 +259,13 @@ final class AnalyticsSnapshotTests: XCTestCase {
         XCTAssertFalse(home.contains("metadata.value(for:"))
         XCTAssertTrue(presentation.contains("if let value = model.value {"))
         XCTAssertTrue(presentation.contains(".accessibilityHidden(model.value(for: key) == nil)"))
-        for name in ["LogView", "InsightsView", "BudgetView"] {
-            let source = try String(contentsOf: app.appendingPathComponent("LittleSaver/Views/\(name).swift"))
+        let viewSources = [
+            "LogView": "LittleSaver/Views/Log/LogView.swift",
+            "InsightsView": "LittleSaver/Views/InsightsView.swift",
+            "BudgetView": "LittleSaver/Views/BudgetView.swift",
+        ]
+        for (name, path) in viewSources {
+            let source = try String(contentsOf: app.appendingPathComponent(path))
             XCTAssertFalse(source.contains("FetchedResults<Transaction>"), name)
             XCTAssertFalse(source.contains("NSManagedObjectContextDidSave"), name)
             XCTAssertFalse(source.contains("getLogViewTotal"), name)
