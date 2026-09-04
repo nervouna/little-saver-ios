@@ -94,7 +94,7 @@ final class PlatformFoundationTests: XCTestCase {
         XCTAssertTrue(source.contains("focusLifecycle.end()"))
         let home = try String(contentsOf: app.appendingPathComponent("LittleSaver/Views/HomeView.swift"))
         XCTAssertTrue(home.contains("appLockVM.canHandleDeepLinks"))
-        let budgets = try String(contentsOf: app.appendingPathComponent("LittleSaver/Views/BudgetView.swift"))
+        let budgets = try String(contentsOf: app.appendingPathComponent("LittleSaver/Views/Budget/BudgetView.swift"))
         XCTAssertEqual(budgets.components(separatedBy: "NavigationLink(isActive:").count - 1, 1)
         XCTAssertFalse(budgets.contains("NavigationLink(destination: DetailedBudgetView"))
         XCTAssertFalse(budgets.contains("NavigationLink(destination: DetailedMainBudgetView"))

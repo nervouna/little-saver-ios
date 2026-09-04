@@ -79,6 +79,29 @@
 		A11E00012F61000100000012 /* LogFilterSteppers.swift in Sources */ = {isa = PBXBuildFile; fileRef = A11E00012F61000100000011 /* LogFilterSteppers.swift */; };
 		5327D2DC287C6B5F00F76ADF /* BudgetView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5327D2D3287C6B5E00F76ADF /* BudgetView.swift */; };
 		5327D2DD287C6B5F00F76ADF /* InsightsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5327D2D4287C6B5E00F76ADF /* InsightsView.swift */; };
+		A11E00012F61000100000071 /* InsightsPieChart.swift in Sources */ = {isa = PBXBuildFile; fileRef = A11E00012F61000100000070 /* InsightsPieChart.swift */; };
+		A11E00012F61000100000073 /* InsightsFilteredViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = A11E00012F61000100000072 /* InsightsFilteredViews.swift */; };
+		A11E00012F61000100000075 /* InsightsSingleGraphView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A11E00012F61000100000074 /* InsightsSingleGraphView.swift */; };
+		A11E00012F61000100000077 /* InsightsWeekGraphView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A11E00012F61000100000076 /* InsightsWeekGraphView.swift */; };
+		A11E00012F61000100000079 /* InsightsMonthGraphView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A11E00012F61000100000078 /* InsightsMonthGraphView.swift */; };
+		A11E00012F6100010000007B /* InsightsYearGraphView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A11E00012F6100010000007A /* InsightsYearGraphView.swift */; };
+		A11E00012F6100010000007D /* InsightsBarGraphs.swift in Sources */ = {isa = PBXBuildFile; fileRef = A11E00012F6100010000007C /* InsightsBarGraphs.swift */; };
+		A11E00012F6100010000007F /* InsightsChartChrome.swift in Sources */ = {isa = PBXBuildFile; fileRef = A11E00012F6100010000007E /* InsightsChartChrome.swift */; };
+		A11E00012F61000100000082 /* MainBudgetView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A11E00012F61000100000081 /* MainBudgetView.swift */; };
+		A11E00012F61000100000084 /* SingleBudgetView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A11E00012F61000100000083 /* SingleBudgetView.swift */; };
+		A11E00012F61000100000086 /* BudgetDollarViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = A11E00012F61000100000085 /* BudgetDollarViews.swift */; };
+		A11E00012F61000100000088 /* DeleteBudgetAlerts.swift in Sources */ = {isa = PBXBuildFile; fileRef = A11E00012F61000100000087 /* DeleteBudgetAlerts.swift */; };
+		A11E00012F6100010000008A /* DetailedBudgetView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A11E00012F61000100000089 /* DetailedBudgetView.swift */; };
+		A11E00012F6100010000008C /* TimeBudgetView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A11E00012F6100010000008B /* TimeBudgetView.swift */; };
+		A11E00012F6100010000008E /* BudgetGraphs.swift in Sources */ = {isa = PBXBuildFile; fileRef = A11E00012F6100010000008D /* BudgetGraphs.swift */; };
+		A11E00012F61000100000091 /* CategoryListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A11E00012F61000100000090 /* CategoryListView.swift */; };
+		A11E00012F61000100000093 /* NewCategoryAlert.swift in Sources */ = {isa = PBXBuildFile; fileRef = A11E00012F61000100000092 /* NewCategoryAlert.swift */; };
+		A11E00012F61000100000095 /* EditCategoryAlert.swift in Sources */ = {isa = PBXBuildFile; fileRef = A11E00012F61000100000094 /* EditCategoryAlert.swift */; };
+		A11E00012F61000100000097 /* DeleteCategoryAlert.swift in Sources */ = {isa = PBXBuildFile; fileRef = A11E00012F61000100000096 /* DeleteCategoryAlert.swift */; };
+		A11E00012F61000100000099 /* SuggestedCategoriesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A11E00012F61000100000098 /* SuggestedCategoriesView.swift */; };
+		A11E00012F6100010000009B /* CategoryTextFields.swift in Sources */ = {isa = PBXBuildFile; fileRef = A11E00012F6100010000009A /* CategoryTextFields.swift */; };
+		A11E00012F6100010000009D /* ColourPickerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A11E00012F6100010000009C /* ColourPickerView.swift */; };
+		A11E00012F6100010000009F /* OpenAICompletions.swift in Sources */ = {isa = PBXBuildFile; fileRef = A11E00012F6100010000009E /* OpenAICompletions.swift */; };
 		5327D2DE287C6B5F00F76ADF /* CustomTabBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5327D2D5287C6B5E00F76ADF /* CustomTabBar.swift */; };
 		5327D2E0287C6B7D00F76ADF /* DeviceModels.json in Resources */ = {isa = PBXBuildFile; fileRef = 5327D2DF287C6B7C00F76ADF /* DeviceModels.json */; };
 		5327D2E6287C6CC300F76ADF /* Popovers in Frameworks */ = {isa = PBXBuildFile; productRef = 5327D2E5287C6CC300F76ADF /* Popovers */; };
@@ -349,6 +372,29 @@
 		A11E00012F61000100000011 /* LogFilterSteppers.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = LogFilterSteppers.swift; sourceTree = "<group>"; };
 		5327D2D3287C6B5E00F76ADF /* BudgetView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = BudgetView.swift; sourceTree = "<group>"; };
 		5327D2D4287C6B5E00F76ADF /* InsightsView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = InsightsView.swift; sourceTree = "<group>"; wrapsLines = 0; };
+		A11E00012F61000100000070 /* InsightsPieChart.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = InsightsPieChart.swift; sourceTree = "<group>"; };
+		A11E00012F61000100000072 /* InsightsFilteredViews.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = InsightsFilteredViews.swift; sourceTree = "<group>"; };
+		A11E00012F61000100000074 /* InsightsSingleGraphView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = InsightsSingleGraphView.swift; sourceTree = "<group>"; };
+		A11E00012F61000100000076 /* InsightsWeekGraphView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = InsightsWeekGraphView.swift; sourceTree = "<group>"; };
+		A11E00012F61000100000078 /* InsightsMonthGraphView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = InsightsMonthGraphView.swift; sourceTree = "<group>"; };
+		A11E00012F6100010000007A /* InsightsYearGraphView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = InsightsYearGraphView.swift; sourceTree = "<group>"; };
+		A11E00012F6100010000007C /* InsightsBarGraphs.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = InsightsBarGraphs.swift; sourceTree = "<group>"; };
+		A11E00012F6100010000007E /* InsightsChartChrome.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = InsightsChartChrome.swift; sourceTree = "<group>"; };
+		A11E00012F61000100000081 /* MainBudgetView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = MainBudgetView.swift; sourceTree = "<group>"; };
+		A11E00012F61000100000083 /* SingleBudgetView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = SingleBudgetView.swift; sourceTree = "<group>"; };
+		A11E00012F61000100000085 /* BudgetDollarViews.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = BudgetDollarViews.swift; sourceTree = "<group>"; };
+		A11E00012F61000100000087 /* DeleteBudgetAlerts.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = DeleteBudgetAlerts.swift; sourceTree = "<group>"; };
+		A11E00012F61000100000089 /* DetailedBudgetView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = DetailedBudgetView.swift; sourceTree = "<group>"; };
+		A11E00012F6100010000008B /* TimeBudgetView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = TimeBudgetView.swift; sourceTree = "<group>"; };
+		A11E00012F6100010000008D /* BudgetGraphs.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = BudgetGraphs.swift; sourceTree = "<group>"; };
+		A11E00012F61000100000090 /* CategoryListView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = CategoryListView.swift; sourceTree = "<group>"; };
+		A11E00012F61000100000092 /* NewCategoryAlert.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = NewCategoryAlert.swift; sourceTree = "<group>"; };
+		A11E00012F61000100000094 /* EditCategoryAlert.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = EditCategoryAlert.swift; sourceTree = "<group>"; };
+		A11E00012F61000100000096 /* DeleteCategoryAlert.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = DeleteCategoryAlert.swift; sourceTree = "<group>"; };
+		A11E00012F61000100000098 /* SuggestedCategoriesView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = SuggestedCategoriesView.swift; sourceTree = "<group>"; };
+		A11E00012F6100010000009A /* CategoryTextFields.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = CategoryTextFields.swift; sourceTree = "<group>"; };
+		A11E00012F6100010000009C /* ColourPickerView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ColourPickerView.swift; sourceTree = "<group>"; };
+		A11E00012F6100010000009E /* OpenAICompletions.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = OpenAICompletions.swift; sourceTree = "<group>"; };
 		5327D2D5287C6B5E00F76ADF /* CustomTabBar.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = CustomTabBar.swift; sourceTree = "<group>"; };
 		5327D2DF287C6B7C00F76ADF /* DeviceModels.json */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.json; path = DeviceModels.json; sourceTree = "<group>"; };
 		5327D2E7287C6DC200F76ADF /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
@@ -669,12 +715,59 @@
 			path = Transaction;
 			sourceTree = "<group>";
 		};
+		A11E00012F61000100000080 /* Insights */ = {
+			isa = PBXGroup;
+			children = (
+				5327D2D4287C6B5E00F76ADF /* InsightsView.swift */,
+				A11E00012F61000100000070 /* InsightsPieChart.swift */,
+				A11E00012F61000100000072 /* InsightsFilteredViews.swift */,
+				A11E00012F61000100000074 /* InsightsSingleGraphView.swift */,
+				A11E00012F61000100000076 /* InsightsWeekGraphView.swift */,
+				A11E00012F61000100000078 /* InsightsMonthGraphView.swift */,
+				A11E00012F6100010000007A /* InsightsYearGraphView.swift */,
+				A11E00012F6100010000007C /* InsightsBarGraphs.swift */,
+				A11E00012F6100010000007E /* InsightsChartChrome.swift */,
+			);
+			path = Insights;
+			sourceTree = "<group>";
+		};
+		A11E00012F6100010000008F /* Budget */ = {
+			isa = PBXGroup;
+			children = (
+				5327D2D3287C6B5E00F76ADF /* BudgetView.swift */,
+				A11E00012F61000100000081 /* MainBudgetView.swift */,
+				A11E00012F61000100000083 /* SingleBudgetView.swift */,
+				A11E00012F61000100000085 /* BudgetDollarViews.swift */,
+				A11E00012F61000100000087 /* DeleteBudgetAlerts.swift */,
+				A11E00012F61000100000089 /* DetailedBudgetView.swift */,
+				A11E00012F6100010000008B /* TimeBudgetView.swift */,
+				A11E00012F6100010000008D /* BudgetGraphs.swift */,
+			);
+			path = Budget;
+			sourceTree = "<group>";
+		};
+		A11E00012F610001000000A0 /* Category */ = {
+			isa = PBXGroup;
+			children = (
+				5327D2CD287C6B5E00F76ADF /* CategoryView.swift */,
+				A11E00012F61000100000090 /* CategoryListView.swift */,
+				A11E00012F61000100000092 /* NewCategoryAlert.swift */,
+				A11E00012F61000100000094 /* EditCategoryAlert.swift */,
+				A11E00012F61000100000096 /* DeleteCategoryAlert.swift */,
+				A11E00012F61000100000098 /* SuggestedCategoriesView.swift */,
+				A11E00012F6100010000009A /* CategoryTextFields.swift */,
+				A11E00012F6100010000009C /* ColourPickerView.swift */,
+				A11E00012F6100010000009E /* OpenAICompletions.swift */,
+			);
+			path = Category;
+			sourceTree = "<group>";
+		};
 		5327D298287C69B800F76ADF /* Views */ = {
 			isa = PBXGroup;
 			children = (
 				53D6BDC62AF73B1D00F5728E /* Settings */,
 				53B907972AE817D50001F496 /* Shapes */,
-				5327D2CD287C6B5E00F76ADF /* CategoryView.swift */,
+				A11E00012F610001000000A0 /* Category */,
 				53A4147628B3B559008C30E7 /* WelcomeSheetView.swift */,
 				A11E00012F6100010000002C /* Transaction */,
 				53D2506F2AA6331600016013 /* TemplateTransactionView.swift */,
@@ -682,8 +775,8 @@
 				5327D2D0287C6B5E00F76ADF /* HomeView.swift */,
 				A11E00012F61000100000013 /* Log */,
 				536CC385293106180081E401 /* LineGraph.swift */,
-				5327D2D4287C6B5E00F76ADF /* InsightsView.swift */,
-				5327D2D3287C6B5E00F76ADF /* BudgetView.swift */,
+				A11E00012F61000100000080 /* Insights */,
+				A11E00012F6100010000008F /* Budget */,
 				532C58BB2A629C3900DA2C81 /* NewBudgetView.swift */,
 				5327D2D5287C6B5E00F76ADF /* CustomTabBar.swift */,
 				5358E9162AC86DA1003E8CA9 /* SingleTransactionPhotoView.swift */,
@@ -1285,6 +1378,29 @@
 				53D6BDD22AF73C5D00F5728E /* SettingsNotificationView.swift in Sources */,
 				53A4147928B6625D008C30E7 /* AppDelegate.swift in Sources */,
 				5327D2DD287C6B5F00F76ADF /* InsightsView.swift in Sources */,
+				A11E00012F61000100000071 /* InsightsPieChart.swift in Sources */,
+				A11E00012F61000100000073 /* InsightsFilteredViews.swift in Sources */,
+				A11E00012F61000100000075 /* InsightsSingleGraphView.swift in Sources */,
+				A11E00012F61000100000077 /* InsightsWeekGraphView.swift in Sources */,
+				A11E00012F61000100000079 /* InsightsMonthGraphView.swift in Sources */,
+				A11E00012F6100010000007B /* InsightsYearGraphView.swift in Sources */,
+				A11E00012F6100010000007D /* InsightsBarGraphs.swift in Sources */,
+				A11E00012F6100010000007F /* InsightsChartChrome.swift in Sources */,
+				A11E00012F61000100000082 /* MainBudgetView.swift in Sources */,
+				A11E00012F61000100000084 /* SingleBudgetView.swift in Sources */,
+				A11E00012F61000100000086 /* BudgetDollarViews.swift in Sources */,
+				A11E00012F61000100000088 /* DeleteBudgetAlerts.swift in Sources */,
+				A11E00012F6100010000008A /* DetailedBudgetView.swift in Sources */,
+				A11E00012F6100010000008C /* TimeBudgetView.swift in Sources */,
+				A11E00012F6100010000008E /* BudgetGraphs.swift in Sources */,
+				A11E00012F61000100000091 /* CategoryListView.swift in Sources */,
+				A11E00012F61000100000093 /* NewCategoryAlert.swift in Sources */,
+				A11E00012F61000100000095 /* EditCategoryAlert.swift in Sources */,
+				A11E00012F61000100000097 /* DeleteCategoryAlert.swift in Sources */,
+				A11E00012F61000100000099 /* SuggestedCategoriesView.swift in Sources */,
+				A11E00012F6100010000009B /* CategoryTextFields.swift in Sources */,
+				A11E00012F6100010000009D /* ColourPickerView.swift in Sources */,
+				A11E00012F6100010000009F /* OpenAICompletions.swift in Sources */,
 				ADE7417BD657A4D4338365AE /* DataControllerPlatformAdapter.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

@@ -261,8 +261,8 @@ final class AnalyticsSnapshotTests: XCTestCase {
         XCTAssertTrue(presentation.contains(".accessibilityHidden(model.value(for: key) == nil)"))
         let viewSources = [
             "LogView": "LittleSaver/Views/Log/LogView.swift",
-            "InsightsView": "LittleSaver/Views/InsightsView.swift",
-            "BudgetView": "LittleSaver/Views/BudgetView.swift",
+            "InsightsView": "LittleSaver/Views/Insights/InsightsView.swift",
+            "BudgetView": "LittleSaver/Views/Budget/BudgetView.swift",
         ]
         for (name, path) in viewSources {
             let source = try String(contentsOf: app.appendingPathComponent(path))
