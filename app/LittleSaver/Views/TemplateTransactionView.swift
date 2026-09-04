@@ -6,11 +6,9 @@
 //
 
 import LittleSaverCore
-import Combine
 import Foundation
 import Popovers
 import SwiftUI
-import WidgetKit
 
 struct TemplateTransactionView: View {
     @Environment(\.managedObjectContext) var moc
@@ -18,8 +16,6 @@ struct TemplateTransactionView: View {
     @Environment(\.dismiss) var dismiss
 
     @AppStorage("numberEntryType", store: UserDefaults(suiteName: AppIdentifiers.appGroup)) var numberEntryType: Int = 1
-
-    @Environment(\.colorScheme) var colorScheme
 
     @AppStorage("topEdge", store: UserDefaults(suiteName: AppIdentifiers.appGroup)) var topEdge: Double = 30
 
@@ -29,14 +25,6 @@ struct TemplateTransactionView: View {
     @State private var repeatCoefficient = 1
     @State private var showRecurring = false
     @State var income = false
-
-    var transactionTypeString: String {
-        if income {
-            return String(localized: "Income")
-        } else {
-            return String(localized: "Expense")
-        }
-    }
 
     @State private var numbers: [Int] = [0, 0, 0]
     @State private var numbers1: [String] = []
@@ -77,18 +65,11 @@ struct TemplateTransactionView: View {
         return Locale.current.localizedCurrencySymbol(forCurrencyCode: currency)!
     }
 
-    @State var showingCategoryView = false
-
     // toasts
     @State var showToast = false
     @State var toastTitle = ""
     @State var toastImage = ""
 
-    @ObservedObject var keyboardHeightHelper = KeyboardHeightHelper()
-
-    @AppStorage("firstTransactionViewLaunch", store: UserDefaults(suiteName: AppIdentifiers.appGroup)) var firstLaunch: Bool = true
-
-    // edit mode
     let toEdit: TemplateTransaction?
 
     // delete mode
@@ -465,7 +446,7 @@ struct TemplateTransactionView: View {
                         }
 
                     VStack(alignment: .leading, spacing: 1.5) {
-                        Text("Delete Expense?")
+                        Text(income ? String(localized: "Delete Income?") : String(localized: "Delete Expense?"))
                             .font(.system(size: 20, weight: .medium, design: .rounded))
                             .foregroundColor(.PrimaryText)
 
@@ -482,6 +463,8 @@ struct TemplateTransactionView: View {
                             }, success: {
                                 deleteMode = false
                                 dismiss()
+                            }, failure: { error in
+                                MutationPresentation.show(error)
                             })
 
                         } label: {
@@ -676,6 +659,8 @@ struct TemplateTransactionView: View {
         }, success: {
             generator.notificationOccurred(.success)
             dismiss()
+        }, failure: { error in
+            MutationPresentation.show(error)
         })
     }
 
@@ -690,18 +675,12 @@ struct TemplateTransactionView: View {
 
             if let unwrappedCategory = transaction.category {
                 _category = State(initialValue: unwrappedCategory)
-                print(unwrappedCategory.wrappedName)
-                print("FOUND IT")
-            } else {
-                print("CANNOT FIND")
             }
 
             _income = State(initialValue: transaction.income)
 
             _repeatType = State(initialValue: Int(transaction.recurringType))
             _repeatCoefficient = State(initialValue: Int(transaction.recurringCoefficient))
-
-            print("IM HERE")
         }
 
         self.order = order
@@ -710,20 +689,18 @@ struct TemplateTransactionView: View {
 }
 
 struct CategoryRowPickerView: View {
-    @FetchRequest(sortDescriptors: [SortDescriptor(\.order)], predicate: NSPredicate(format: "income = %d", false)) private var expenseCategories: FetchedResults<Category>
-    @FetchRequest(sortDescriptors: [SortDescriptor(\.order)], predicate: NSPredicate(format: "income = %d", true)) private var incomeCategories: FetchedResults<Category>
+    @Environment(\.ledgerMetadata) private var metadata
+    @Environment(\.managedObjectContext) private var context
 
     @Binding var selectedCategory: Category?
     @State var showCategorySheet = false
     let income: Bool
 
-    var empty: Bool {
-        if income {
-            return incomeCategories.isEmpty
-        } else {
-            return expenseCategories.isEmpty
-        }
+    private var categories: [Category] {
+        (metadata?.categories ?? []).filter { $0.income == income }.compactMap { presentationObject($0.id, in: context) }
     }
+
+    var empty: Bool { categories.isEmpty }
 
     var body: some View {
         HStack(spacing: 8) {
@@ -745,7 +722,7 @@ struct CategoryRowPickerView: View {
                         ScrollView(.horizontal, showsIndicators: false) {
                             ScrollViewReader { value in
                                 HStack(spacing: 8) {
-                                    ForEach(income ? incomeCategories : expenseCategories, id: \.self) { item in
+                                    ForEach(categories, id: \.objectID) { item in
                                         HStack(spacing: 5) {
                                             Text(item.wrappedEmoji)
                                                 .font(.system(size: 13))
@@ -772,15 +749,9 @@ struct CategoryRowPickerView: View {
                                         }
                                     }
                                 }
-                                .onChange(of: income) { newValue in
-                                    if newValue {
-                                        if let firstCategory = incomeCategories.first {
-                                            value.scrollTo(firstCategory.id, anchor: .leading)
-                                        }
-                                    } else {
-                                        if let firstCategory = expenseCategories.first {
-                                            value.scrollTo(firstCategory.id, anchor: .leading)
-                                        }
+                                .onChange(of: income) { _ in
+                                    if let firstCategory = categories.first {
+                                        value.scrollTo(firstCategory.id, anchor: .leading)
                                     }
                                 }
                                 .onAppear {
@@ -921,10 +892,6 @@ struct SettingsQuickAddWidgetDraggingView: View {
 
     @State var refreshID = UUID()
 
-    @FetchRequest(sortDescriptors: [
-        SortDescriptor(\.order)
-    ]) private var transactions: FetchedResults<TemplateTransaction>
-
     let columns = Array(repeating: GridItem(.fixed(100), spacing: 15), count: 2)
 
     var body: some View { content.modifier(MutationPendingModifier()) }
@@ -983,7 +950,6 @@ struct SettingsQuickAddWidgetDraggingView: View {
                     .onDrop(of: [.text], delegate: DropViewDelegate(grid: grid, gridData: gridData))
                     .onTapGesture {
                         selectedItem = grid
-                        print(grid.index)
                         lastSelectedIndex = grid.index
                     }
                 }

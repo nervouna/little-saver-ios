@@ -265,6 +265,7 @@ final class AnalyticsSnapshotTests: XCTestCase {
             "BudgetView": "LittleSaver/Views/Budget/BudgetView.swift",
             "TransactionView": "LittleSaver/Views/Transaction/TransactionView.swift",
             "TransactionCategoryPicker": "LittleSaver/Components/Transactions/TransactionCategoryPicker.swift",
+            "TemplateTransactionView": "LittleSaver/Views/TemplateTransactionView.swift",
         ]
         for (name, path) in viewSources {
             let source = try String(contentsOf: app.appendingPathComponent(path))
