@@ -59,6 +59,12 @@
 		5327D2CB287C6B4700F76ADF /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5327D2CA287C6B4700F76ADF /* ContentView.swift */; };
 		5327D2D6287C6B5E00F76ADF /* CategoryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5327D2CD287C6B5E00F76ADF /* CategoryView.swift */; };
 		5327D2D7287C6B5F00F76ADF /* TransactionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5327D2CE287C6B5E00F76ADF /* TransactionView.swift */; };
+		A11E00012F61000100000021 /* FilteredSearchNewTransactionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A11E00012F61000100000020 /* FilteredSearchNewTransactionView.swift */; };
+		A11E00012F61000100000023 /* CategoryPickerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A11E00012F61000100000022 /* CategoryPickerView.swift */; };
+		A11E00012F61000100000025 /* NoteView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A11E00012F61000100000024 /* NoteView.swift */; };
+		A11E00012F61000100000027 /* RecurringPickerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A11E00012F61000100000026 /* RecurringPickerView.swift */; };
+		A11E00012F61000100000029 /* ButtonView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A11E00012F61000100000028 /* ButtonView.swift */; };
+		A11E00012F6100010000002B /* NumPadButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = A11E00012F6100010000002A /* NumPadButton.swift */; };
 		5327D2D8287C6B5F00F76ADF /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5327D2CF287C6B5E00F76ADF /* SettingsView.swift */; };
 		5327D2D9287C6B5F00F76ADF /* HomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5327D2D0287C6B5E00F76ADF /* HomeView.swift */; };
 		5327D2DB287C6B5F00F76ADF /* LogView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5327D2D2287C6B5E00F76ADF /* LogView.swift */; };
@@ -323,6 +329,12 @@
 		5327D2CA287C6B4700F76ADF /* ContentView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		5327D2CD287C6B5E00F76ADF /* CategoryView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = CategoryView.swift; sourceTree = "<group>"; };
 		5327D2CE287C6B5E00F76ADF /* TransactionView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = TransactionView.swift; sourceTree = "<group>"; };
+		A11E00012F61000100000020 /* FilteredSearchNewTransactionView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = FilteredSearchNewTransactionView.swift; sourceTree = "<group>"; };
+		A11E00012F61000100000022 /* CategoryPickerView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = CategoryPickerView.swift; sourceTree = "<group>"; };
+		A11E00012F61000100000024 /* NoteView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = NoteView.swift; sourceTree = "<group>"; };
+		A11E00012F61000100000026 /* RecurringPickerView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = RecurringPickerView.swift; sourceTree = "<group>"; };
+		A11E00012F61000100000028 /* ButtonView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ButtonView.swift; sourceTree = "<group>"; };
+		A11E00012F6100010000002A /* NumPadButton.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = NumPadButton.swift; sourceTree = "<group>"; };
 		5327D2CF287C6B5E00F76ADF /* SettingsView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		5327D2D0287C6B5E00F76ADF /* HomeView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = HomeView.swift; sourceTree = "<group>"; };
 		5327D2D2287C6B5E00F76ADF /* LogView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = LogView.swift; sourceTree = "<group>"; };
@@ -644,6 +656,19 @@
 			path = Log;
 			sourceTree = "<group>";
 		};
+		A11E00012F6100010000002C /* Transaction */ = {
+			isa = PBXGroup;
+			children = (
+				5327D2CE287C6B5E00F76ADF /* TransactionView.swift */,
+				A11E00012F61000100000020 /* FilteredSearchNewTransactionView.swift */,
+				A11E00012F61000100000022 /* CategoryPickerView.swift */,
+				A11E00012F61000100000024 /* NoteView.swift */,
+				A11E00012F61000100000026 /* RecurringPickerView.swift */,
+				A11E00012F61000100000028 /* ButtonView.swift */,
+			);
+			path = Transaction;
+			sourceTree = "<group>";
+		};
 		5327D298287C69B800F76ADF /* Views */ = {
 			isa = PBXGroup;
 			children = (
@@ -651,7 +676,7 @@
 				53B907972AE817D50001F496 /* Shapes */,
 				5327D2CD287C6B5E00F76ADF /* CategoryView.swift */,
 				53A4147628B3B559008C30E7 /* WelcomeSheetView.swift */,
-				5327D2CE287C6B5E00F76ADF /* TransactionView.swift */,
+				A11E00012F6100010000002C /* Transaction */,
 				53D2506F2AA6331600016013 /* TemplateTransactionView.swift */,
 				5362CF312A92750800244744 /* ImportDataView.swift */,
 				5327D2D0287C6B5E00F76ADF /* HomeView.swift */,
@@ -821,6 +846,7 @@
 			children = (
 				AECE7F9D2AED1A6800B57267 /* SuggestedTransactions.swift */,
 				AE5B3D782AEE99E000AB364E /* NumberPad.swift */,
+				A11E00012F6100010000002A /* NumPadButton.swift */,
 				53E832E62B0B067B000CBBA0 /* TransactionCategoryPicker.swift */,
 			);
 			path = Transactions;
@@ -1210,6 +1236,12 @@
 				5327D2DC287C6B5F00F76ADF /* BudgetView.swift in Sources */,
 				5327D2DE287C6B5F00F76ADF /* CustomTabBar.swift in Sources */,
 				5327D2D7287C6B5F00F76ADF /* TransactionView.swift in Sources */,
+				A11E00012F61000100000021 /* FilteredSearchNewTransactionView.swift in Sources */,
+				A11E00012F61000100000023 /* CategoryPickerView.swift in Sources */,
+				A11E00012F61000100000025 /* NoteView.swift in Sources */,
+				A11E00012F61000100000027 /* RecurringPickerView.swift in Sources */,
+				A11E00012F61000100000029 /* ButtonView.swift in Sources */,
+				A11E00012F6100010000002B /* NumPadButton.swift in Sources */,
 				53D6BDDA2AF73DE900F5728E /* SettingsCloudView.swift in Sources */,
 				53D250702AA6331600016013 /* TemplateTransactionView.swift in Sources */,
 				53D6BDDF2AF73EF100F5728E /* SettingsHapticsView.swift in Sources */,
