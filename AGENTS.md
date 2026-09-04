@@ -13,7 +13,7 @@ See `docs/schema-and-platform-policy.md`.
 
 ## Product work
 
-- Next work is the UI surface, not persistence. Split `LogView` first, then `TransactionView`. Do not use a view split as cover for ledger changes.
+- The ledger is frozen. `TransactionView` reads categories from ledger metadata, not `@FetchRequest`. Do not put live fetches back on the recording path. Do not use a view split as cover for ledger changes.
 - Keep GPL attribution: Rafael Soh / Dime in LICENSE, README, and Settings.
 
 ## Git

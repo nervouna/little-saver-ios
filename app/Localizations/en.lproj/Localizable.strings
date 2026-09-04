@@ -81,6 +81,7 @@
 "months" = "months";
 "Edit" = "Edit";
 "Delete Expense?" = "Delete Expense?";
+"Delete Income?" = "Delete Income?";
 "Missing Amount" = "Missing Amount";
 "Missing Category" = "Missing Category";
 "transaction-view-income-picker" = "Income";
@@ -528,6 +529,10 @@
 "This transaction cannot be restored because its schedule has changed." = "This transaction cannot be restored because its schedule has changed.";
 "Another change is being saved. Please try again." = "Another change is being saved. Please try again.";
 "Unable to Save" = "Unable to Save";
+"Category not found" = "Category not found";
+"Couldn't save to CoreData" = "Couldn't save to CoreData";
+"An unknown error occurred: %@" = "An unknown error occurred: %@";
+"No category with an ID matching: %@" = "No category with an ID matching: %@";
 "OK" = "OK";
 "Date unavailable" = "Date unavailable";
 "Amount unavailable" = "Amount unavailable";

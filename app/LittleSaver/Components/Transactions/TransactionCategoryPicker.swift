@@ -13,8 +13,14 @@ struct NewCategoryPickerView: View {
     @Binding var category: Category?
     @Binding var showPicker: Bool
     @Binding var showingCategoryView: Bool
-    @FetchRequest private var categories: FetchedResults<Category>
+    @Environment(\.ledgerMetadata) private var metadata
+    @Environment(\.managedObjectContext) private var context
     @Environment(\.colorScheme) var colorScheme
+    let income: Bool
+
+    private var categories: [Category] {
+        (metadata?.categories ?? []).filter { $0.income == income }.compactMap { presentationObject($0.id, in: context) }
+    }
 
     let layout = [
         GridItem(.flexible(), spacing: 10),
@@ -24,7 +30,7 @@ struct NewCategoryPickerView: View {
     var body: some View {
         ScrollView(showsIndicators: false) {
             LazyVGrid(columns: layout, spacing: 10) {
-                ForEach(categories) { item in
+                ForEach(categories, id: \.objectID) { item in
                     HStack(spacing: 7) {
                         Text(item.wrappedEmoji)
                             .font(.system(.subheadline, design: .rounded))
@@ -106,13 +112,9 @@ struct NewCategoryPickerView: View {
         category: Binding<Category?>?, showPicker: Binding<Bool>, showSheet: Binding<Bool>,
         income: Bool
     ) {
-        _categories = FetchRequest<Category>(
-            sortDescriptors: [
-                SortDescriptor(\.order, order: .reverse)
-            ], predicate: NSPredicate(format: "income = %d", income))
-
         _category = category ?? Binding.constant(nil)
         _showPicker = showPicker
         _showingCategoryView = showSheet
+        self.income = income
     }
 }

@@ -6,24 +6,22 @@
 //
 
 import LittleSaverCore
-import Combine
 import Foundation
 import Popovers
 import SwiftUI
 
 struct TransactionView: View {
-    @FetchRequest(sortDescriptors: [], predicate: NSPredicate(format: "income = %d", false)) private
-    var expenseCategories: FetchedResults<Category>
-    @FetchRequest(sortDescriptors: [], predicate: NSPredicate(format: "income = %d", true)) private
-    var incomeCategories: FetchedResults<Category>
-
+    @Environment(\.ledgerMetadata) private var metadata
     @Environment(\.managedObjectContext) var moc
     @EnvironmentObject var dataController: DataController
     @Environment(\.dismiss) var dismiss
 
-    @Environment(\.colorScheme) var colorScheme
     var boldText: Bool {
         UIAccessibility.isBoldTextEnabled
+    }
+
+    private var visibleCategories: [Category] {
+        (metadata?.categories ?? []).filter { $0.income == income }.compactMap { presentationObject($0.id, in: moc) }
     }
 
     @AppStorage("topEdge", store: UserDefaults(suiteName: AppIdentifiers.appGroup)) var topEdge:
@@ -37,24 +35,12 @@ struct TransactionView: View {
     @State private var showRecurring = false
     @State var income = false
 
-    var transactionTypeString: String {
-        if income {
-            return String(localized: "Income")
-        } else {
-            return String(localized: "Expense")
-        }
-    }
-
     @State var showCategoryPicker = false
     @State var showCategorySheet = false
 
     @AppStorage("currency", store: UserDefaults(suiteName: AppIdentifiers.appGroup)) var currency: String = Locale.current.currencyCode!
-    var currencySymbol: String {
-        return Locale.current.localizedCurrencySymbol(forCurrencyCode: currency)!
-    }
 
     @State var showingDatePicker = false
-    @State var showingCategoryView = false
 
     // toasts
     @State var showToast = false
@@ -67,16 +53,8 @@ struct TransactionView: View {
     @State var categoryButtonOutlineColor = Color.Outline
     @State var shake: Bool = false
 
-    @ObservedObject var keyboardHeightHelper = KeyboardHeightHelper()
-
-    @AppStorage(
-        "firstTransactionViewLaunch", store: UserDefaults(suiteName: AppIdentifiers.appGroup))
-    var firstLaunch: Bool = true
-
     // edit mode
     let toEdit: Transaction?
-
-    // delete mode
 
     @State var toDelete: Transaction?
     @State var deleteMode = false
@@ -87,7 +65,6 @@ struct TransactionView: View {
     @State private var offset: CGFloat = 0
 
     let repeatOverlays = ["D", "W", "M"]
-    let numberArray = [[1, 2, 3], [4, 5, 6], [7, 8, 9]]
 
     var repeatButtonAccessibility: String {
         if repeatType == 1 {
@@ -223,7 +200,6 @@ struct TransactionView: View {
     var numberEntryType: Int = 1
     @State var isEditingDecimal = false
     @State var decimalValuesAssigned: AssignedDecimal = .none
-    @State private var priceString: String = "0"
 
     var body: some View { content.modifier(MutationPendingModifier()) }
 
@@ -547,7 +523,7 @@ struct TransactionView: View {
                             showingDatePicker = true
                         }
 
-                        if (expenseCategories.count == 0 && !income) || (incomeCategories.count == 0 && income) {
+                        if visibleCategories.isEmpty {
                             HStack(spacing: 4) {
                                 Image(systemName: "plus")
                                     .font(.system(.subheadline, design: .rounded).weight(.semibold))
@@ -739,7 +715,7 @@ struct TransactionView: View {
                         }
 
                     VStack(alignment: .leading, spacing: 1.5) {
-                        Text("Delete Expense?")
+                        Text(income ? String(localized: "Delete Income?") : String(localized: "Delete Expense?"))
                             .font(.system(size: 20, weight: .medium, design: .rounded))
                             .foregroundColor(.PrimaryText)
 
@@ -756,6 +732,8 @@ struct TransactionView: View {
                             }, success: { _ in
                                 deleteMode = false
                                 dismiss()
+                            }, failure: { error in
+                                MutationPresentation.show(error)
                             })
 
                         } label: {

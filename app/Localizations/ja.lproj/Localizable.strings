@@ -13,6 +13,10 @@
 "This transaction cannot be restored because its schedule has changed." = "繰り返しの予定が変更されたため、この取引を復元できません。";
 "Another change is being saved. Please try again." = "別の変更を保存中です。しばらくしてから再試行してください。";
 "Unable to Save" = "保存できません";
+"Category not found" = "カテゴリーが見つかりません";
+"Couldn't save to CoreData" = "データを保存できませんでした";
+"An unknown error occurred: %@" = "不明なエラーが発生しました: %@";
+"No category with an ID matching: %@" = "ID %@ に一致するカテゴリーはありません";
 "OK" = "OK";
 
 // カテゴリー
@@ -78,6 +82,7 @@
 "months" = "か月";
 "Edit" = "編集";
 "Delete Expense?" = "この支出を削除しますか？";
+"Delete Income?" = "この収入を削除しますか？";
 "Missing Amount" = "金額がありません";
 "Missing Category" = "カテゴリーがありません";
 "transaction-view-income-picker" = "収入";

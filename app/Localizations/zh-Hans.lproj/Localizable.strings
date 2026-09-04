@@ -13,6 +13,10 @@
 "This transaction cannot be restored because its schedule has changed." = "此交易的重复计划已更改，无法撤销删除。";
 "Another change is being saved. Please try again." = "另一项更改正在保存，请稍后重试。";
 "Unable to Save" = "无法保存";
+"Category not found" = "找不到分类";
+"Couldn't save to CoreData" = "无法保存到数据库";
+"An unknown error occurred: %@" = "发生未知错误：%@";
+"No category with an ID matching: %@" = "没有与 ID %@ 匹配的分类";
 "OK" = "好";
 
 // 分类
@@ -78,6 +82,7 @@
 "months" = "个月";
 "Edit" = "编辑";
 "Delete Expense?" = "删除这笔支出？";
+"Delete Income?" = "删除这笔收入？";
 "Missing Amount" = "缺少金额";
 "Missing Category" = "缺少分类";
 "transaction-view-income-picker" = "收入";

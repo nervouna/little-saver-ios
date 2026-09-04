@@ -10,11 +10,20 @@ import Foundation
 import Combine
 
 @available(iOS 16, *)
-public enum CustomError: Swift.Error, CustomLocalizedStringResourceConvertible {
+public enum CustomError: Swift.Error, LocalizedError, CustomLocalizedStringResourceConvertible {
     case notFound,
          coreDataSave,
          unknownId(id: String),
          unknownError(message: String)
+
+    public var errorDescription: String? {
+        switch self {
+        case let .unknownError(message): return String(localized: "An unknown error occurred: \(message)")
+        case let .unknownId(id): return String(localized: "No category with an ID matching: \(id)")
+        case .notFound: return String(localized: "Category not found")
+        case .coreDataSave: return String(localized: "Couldn't save to CoreData")
+        }
+    }
 
     public var localizedStringResource: LocalizedStringResource {
         switch self {

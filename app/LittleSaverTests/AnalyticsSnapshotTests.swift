@@ -263,10 +263,13 @@ final class AnalyticsSnapshotTests: XCTestCase {
             "LogView": "LittleSaver/Views/Log/LogView.swift",
             "InsightsView": "LittleSaver/Views/Insights/InsightsView.swift",
             "BudgetView": "LittleSaver/Views/Budget/BudgetView.swift",
+            "TransactionView": "LittleSaver/Views/Transaction/TransactionView.swift",
+            "TransactionCategoryPicker": "LittleSaver/Components/Transactions/TransactionCategoryPicker.swift",
         ]
         for (name, path) in viewSources {
             let source = try String(contentsOf: app.appendingPathComponent(path))
             XCTAssertFalse(source.contains("FetchedResults<Transaction>"), name)
+            XCTAssertFalse(source.contains("@FetchRequest"), name)
             XCTAssertFalse(source.contains("NSManagedObjectContextDidSave"), name)
             XCTAssertFalse(source.contains("getLogViewTotal"), name)
             XCTAssertFalse(source.contains("getInsights("), name)

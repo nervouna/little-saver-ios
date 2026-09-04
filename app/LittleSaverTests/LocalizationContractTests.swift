@@ -14,7 +14,7 @@ final class LocalizationContractTests: XCTestCase {
         }
         let referenceKeys = Set(tables[0].1.keys)
 
-        XCTAssertEqual(referenceKeys.count, 511, "Unexpected Localizable.strings baseline key count")
+        XCTAssertEqual(referenceKeys.count, 516, "Unexpected Localizable.strings baseline key count")
         let englishTable = tables[0].1
         for (locale, table) in tables {
             XCTAssertEqual(Set(table.keys), referenceKeys, "Localizable.strings keys differ for \(locale)")
@@ -133,6 +133,10 @@ final class LocalizationContractTests: XCTestCase {
             "Unsupported bundle identifier: %@",
             "The App Group container is unavailable: %@",
             "The managed object model is unavailable: %@",
+            "Category not found",
+            "Couldn't save to CoreData",
+            "An unknown error occurred: %@",
+            "No category with an ID matching: %@",
         ]
 
         for locale in supportedLocalizations {
