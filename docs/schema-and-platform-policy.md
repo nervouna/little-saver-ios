@@ -2,6 +2,10 @@
 
 ## Persistence and CloudKit
 
+`LittleSaverV1` is frozen for this development cycle. Do not add identity, generation, token,
+suppression, or reconciliation fields. Later model changes are only for real product fields, and
+must stay CloudKit-additive: existing entity and attribute names and types stay as they are.
+
 `LittleSaverCore` owns the model and persistence lifecycle. `LittleSaverDevelopmentV0` is the
 exact historical development model; do not rewrite it. `LittleSaverV1` is its additive,
 CloudKit-compatible successor. Preserve migration/reopen tests whenever changing the model.
